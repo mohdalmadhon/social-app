@@ -459,3 +459,4 @@ func UserIN(db *sql.DB, groupID, userID int) (bool, error) {
 
 	return exists, nil
 }
+

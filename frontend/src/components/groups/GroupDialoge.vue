@@ -1,59 +1,97 @@
 <script setup>
 import { reactive, ref, watch } from 'vue';
 
+import PostContentForm from '@/components/addPost/PostContentForm.vue';
+import ImageContainer from '@/components/addPost/ImageContainer.vue';
+import TagPeople from '@/components/addPost/TagPeople.vue';
+import LocationPicker from '@/components/addPost/LocationPicker.vue';
+
 import { addNotification } from '@/data/notifications';
-import AvatarPicker from './AvatarPicker.vue';
-import AddMembers from './AddMembers.vue';
-import { sendWS } from '@/api/socket/socket.js';
+import { addGroupPost } from '@/api/posts/groups';
+import { sendWS } from '@/api/socket/socket';
 
 const props = defineProps({
     show: {
         type: Boolean,
         default: false
+    },
+    groupId: {
+        type: Number,
+        required: true
+    },
+    groupTitle: {
+        type: String,
+        default: ''
     }
 });
 
 const emit = defineEmits(['close', 'created']);
 
-const NAME_LIMIT = 15;
-const DESCRIPTION_LIMIT = 200;
 const totalSlides = 3;
 
-const group = reactive({
-    name: '',
-    description: '',
-    avatar: null,
-    members: []
+const post = reactive({
+    content: '',
+    location: '',
+    taggedPeople: [],
+    image: null
 });
 
 const currentSlide = ref(1);
-const submitting = ref(false);
+const posting = ref(false);
 
 const validation = ref({
     field: null,
     message: null
 });
 
-function validateGroup() {
-    if (!group.name.trim()) {
+function resetPost() {
+    post.content = '';
+    post.location = '';
+    post.taggedPeople = [];
+    post.image = null;
+
+    currentSlide.value = 1;
+
+    validation.value = {
+        field: null,
+        message: null
+    };
+}
+
+watch(
+    post,
+    () => {
+        validation.value = validatePost();
+    },
+    { deep: true }
+);
+
+function validatePost() {
+    if (!post.content.trim()) {
         return {
-            field: 'name',
-            message: 'group name is required'
+            field: 'content',
+            message: 'Post content is required'
         };
     }
 
-    if (group.name.length > NAME_LIMIT) {
+    if (post.content.length > 1000) {
         return {
-            field: 'name',
-            message: `group name must be ${NAME_LIMIT} characters or fewer`
+            field: 'content',
+            message: 'Post content cannot exceed 1000 characters'
         };
     }
 
-    if (group.description.length > DESCRIPTION_LIMIT) {
-        return {
-            field: 'description',
-            message: `description must be ${DESCRIPTION_LIMIT} characters or fewer`
-        };
+    if (post.taggedPeople.length > 0) {
+        const invalidTag = post.taggedPeople.some(
+            person => !person.id
+        );
+
+        if (invalidTag) {
+            return {
+                field: 'tags',
+                message: 'Invalid tagged person'
+            };
+        }
     }
 
     return {
@@ -62,22 +100,18 @@ function validateGroup() {
     };
 }
 
-watch(
-    group,
-    () => {
-        validation.value = validateGroup();
-    },
-    { deep: true }
-);
-
 function nextSlide() {
-    if (currentSlide.value === 1 && validation.value.field) {
-        addNotification(validation.value.message, 'error');
+    const result = validatePost();
+
+    if (result.field) {
+        validation.value = result;
+        addNotification(result.message, 'error');
         return;
     }
 
     if (currentSlide.value < totalSlides) {
         currentSlide.value++;
+
         validation.value = {
             field: null,
             message: null
@@ -88,6 +122,7 @@ function nextSlide() {
 function previousSlide() {
     if (currentSlide.value > 1) {
         currentSlide.value--;
+
         validation.value = {
             field: null,
             message: null
@@ -95,169 +130,145 @@ function previousSlide() {
     }
 }
 
-function resetForm() {
-    currentSlide.value = 1;
-    group.name = '';
-    group.description = '';
-    group.avatar = null;
-    group.members = [];
-    validation.value = {
-        field: null,
-        message: null
-    };
-    submitting.value = false;
-}
-
 function closeDialog() {
-    emit('close');
-    resetForm();
-}
-
-function handleOverlayClick() {
-    if (!submitting.value) {
-        closeDialog();
+    if (posting.value) {
+        return;
     }
+
+    emit('close');
+    resetPost();
 }
 
 async function handleSubmit() {
-    const validationResult = validateGroup();
+    const result = validatePost();
 
-    if (validationResult.field) {
-        validation.value = validationResult;
-        addNotification(validationResult.message, 'error');
-        currentSlide.value = 1;
+    if (result.field) {
+        validation.value = result;
+        addNotification(result.message, 'error');
         return;
     }
 
-    if (submitting.value) {
+    if (!props.groupId) {
+        addNotification('Invalid group', 'error');
         return;
     }
 
-    submitting.value = true;
+    posting.value = true;
 
     try {
-        const formData = new FormData();
+        const data = {
+            content: post.content,
+            allowComments: 1,
+            groupID: props.groupId,
+            location: post.location || '',
+            taggedPeople: post.taggedPeople.map(
+                person => person.id
+            ),
+            image: post.image
+        };
 
-        formData.append('title', group.name.trim());
-        formData.append('description', group.description.trim());
-        formData.append(
-            'users',
-            JSON.stringify(group.members.map(member => member.id))
-        );
+        const result = await addGroupPost(data);
 
-        if (group.avatar) {
-            formData.append('avatar', group.avatar);
-        }
-
-        const response = await fetch('/api/groups', {
-            method: 'POST',
-            credentials: 'include',
-            body: formData
-        });
-
-        const result = await response.json();
-        console.log(result)
         if (!result.status) {
-            addNotification(result.message || 'could not create group', 'error');
+            addNotification(
+                result.message || 'Could not send post',
+                'error'
+            );
             return;
         }
 
+        addNotification('Post created!', 'success');
 
         sendWS({
-            type: "privateMessage/invite",
-            data: {
-                groupData: result.request.groupData,
-                users: result.request.usersIds
-            }
+            type: 'postGroup',
+            data: result.data.data
         });
-
-
-        addNotification('group created', 'success');
+        
         emit('created');
         closeDialog();
     } catch (err) {
-        addNotification(err.message || 'could not create group', 'error');
+        addNotification(
+            err.message || 'Could not send post',
+            'error'
+        );
     } finally {
-        submitting.value = false;
+        posting.value = false;
     }
 }
 </script>
 
 <template>
-    <div v-if="show" class="dialog-overlay" @click.self="handleOverlayClick">
-        <form class="create-group-card" @submit.prevent="handleSubmit">
-            <button class="close-button" type="button" :disabled="submitting" @click="closeDialog">
-                ×
-            </button>
+    <div v-if="show" class="post-modal-overlay" @click.self="closeDialog">
+        <form class="post-modal" @submit.prevent="handleSubmit">
+            <div class="modal-scroll">
+                <div class="modal-header">
+                    <div>
+                        <p class="eyebrow">
+                            GROUP POST
+                        </p>
 
-            <div class="progress">
-                <div v-for="slide in totalSlides" :key="slide" class="progress-step" :class="{
-                    active: slide === currentSlide,
-                    completed: slide < currentSlide
-                }">
-                    {{ slide }}
-                </div>
-            </div>
+                        <h1>
+                            Create post
+                        </h1>
 
-            <div class="slide-title">
-                <p class="slide-number">
-                    STEP {{ currentSlide }} / {{ totalSlides }}
-                </p>
+                        <p v-if="groupTitle" class="posting-to">
+                            Posting to <strong>{{ groupTitle }}</strong>
+                        </p>
+                    </div>
 
-                <h2 v-if="currentSlide === 1">
-                    Name & Description
-                </h2>
-
-                <h2 v-else-if="currentSlide === 2">
-                    Group Photo
-                </h2>
-
-                <h2 v-else>
-                    Add Members
-                </h2>
-            </div>
-
-            <div v-if="currentSlide === 1" class="slide">
-                <div class="field">
-                    <label>
-                        <strong>Group name</strong>
-                    </label>
-
-                    <label style="font-size: 8px;">
-                        {{ group.name.length }}/{{ NAME_LIMIT }} characters
-                    </label>
-
-                    <input v-model="group.name" type="text" name="title" maxlength="15" placeholder="goats">
+                    <button type="button" class="close-button" :disabled="posting" @click="closeDialog">
+                        ×
+                    </button>
                 </div>
 
-                <p v-if="validation.field === 'name'" class="validation-error">
-                    {{ validation.message }}
-                </p>
-
-                <div class="field">
-                    <label>
-                        <strong>Description</strong>
-                    </label>
-
-                    <label style="font-size: 8px;">
-                        {{ group.description.length }}/{{ DESCRIPTION_LIMIT }} characters
-                    </label>
-
-                    <textarea v-model="group.description" maxlength="200" rows="4" name="description"
-                        placeholder="What's this group about?"></textarea>
+                <div class="progress">
+                    <div v-for="slide in totalSlides" :key="slide" class="progress-step" :class="{
+                        active: slide === currentSlide,
+                        completed: slide < currentSlide
+                    }">
+                        {{ slide }}
+                    </div>
                 </div>
 
-                <p v-if="validation.field === 'description'" class="validation-error">
-                    {{ validation.message }}
-                </p>
-            </div>
+                <div class="slide-title">
+                    <p class="slide-number">
+                        STEP {{ currentSlide }} / {{ totalSlides }}
+                    </p>
 
-            <div v-else-if="currentSlide === 2" class="slide">
-                <AvatarPicker v-model="group.avatar" />
-            </div>
+                    <h2 v-if="currentSlide === 1">
+                        Content & Image
+                    </h2>
 
-            <div v-else class="slide">
-                <AddMembers v-model="group.members" />
+                    <h2 v-else-if="currentSlide === 2">
+                        Tag People
+                    </h2>
+
+                    <h2 v-else>
+                        Location
+                    </h2>
+                </div>
+
+                <div v-if="currentSlide === 1" class="slide">
+                    <PostContentForm v-model:description="post.content" />
+
+                    <p v-if="validation.field === 'content'" class="validation-error">
+                        {{ validation.message }}
+                    </p>
+
+                    <ImageContainer v-model="post.image" />
+                </div>
+
+                <div v-else-if="currentSlide === 2" class="slide">
+                    <TagPeople v-model="post.taggedPeople" />
+
+                    <p v-if="validation.field === 'tags'" class="validation-error">
+                        {{ validation.message }}
+                    </p>
+                </div>
+
+                <div v-else class="slide">
+                    <LocationPicker v-model="post.location" />
+                </div>
             </div>
 
             <div class="navigation-buttons">
@@ -269,8 +280,8 @@ async function handleSubmit() {
                     Next
                 </button>
 
-                <button v-else class="submit-button" type="submit" :disabled="submitting">
-                    {{ submitting ? 'Creating...' : 'Create group' }}
+                <button v-else class="submit-button" type="submit" :disabled="posting">
+                    {{ posting ? 'Posting...' : 'Post' }}
                 </button>
             </div>
         </form>
@@ -278,73 +289,82 @@ async function handleSubmit() {
 </template>
 
 <style scoped>
-.dialog-overlay {
+.post-modal-overlay {
     position: fixed;
     inset: 0;
-    z-index: 100;
-
+    z-index: 1000;
     display: flex;
     align-items: center;
     justify-content: center;
-
-    padding: 20px;
-
-    background: rgba(50, 50, 50, 0.5);
+    padding: 30px;
+    background: rgba(0, 0, 0, 0.55);
+    overflow-y: auto;
 }
 
-.create-group-card {
-    position: relative;
-
+.post-modal {
     width: 100%;
-    max-width: 480px;
-    max-height: calc(100vh - 40px);
-    overflow-y: auto;
-
+    max-width: 700px;
+    max-height: calc(100vh - 60px);
     display: flex;
     flex-direction: column;
-    gap: 20px;
-
-    padding: 32px 34px;
-    box-sizing: border-box;
-
     border: 2px solid var(--main-color);
     border-radius: 7px;
-
     background: var(--bg-color);
     box-shadow: 6px 6px var(--main-color);
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.modal-scroll {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+    padding: 35px 40px;
+}
+
+.modal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+}
+
+.modal-header h1 {
+    margin: 0;
+    font-family: "Liter", serif;
+    font-size: 30px;
+}
+
+.posting-to {
+    margin: 6px 0 0;
+    color: var(--font-color-sub);
+    font-size: 12px;
+}
+
+.posting-to strong {
+    color: var(--font-color);
 }
 
 .close-button {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-
-    width: 28px;
-    height: 28px;
-
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
     display: flex;
     align-items: center;
     justify-content: center;
-
     border: 2px solid var(--main-color);
     border-radius: 50%;
-
     background: var(--bg-color);
     color: var(--main-color);
-
-    font-family: "JetBrains Mono", monospace;
-    font-size: 15px;
+    font-size: 20px;
     line-height: 1;
-
-    transition:
-        transform 0.1s,
-        background 0.15s,
-        color 0.15s;
+    cursor: pointer;
 }
 
 .close-button:hover:not(:disabled) {
-    background: var(--main-color);
-    color: var(--bg-color);
+    background: var(--input-focus);
+    color: white;
 }
 
 .close-button:disabled {
@@ -386,7 +406,7 @@ async function handleSubmit() {
 
 .slide-title {
     border-bottom: 2px solid var(--main-color);
-    padding-bottom: 16px;
+    padding-bottom: 18px;
 }
 
 .slide-number {
@@ -400,54 +420,14 @@ async function handleSubmit() {
 .slide-title h2 {
     margin: 0;
     font-family: "Liter", serif;
-    font-size: 22px;
+    font-size: 27px;
 }
 
 .slide {
-    min-height: 200px;
+    min-height: 250px;
     display: flex;
     flex-direction: column;
-    gap: 18px;
-}
-
-.field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.field label {
-    color: var(--font-color-sub);
-    font-family: "JetBrains Mono", monospace;
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-}
-
-.field input,
-.field textarea {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 12px 14px;
-    border: 2px solid var(--main-color);
-    border-radius: 5px;
-    outline: none;
-    background: var(--bg-color);
-    color: var(--font-color);
-    font-family: "Hedvig Letters Sans", sans-serif;
-    font-size: 14px;
-    transition: box-shadow 0.15s ease;
-}
-
-.field textarea {
-    resize: none;
-    line-height: 1.5;
-}
-
-.field input:focus,
-.field textarea:focus {
-    box-shadow: 3px 3px var(--main-color);
+    gap: 22px;
 }
 
 .validation-error {
@@ -459,29 +439,29 @@ async function handleSubmit() {
 }
 
 .navigation-buttons {
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 15px;
+    padding: 18px 40px;
+    border-top: 2px solid var(--main-color);
+    background: var(--bg-color);
 }
 
 .previous-button,
 .next-button,
 .submit-button {
-    padding: 12px 26px;
+    padding: 13px 30px;
     border: 2px solid var(--main-color);
     border-radius: 6px;
     font-family: "JetBrains Mono", monospace;
     font-size: 11px;
     font-weight: 700;
-    transition: transform 0.1s ease, box-shadow 0.1s ease;
-}
-
-.previous-button:disabled,
-.next-button:disabled,
-.submit-button:disabled {
-    opacity: 0.6;
-    cursor: default;
+    cursor: pointer;
+    transition:
+        transform 0.1s ease,
+        box-shadow 0.1s ease;
 }
 
 .previous-button {
@@ -512,20 +492,52 @@ async function handleSubmit() {
     box-shadow: 2px 2px var(--main-color);
 }
 
+.submit-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+@media (max-width: 800px) {
+    .post-modal-overlay {
+        padding: 15px;
+    }
+
+    .post-modal {
+        max-height: calc(100vh - 30px);
+    }
+
+    .modal-scroll {
+        padding: 28px 24px;
+    }
+
+    .navigation-buttons {
+        padding: 16px 24px;
+    }
+}
+
 @media (max-width: 550px) {
-    .create-group-card {
-        padding: 26px 20px;
+    .post-modal {
         border-radius: 12px;
-        gap: 16px;
+    }
+
+    .modal-scroll {
+        padding: 25px 20px;
+    }
+
+    .navigation-buttons {
+        padding: 14px 20px;
+    }
+
+    .modal-header h1 {
+        font-size: 26px;
     }
 
     .slide-title h2 {
-        font-size: 19px;
+        font-size: 23px;
     }
 
     .navigation-buttons {
         flex-direction: column-reverse;
-        gap: 10px;
     }
 
     .previous-button,

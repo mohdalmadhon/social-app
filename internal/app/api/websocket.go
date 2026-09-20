@@ -18,7 +18,6 @@ func (app *App) HandleWS(ws *websocket.Conn) {
 		return
 	}
 
-
 	app.register(userID, ws)
 	defer app.unregister(userID)
 
@@ -26,11 +25,10 @@ func (app *App) HandleWS(ws *websocket.Conn) {
 }
 
 func (app *App) readLoop(userID int, ws *websocket.Conn) {
-	buff := make([]byte, 4096)
-
 	for {
+		var rawMessage string
 
-		n, err := ws.Read(buff)
+		err := websocket.Message.Receive(ws, &rawMessage)
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -39,23 +37,28 @@ func (app *App) readLoop(userID int, ws *websocket.Conn) {
 			log.Println("websocket read error:", err)
 			break
 		}
+
 		var payload models.WSPayload
 
-		if err := json.Unmarshal(buff[:n], &payload); err != nil {
+		if err := json.Unmarshal([]byte(rawMessage), &payload); err != nil {
 			log.Println("invalid websocket payload:", err)
 			continue
 		}
 
+
 		switch payload.Type {
 		case "privateMessage":
-			app.handleMessage(userID, payload.Data)
+			app.handleMessage(userID, payload.Data, "message")
 
 		case "notification":
 			log.Println("notification received")
 
 		case "privateMessage/invite":
-
 			app.handleInvite(userID, payload.Data)
+
+		case "postGroup":
+
+			app.handleMessage(userID, payload.Data, "postGroup")
 
 		default:
 			log.Println("unknown websocket type:", payload.Type)
@@ -63,8 +66,61 @@ func (app *App) readLoop(userID int, ws *websocket.Conn) {
 	}
 }
 
-func (app *App) handleMessage(userID int, data json.RawMessage) {
+func (app *App) handleMessage(userID int, data json.RawMessage, Type string) {
 	var msg models.IncomingMessage
+
+	if Type == "postGroup" {
+		var postMessage models.PostMessage
+
+		if err := json.Unmarshal(data, &postMessage); err != nil {
+			log.Println("invalid post message payload:", err)
+			return
+		}
+
+		if postMessage.GroupID <= 0 {
+			log.Println("invalid group ID:", postMessage.GroupID)
+			return
+		}
+
+		content, err := json.Marshal(postMessage)
+		if err != nil {
+			log.Println("marshal post message error:", err)
+			return
+		}
+
+		groupID := postMessage.GroupID
+
+		if err := chats.AddMessages(
+			app.DB,
+			string(content),
+			userID,
+			groupID,
+		); err != nil {
+			log.Println("add post message error:", err)
+			return
+		}
+
+		sender, err := users.GetUserSimpleData(app.DB, userID)
+		if err != nil {
+			log.Println("get sender error:", err)
+			return
+		}
+
+		message := models.Message{
+			Content: string(content),
+			Sender: models.UserRegistration{
+				ID:        userID,
+				FirstName: sender.FirstName,
+				LastName:  sender.LastName,
+				Avatar:    sender.Avatar,
+			},
+			GroupID: groupID,
+		}
+
+		app.sendToUsers(message, groupID, userID)
+
+		return
+	}
 
 	if err := json.Unmarshal(data, &msg); err != nil {
 		log.Println("invalid message payload:", err)
@@ -105,14 +161,12 @@ func (app *App) handleMessage(userID int, data json.RawMessage) {
 		}
 	}
 
-	err := chats.AddMessages(
+	if err := chats.AddMessages(
 		app.DB,
 		msg.Content,
 		userID,
 		groupID,
-	)
-
-	if err != nil {
+	); err != nil {
 		log.Println("add message error:", err)
 		return
 	}
@@ -149,7 +203,6 @@ func (app *App) handleInvite(userID int, data json.RawMessage) {
 		log.Println("invalid group ID")
 		return
 	}
-
 
 	if len(invite.Users) == 0 {
 		log.Println("no users in invite")
@@ -253,6 +306,7 @@ func (app *App) sendToUsers(
 	groupID int,
 	userID int,
 ) {
+	log.Println(groupID)
 	ids, err := chats.GetGroupMembersIds(
 		app.DB,
 		groupID,

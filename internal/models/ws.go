@@ -1,8 +1,6 @@
 package models
 
-import (
-	"encoding/json"
-)
+import "encoding/json"
 
 type WSPayload struct {
 	Type string          `json:"type"`
@@ -32,8 +30,6 @@ type NewNotification struct {
 	EventResponseUserID       *int
 }
 
-// user ID will be used if groupID is null which means new chat that did not exists before
-
 type IncomingMessage struct {
 	Offset  int    `json:"offset"`
 	Private int    `json:"private"`
@@ -45,4 +41,19 @@ type IncomingMessage struct {
 type GroupInvite struct {
 	GroupData Group `json:"groupData"`
 	Users     []int `json:"users"`
+}
+
+type PostMessage struct {
+	Content   string `json:"content"`
+	ImagePath string `json:"imagePath"`
+	PostID    int    `json:"postID"`
+	GroupID   int    `json:"groupID"`
+	User      User   `json:"user"`
+}
+
+type User struct {
+	ID        int    `json:"ID"`
+	FirstName string `json:"firstName"`
+	LastName  string `json:"lastName"`
+	Avatar    string `json:"avatar"`
 }

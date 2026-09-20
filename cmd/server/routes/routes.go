@@ -77,6 +77,7 @@ func StartServer(db *sql.DB) *http.ServeMux {
 	mux.HandleFunc("GET /api/profile/following/search", app.AuthMiddleware(app.SearchFollowing))
 	mux.HandleFunc("GET /api/location/search", app.SearchLocation)
 	mux.HandleFunc("GET /api/groups/search", app.AuthMiddleware(app.SearchPrivateChats))
+	mux.HandleFunc("GET /api/group/users", app.AuthMiddleware(app.GetGroupMembers))
 
 	// chats
 	mux.HandleFunc("GET /api/groups", app.AuthMiddleware(app.GetGroups))
@@ -90,6 +91,9 @@ func StartServer(db *sql.DB) *http.ServeMux {
 	mux.HandleFunc("GET /api/groups/discover", app.AuthMiddleware(app.DiscoverGroups))
 	mux.HandleFunc("GET /api/group", app.AuthMiddleware(app.GetGroup))
 	mux.HandleFunc("GET /api/group/search", app.AuthMiddleware(app.SearchMembers))
+	mux.HandleFunc("POST /api/group/posts", app.AuthMiddleware(app.AddGroupPost))
+	mux.HandleFunc("GET /api/group/post", app.AuthMiddleware(app.GetGroupPost))
+	mux.HandleFunc("POST /api/group/post/reaction", app.AuthMiddleware(app.InsertGroupPostReaction))
 	
 	//ws
 	mux.Handle("/api/ws", app.WSAuthMiddleware(websocket.Handler(app.HandleWS)))

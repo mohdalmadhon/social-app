@@ -811,3 +811,63 @@ func ViewPost(db *sql.DB, postID, userID int) error {
 	`, postID, userID)
 	return err
 }
+
+func SearchMembers(db *sql.DB, groupID int, search string) (map[int]models.UserRegistration, error) {
+	search = strings.TrimSpace(search)
+
+	rows, err := db.Query(`
+		SELECT
+			u.id,
+			u.first_name,
+			u.last_name,
+			u.avatar
+		FROM users u
+		INNER JOIN groups_users gu
+			ON gu.user_id = u.id
+		WHERE gu.group_id = ?
+		AND gu.status = 1
+		AND (
+			u.first_name LIKE ?
+			OR u.last_name LIKE ?
+			OR (u.first_name || ' ' || u.last_name) LIKE ?
+		)
+		ORDER BY u.first_name, u.last_name
+		LIMIT 10
+	`,
+		groupID,
+		"%"+search+"%",
+		"%"+search+"%",
+		"%"+search+"%",
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	users := make(map[int]models.UserRegistration)
+
+	for rows.Next() {
+		var user models.UserRegistration
+
+		err := rows.Scan(
+			&user.ID,
+			&user.FirstName,
+			&user.LastName,
+			&user.Avatar,
+		)
+
+		if err != nil {
+			return nil, err
+		}
+
+		users[user.ID] = user
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return users, nil
+}

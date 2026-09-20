@@ -9,7 +9,7 @@ defineProps({
 defineEmits(['change']);
 
 const tabs = [
-    { id: 'group', label: 'Group' },
+    { id: 'group', label: 'posts' },
     { id: 'events', label: 'Events' },
     { id: 'chat', label: 'Chat' }
 ];

@@ -1,5 +1,7 @@
 <script setup>
 import { getFriends } from '@/api/common/friends';
+import { getGroupMembers } from '@/api/posts/groups';
+import { activePage } from '@/data/chatState';
 import { addNotification } from '@/data/notifications';
 import { ref } from 'vue';
 
@@ -16,6 +18,18 @@ const search = ref('');
 const friends = ref([]);
 let timeout;
 
+function isGroupPage() {
+    return activePage.value?.startsWith('group:');
+}
+
+function getCurrentGroupID() {
+    if (!isGroupPage()) {
+        return null;
+    }
+
+    return Number(activePage.value.split(':')[1]);
+}
+
 function handleSearchFriends() {
     clearTimeout(timeout);
 
@@ -28,7 +42,21 @@ function handleSearchFriends() {
         }
 
         try {
-            const result = await getFriends(value);
+            let result;
+
+            if (isGroupPage()) {
+                const groupID = getCurrentGroupID();
+
+                if (!groupID) {
+                    friends.value = [];
+                    return;
+                }
+
+                result = await getGroupMembers(groupID, value);
+            } else {
+                result = await getFriends(value);
+            }
+
             friends.value = Object.entries(result.data)
                 .map(([id, person]) => ({
                     id: Number(id),
@@ -40,10 +68,9 @@ function handleSearchFriends() {
                             selected => selected.id === person.id
                         )
                 );
-            console.log(friends.value)
         } catch (err) {
             console.error(err);
-            addNotification('could not fetch friends');
+            addNotification('could not fetch people');
             friends.value = [];
         }
     }, 500);
@@ -54,7 +81,11 @@ function addPerson(person) {
         return;
     }
 
-    if (props.modelValue.some(existing => existing.id === person.id)) {
+    if (
+        props.modelValue.some(
+            existing => existing.id === person.id
+        )
+    ) {
         return;
     }
 
@@ -62,19 +93,21 @@ function addPerson(person) {
         ...props.modelValue,
         person
     ]);
-    
+
     friends.value = friends.value.filter(
         friend => friend.id !== person.id
     );
 
     search.value = '';
-    friends.value = []
+    friends.value = [];
 }
 
 function removePerson(id) {
     emit(
         'update:modelValue',
-        props.modelValue.filter(person => person.id !== id)
+        props.modelValue.filter(
+            person => person.id !== id
+        )
     );
 }
 </script>
@@ -91,19 +124,36 @@ function removePerson(id) {
 
         <div class="tag-row">
             <div class="search-container">
-                <input id="post-tag" type="text" placeholder="Search for people" v-model="search"
-                    @input="handleSearchFriends">
+                <input
+                    id="post-tag"
+                    type="text"
+                    placeholder="Search for people"
+                    v-model="search"
+                    @input="handleSearchFriends"
+                >
 
-                <div v-if="friends.length" class="friend-list">
-                    <button v-for="person in friends" :key="person.id" type="button" class="friend"
-                        @click="addPerson(person)">
-                        <img v-if="person.avatar" :src="person.avatar" alt="">
-
+                <div
+                    v-if="friends.length"
+                    class="friend-list"
+                >
+                    <button
+                        v-for="person in friends"
+                        :key="person.id"
+                        type="button"
+                        class="friend"
+                        @click="addPerson(person)"
+                    >
                         <div class="friend-info">
-                            <img v-if="person.avatar" :src="`/uploads/${person.avatar}`" alt="" class="friend-avatar">
+                            <img
+                                v-if="person.avatar"
+                                :src="`/uploads/${person.avatar}`"
+                                alt=""
+                                class="friend-avatar"
+                            >
 
                             <span>
-                                {{ person.firstName }} {{ person.lastName }}
+                                {{ person.firstName }}
+                                {{ person.lastName }}
                             </span>
                         </div>
                     </button>
@@ -111,23 +161,38 @@ function removePerson(id) {
             </div>
         </div>
 
-        <div v-if="modelValue.length" class="tag-list">
-            <span v-for="person in modelValue" :key="person.id" class="tag-chip">
+        <div
+            v-if="modelValue.length"
+            class="tag-list"
+        >
+            <span
+                v-for="person in modelValue"
+                :key="person.id"
+                class="tag-chip"
+            >
                 <div class="friend-info">
-                    <img v-if="person.avatar" :src="`/uploads/${person.avatar}`" alt="" class="friend-avatar">
-                    
+                    <img
+                        v-if="person.avatar"
+                        :src="`/uploads/${person.avatar}`"
+                        alt=""
+                        class="friend-avatar"
+                    >
+
                     <span>
-                        {{ person.firstName }} {{ person.lastName }}
+                        {{ person.firstName }}
+                        {{ person.lastName }}
                     </span>
                 </div>
 
-                <button type="button" @click="removePerson(person.id)">
+                <button
+                    type="button"
+                    @click="removePerson(person.id)"
+                >
                     ×
                 </button>
             </span>
         </div>
     </div>
-
 </template>
 
 <style scoped>
