@@ -1,7 +1,9 @@
+```vue
 <script setup>
 import { ref, watch, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import Groupssearch from './Groupssearch.vue';
+import GroupRequestsDialog from './GroupRequestsDialog.vue';
 import { searchInvites } from '@/api/chats/search';
 
 const props = defineProps({
@@ -16,6 +18,10 @@ const props = defineProps({
     members: {
         type: Array,
         default: () => []
+    },
+    isOwner: {
+        type: Boolean,
+        default: false
     }
 });
 
@@ -32,6 +38,7 @@ const hasMore = ref(true);
 
 const showInviteDialog = ref(false);
 const showConfirmDialog = ref(false);
+const showRequestsDialog = ref(false);
 
 const inviteSearch = ref('');
 const inviteUsers = ref([]);
@@ -51,7 +58,7 @@ function getMemberId(member) {
 }
 
 function getMemberName(member) {
-    return `${member.firstName || ''} ${member.lastName || ''}`.trim();
+    return `${member.firstName || member.FirstName || ''} ${member.lastName || member.LastName || ''}`.trim();
 }
 
 function getMemberAvatar(member) {
@@ -103,7 +110,9 @@ async function getMembers(reset = false) {
             search: search.value.trim()
         });
 
-        const response = await fetch(`/api/group/search?${params.toString()}`);
+        const response = await fetch(
+            `/api/group/search?${params.toString()}`
+        );
 
         if (!response.ok) {
             throw new Error('Failed to get members');
@@ -116,7 +125,9 @@ async function getMembers(reset = false) {
         }
 
         if (!result.status) {
-            throw new Error(result.message || 'Failed to get members');
+            throw new Error(
+                result.message || 'Failed to get members'
+            );
         }
 
         const newMembers = result.data || [];
@@ -174,6 +185,14 @@ function openProfile(member) {
     emit('close');
 
     router.push(`/user?id=${id}`);
+}
+
+function openRequests() {
+    showRequestsDialog.value = true;
+}
+
+function closeRequests() {
+    showRequestsDialog.value = false;
 }
 
 function openInvite() {
@@ -268,7 +287,8 @@ async function searchInviteUsers() {
     } catch (error) {
         console.error(error);
         inviteUsers.value = [];
-        inviteError.value = error.message || 'Could not search users';
+        inviteError.value =
+            error.message || 'Could not search users';
     } finally {
         inviteLoading.value = false;
     }
@@ -311,7 +331,9 @@ async function confirmInvite() {
 
     const userIDs = selectedUsers.value
         .map(user => Number(getInviteUserId(user)))
-        .filter(id => Number.isInteger(id) && id > 0);
+        .filter(
+            id => Number.isInteger(id) && id > 0
+        );
 
     if (!userIDs.length) {
         inviteError.value = 'No valid users selected';
@@ -320,17 +342,20 @@ async function confirmInvite() {
     }
 
     try {
-        const response = await fetch('/api/group/invite', {
-            method: 'POST',
-            credentials: 'include',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                groupID: Number(props.groupID),
-                userIDs
-            })
-        });
+        const response = await fetch(
+            '/api/group/invite',
+            {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    groupID: Number(props.groupID),
+                    userIDs
+                })
+            }
+        );
 
         const result = await response.json();
 
@@ -341,7 +366,8 @@ async function confirmInvite() {
         }
 
         showConfirmDialog.value = false;
-        inviteSuccess.value = result.message || 'Invite sent';
+        inviteSuccess.value =
+            result.message || 'Invite sent';
 
         setTimeout(() => {
             showInviteDialog.value = false;
@@ -352,6 +378,7 @@ async function confirmInvite() {
         }, 800);
     } catch (error) {
         console.error(error);
+
         inviteError.value =
             error.message || 'Could not send invitation';
     } finally {
@@ -397,7 +424,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <div v-if="show" class="members-panel">
+    <div
+        v-if="show"
+        class="members-panel"
+    >
         <div class="members-panel-header">
             <h3 class="members-title">
                 {{ memberList.length }}
@@ -405,6 +435,14 @@ onBeforeUnmount(() => {
             </h3>
 
             <div class="header-actions">
+                <button v-if="isOwner"
+                    class="requests-button"
+                    type="button"
+                    @click="openRequests"
+                >
+                    Requests
+                </button>
+
                 <button
                     class="invite-button"
                     type="button"
@@ -595,6 +633,7 @@ onBeforeUnmount(() => {
                         @click="openConfirmDialog"
                     >
                         Invite
+
                         <span v-if="selectedUsers.length">
                             ({{ selectedUsers.length }})
                         </span>
@@ -660,6 +699,12 @@ onBeforeUnmount(() => {
                 </div>
             </div>
         </div>
+
+        <GroupRequestsDialog
+            :show="showRequestsDialog"
+            :group-id="groupID"
+            @close="closeRequests"
+        />
     </div>
 </template>
 
@@ -702,17 +747,31 @@ onBeforeUnmount(() => {
     gap: 7px;
 }
 
+.requests-button,
 .invite-button {
     min-height: 28px;
     padding: 5px 9px;
     border: 2px solid var(--main-color);
     border-radius: 6px;
-    background: var(--main-color);
-    color: var(--bg-color);
     font-family: "JetBrains Mono", monospace;
     font-size: 10px;
     font-weight: 600;
     cursor: pointer;
+}
+
+.requests-button {
+    background: var(--bg-color);
+    color: var(--main-color);
+}
+
+.requests-button:hover {
+    background: var(--main-color);
+    color: var(--bg-color);
+}
+
+.invite-button {
+    background: var(--main-color);
+    color: var(--bg-color);
 }
 
 .invite-button:hover {
@@ -1091,6 +1150,16 @@ onBeforeUnmount(() => {
         right: 12px;
         left: 12px;
         width: auto;
+    }
+
+    .header-actions {
+        gap: 4px;
+    }
+
+    .requests-button,
+    .invite-button {
+        padding: 5px 7px;
+        font-size: 9px;
     }
 
     .invite-dialog,

@@ -89,7 +89,7 @@ func StartServer(db *sql.DB) *http.ServeMux {
 	mux.HandleFunc("GET /api/groups", app.AuthMiddleware(app.GetGroups))
 	mux.HandleFunc("POST /api/chats", app.AuthMiddleware(app.AddMessages))
 	mux.HandleFunc("GET /api/chats", app.AuthMiddleware(app.GetMessages))
-	
+
 	//group chats
 	mux.HandleFunc("GET /api/groups/invites/search", app.AuthMiddleware(app.SearchInvites))
 	mux.HandleFunc("POST /api/groups", app.AuthMiddleware(app.MakeNewGroup))
@@ -102,6 +102,9 @@ func StartServer(db *sql.DB) *http.ServeMux {
 	mux.HandleFunc("POST /api/group/post/reaction", app.AuthMiddleware(app.InsertGroupPostReaction))
 	mux.HandleFunc("GET /api/group/posts", app.AuthMiddleware(app.GetGroupPosts))
 	mux.HandleFunc("POST /api/group/invite", app.AuthMiddleware(app.InviteMember))
+	mux.HandleFunc("POST /api/groups/request", app.AuthMiddleware(app.GroupRequest))
+	mux.HandleFunc("GET /api/groups/requests",app.AuthMiddleware(app.GetGroupRequests))
+	mux.HandleFunc("POST /api/groups/requests",app.AuthMiddleware(app.HandleGroupRequest))
 
 	//group posts comments
 	mux.HandleFunc("POST /api/group/post/comment", app.AuthMiddleware(app.AddGroupComment))
@@ -114,7 +117,7 @@ func StartServer(db *sql.DB) *http.ServeMux {
 	mux.HandleFunc("GET /api/group/events", app.AuthMiddleware(app.GetGroupEvents))
 	mux.HandleFunc("POST /api/group/event/response", app.AuthMiddleware(app.RespondGroupEvent))
 	mux.HandleFunc("GET /api/group/event/votes", app.AuthMiddleware(app.GetGroupEventVotes))
-	
+
 	//ws
 	mux.Handle("/api/ws", app.WSAuthMiddleware(websocket.Handler(app.HandleWS)))
 	mux.HandleFunc("/api/notifications", app.AuthMiddleware(app.GetNotification))

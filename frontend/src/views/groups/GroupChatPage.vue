@@ -15,7 +15,7 @@ import { addNotification } from '@/data/notifications';
 import { getGroupPosts as fetchGroupPosts } from '@/api/posts/groupComments';
 import { throttle } from '@/helpers/throttle';
 
-import { onMounted, onUnmounted, ref, watch } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 
 const group = ref({});
@@ -31,7 +31,6 @@ const postsOffset = ref(0);
 const postsHasMore = ref(true);
 const loadingPosts = ref(false);
 const currentUserId = ref(null);
-const postsScroll = ref(null);
 
 const events = ref([]);
 const eventsTab = ref(null);
@@ -52,6 +51,7 @@ function closeMembers() {
 
 function setActiveTab(tab) {
     activeTab.value = tab;
+    window.scrollTo({ top: 0 });
 }
 
 function openPostDialog() {
@@ -67,6 +67,7 @@ async function handlePostCreated() {
     await getGroupPosts(true);
 }
 
+const isOwner = ref(false);
 async function getGroupData() {
     try {
         const resp = await fetch(`/api/group?groupID=${groupID}`, {
@@ -75,7 +76,11 @@ async function getGroupData() {
         });
 
         const result = await resp.json();
-
+        console.log(result)
+        if (result.isOwner) {
+            isOwner.value = true;
+        }
+        
         if (!resp.ok || !result.status) {
             addNotification(
                 result.message || result.messages || 'Could not get group data',
@@ -113,6 +118,7 @@ async function getGroupPosts(reset = false) {
         postsOffset.value += result.posts.length;
         currentUserId.value = result.userId;
 
+        
         if (result.posts.length < postsLimit) {
             postsHasMore.value = false;
         }
@@ -132,13 +138,12 @@ async function getGroupPosts(reset = false) {
 const handlePostsScroll = throttle(() => {
     if (activeTab.value !== 'group') return;
 
-    const container = postsScroll.value;
-    if (!container) return;
-
     const distance =
-        container.scrollHeight - container.scrollTop - container.clientHeight;
+        document.documentElement.scrollHeight -
+        window.scrollY -
+        window.innerHeight;
 
-    if (distance < 200) {
+    if (distance < 300) {
         getGroupPosts();
     }
 }, 300);
@@ -153,17 +158,9 @@ function handleEventCreated(event) {
     }
 }
 
-watch(postsScroll, (newEl, oldEl) => {
-    if (oldEl) {
-        oldEl.removeEventListener('scroll', handlePostsScroll);
-    }
-
-    if (newEl) {
-        newEl.addEventListener('scroll', handlePostsScroll);
-    }
-});
-
 onMounted(async () => {
+    window.addEventListener('scroll', handlePostsScroll, { passive: true });
+
     await getGroupData();
     await getGroupPosts(true);
 });
@@ -171,9 +168,7 @@ onMounted(async () => {
 onUnmounted(() => {
     postsRequestID++;
 
-    if (postsScroll.value) {
-        postsScroll.value.removeEventListener('scroll', handlePostsScroll);
-    }
+    window.removeEventListener('scroll', handlePostsScroll);
 });
 </script>
 
@@ -187,21 +182,23 @@ onUnmounted(() => {
             <main class="main-content">
                 <div class="content-container">
 
-                    <div class="header-wrapper">
-                        <GroupHeader :name="group.title" :description="group.description"
-                            :avatar-path="group.avatarPath" :members-count="group.Count" :show-members="showMembers"
-                            @toggle-members="toggleMembers" />
+                    <div class="sticky-top">
+                        <div class="header-wrapper">
+                            <GroupHeader :name="group.title" :description="group.description"
+                                :avatar-path="group.avatarPath" :members-count="group.Count" :show-members="showMembers"
+                                @toggle-members="toggleMembers" />
 
-                        <GroupMembersPanel :show="showMembers" :members="members" :group-i-d="groupID"
-                            @close="closeMembers" />
+                            <GroupMembersPanel :show="showMembers" :isOwner="isOwner" :members="members"
+                                :group-i-d="groupID" @close="closeMembers" />
+                        </div>
+
+                        <GroupTabs :active-tab="activeTab" @change="setActiveTab" />
                     </div>
-
-                    <GroupTabs :active-tab="activeTab" @change="setActiveTab" />
 
                     <template v-if="activeTab === 'group'">
                         <GroupFeedHeader @add-post="openPostDialog" />
 
-                        <div ref="postsScroll" class="posts-scroll">
+                        <div class="posts-feed">
                             <GroupFeedTab :posts="posts" :current-user-id="currentUserId" />
 
                             <div v-if="loadingPosts" class="loading-more">Loading posts...</div>
@@ -248,21 +245,29 @@ onUnmounted(() => {
     padding: 30px 25px 60px;
 }
 
+.sticky-top {
+    position: sticky;
+    top: 64px;
+    z-index: 100;
+
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+
+    margin: -12px -10px -10px 0;
+    padding: 12px 10px 10px 0;
+
+    background: var(--page-background);
+}
+
 .header-wrapper {
     position: relative;
 }
 
-.posts-scroll {
+.posts-feed {
     display: flex;
     flex-direction: column;
     gap: 18px;
-
-    max-height: calc(100vh - 260px);
-    overflow-y: auto;
-    overflow-x: hidden;
-
-    padding-right: 6px;
-    margin-right: -6px;
 }
 
 .loading-more {
@@ -290,8 +295,8 @@ onUnmounted(() => {
         padding: 20px 15px 50px;
     }
 
-    .posts-scroll {
-        max-height: calc(100vh - 320px);
+    .sticky-top {
+        gap: 18px;
     }
 }
 
@@ -305,10 +310,8 @@ onUnmounted(() => {
         padding: 14px 10px 44px;
     }
 
-    .posts-scroll {
-        max-height: calc(100vh - 300px);
-        padding-right: 0;
-        margin-right: 0;
+    .sticky-top {
+        gap: 14px;
     }
 }
 </style>

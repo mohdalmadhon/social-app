@@ -1,4 +1,6 @@
 <script setup>
+import { ref } from 'vue';
+
 const props = defineProps({
     groupId: {
         type: [Number, String],
@@ -30,14 +32,28 @@ const props = defineProps({
     }
 });
 
+const showRequests = ref(false);
+
+function openRequests() {
+    showRequests.value = true;
+}
+
+function closeRequests() {
+    showRequests.value = false;
+}
+
 const emit = defineEmits(['join', 'open']);
+
+const requestPending = ref(props.isPending);
+const requestLoading = ref(false);
 
 function handleAction() {
     if (props.isMember) {
         emit('open', props.groupId);
-    } else {
-        emit('join', props.groupId);
+        return;
     }
+
+    requestToJoin(props.groupId);
 }
 
 function initials(name) {
@@ -52,17 +68,50 @@ function initials(name) {
         .map(word => word[0]?.toUpperCase())
         .join('');
 }
+
+async function requestToJoin(groupID) {
+    if (requestLoading.value) {
+        return;
+    }
+
+    requestLoading.value = true;
+
+    const code = requestPending.value ? -1 : 0;
+
+    try {
+        const response = await fetch('/api/groups/request', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                groupID: Number(groupID),
+                code
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data.status) {
+            throw new Error(
+                data.message || 'Could not process group request'
+            );
+        }
+
+        requestPending.value = !requestPending.value;
+    } catch (error) {
+        console.error(error);
+    } finally {
+        requestLoading.value = false;
+    }
+}
 </script>
 
 <template>
     <article class="group-card">
         <div class="group-avatar">
-            <img
-                v-if="avatarPath"
-                :src="avatarPath"
-                :alt="name"
-                class="group-avatar-img"
-            >
+            <img v-if="avatar" :src="avatar" :alt="name" class="group-avatar-img">
             <span v-else class="group-avatar-fallback">
                 {{ initials(name) }}
             </span>
@@ -78,12 +127,7 @@ function initials(name) {
             </p>
 
             <div class="group-members">
-                <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                     <circle cx="9" cy="7" r="4"></circle>
                     <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
@@ -93,14 +137,17 @@ function initials(name) {
             </div>
         </div>
 
-        <button
-            class="group-action"
-            :class="{ 'is-member': isMember }"
-            type="button"
-            :disabled="isPending"
-            @click="handleAction"
-        >
-            {{ isPending ? '...' : (isMember ? 'Open' : 'Join') }}
+        <button class="group-action" :class="{ 'is-member': isMember }" type="button"
+            :disabled="requestLoading || isPending" @click="handleAction">
+            {{
+                requestLoading
+                    ? '...'
+                    : isMember
+                        ? 'Open'
+                        : requestPending
+                            ? 'Requested'
+                            : 'Join'
+            }}
         </button>
     </article>
 </template>

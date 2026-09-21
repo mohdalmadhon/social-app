@@ -1,7 +1,7 @@
 <script setup>
 import { getGroupChats } from '@/api/chats/chats';
 import GroupCard from '@/components/groups/GroupCard.vue';
-import GroupDialoge from '@/components/groups/GroupDialoge.vue';
+import GroupCreateDialog from '@/components/groups/GroupCreateDialog.vue';
 import GroupsSearch from '@/components/groups/Groupssearch.vue';
 import SideNavigation from '@/components/layout/SideNavigation.vue';
 import TopNavigation from '@/components/layout/TopNavigation.vue';
@@ -22,11 +22,9 @@ const hasMoreDiscover = ref(true);
 
 const pendingGroupIds = ref(new Set());
 
-const showCreateDialog = ref(false);
-
 let currentOffset = 0;
 let discoverOffset = 0;
-let lastScrollTime = 0;
+
 let scrollTimeout = null;
 let searchTimeout = null;
 
@@ -42,7 +40,7 @@ async function loadCurrentGroups() {
 
     try {
         const result = await getGroupChats(currentOffset);
-
+        console.log(result)
         if (!result.status) {
             throw new Error(result.message || 'Could not get groups');
         }
@@ -79,11 +77,11 @@ async function loadDiscoverGroups() {
     loadingDiscover.value = true;
 
     try {
-        const search = searchQuery.value.trim();
-
         const params = new URLSearchParams();
 
-        params.set('offset', discoverOffset);
+        params.set('offset', discoverOffset.toString());
+
+        const search = searchQuery.value.trim();
 
         if (search) {
             params.set('search', search);
@@ -97,22 +95,22 @@ async function loadDiscoverGroups() {
             }
         );
 
-        const data = await response.json();
+        const result = await response.json();
 
-        if (!response.ok || !data.status) {
+        if (!response.ok || !result.status) {
             throw new Error(
-                data.message || 'Could not get discover groups'
+                result.message || 'Could not get discover groups'
             );
         }
 
-        const groups = data.groups || [];
+        const groups = result.data || [];
 
         const existingIds = new Set(
-            discoverGroups.value.map(group => Number(group.id))
+            discoverGroups.value.map(group => Number(group.ID))
         );
 
         const newGroups = groups.filter(
-            group => !existingIds.has(Number(group.id))
+            group => !existingIds.has(Number(group.ID))
         );
 
         discoverGroups.value.push(...newGroups);
@@ -148,19 +146,13 @@ watch(searchQuery, () => {
 });
 
 function handleScroll() {
-    const now = Date.now();
-
-    if (now - lastScrollTime < scrollThrottle) {
+    if (scrollTimeout !== null) {
         return;
     }
 
-    lastScrollTime = now;
-
-    if (scrollTimeout !== null) {
-        clearTimeout(scrollTimeout);
-    }
-
     scrollTimeout = setTimeout(() => {
+        scrollTimeout = null;
+
         const scrollPosition =
             window.scrollY + window.innerHeight;
 
@@ -197,7 +189,7 @@ async function joinGroup(groupId) {
         }
 
         const index = discoverGroups.value.findIndex(
-            group => Number(group.id) === Number(groupId)
+            group => Number(group.ID) === Number(groupId)
         );
 
         if (index !== -1) {
@@ -244,6 +236,8 @@ function handleGroupCreated() {
     loadCurrentGroups();
 }
 
+const showCreateDialog = ref(false);
+
 onMounted(() => {
     loadCurrentGroups();
     loadDiscoverGroups();
@@ -280,17 +274,8 @@ onUnmounted(() => {
                             Groups
                         </h1>
 
-                        <button
-                            class="create-group-button"
-                            type="button"
-                            @click="openCreateDialog"
-                        >
-                            <svg
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
+                        <button class="create-group-button" type="button" @click="openCreateDialog">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M12 5v14"></path>
                                 <path d="M5 12h14"></path>
                             </svg>
@@ -304,48 +289,25 @@ onUnmounted(() => {
                             Current groups
                         </h2>
 
-                        <div
-                            v-if="loadingCurrent && !currentGroups.length"
-                            class="section-message"
-                        >
+                        <div v-if="loadingCurrent && !currentGroups.length" class="section-message">
                             Loading your groups...
                         </div>
 
-                        <div
-                            v-else-if="!currentGroups.length"
-                            class="section-message"
-                        >
+                        <div v-else-if="!currentGroups.length" class="section-message">
                             You haven't joined any groups yet.
                         </div>
 
-                        <div
-                            v-else
-                            class="groups-list"
-                        >
-                            <GroupCard
-                                v-for="group in currentGroups"
-                                :key="group.ID"
-                                :group-id="group.ID"
-                                :name="group.title"
-                                :description="group.description"
-                                :avatar-path="group.avatar"
-                                :members-count="group.Count || 0"
-                                :is-member="true"
-                                @open="openGroup"
-                            />
+                        <div v-else class="groups-list">
+                            <GroupCard v-for="group in currentGroups" :key="group.ID" :group-id="group.ID"
+                                :name="group.title" :description="group.description" :avatar-path="group.avatar"
+                                :members-count="group.Count || 0" :is-member="true" @open="openGroup" />
                         </div>
 
-                        <div
-                            v-if="loadingCurrent && currentGroups.length"
-                            class="section-message"
-                        >
+                        <div v-if="loadingCurrent && currentGroups.length" class="section-message">
                             Loading more groups...
                         </div>
 
-                        <div
-                            v-if="!hasMoreCurrent && currentGroups.length"
-                            class="section-message"
-                        >
+                        <div v-if="!hasMoreCurrent && currentGroups.length" class="section-message">
                             You've reached the end of your groups.
                         </div>
                     </section>
@@ -357,50 +319,26 @@ onUnmounted(() => {
 
                         <GroupsSearch v-model="searchQuery" />
 
-                        <div
-                            v-if="loadingDiscover && !discoverGroups.length"
-                            class="section-message"
-                        >
+                        <div v-if="loadingDiscover && !discoverGroups.length" class="section-message">
                             Loading groups...
                         </div>
 
-                        <div
-                            v-else-if="!discoverGroups.length"
-                            class="section-message"
-                        >
+                        <div v-else-if="!discoverGroups.length" class="section-message">
                             No groups found.
                         </div>
 
-                        <div
-                            v-else
-                            class="groups-list"
-                        >
-                            <GroupCard
-                                v-for="group in discoverGroups"
-                                :key="group.id"
-                                :group-id="group.id"
-                                :name="group.name"
-                                :description="group.description"
-                                :avatar-path="group.avatar"
-                                :members-count="group.Count || 0"
-                                :is-member="false"
-                                :is-pending="pendingGroupIds.has(group.id)"
-                                @join="joinGroup"
-                                @open="openGroup"
-                            />
+                        <div v-else class="groups-list">
+                            <GroupCard v-for="group in discoverGroups" :key="group.ID" :group-id="group.ID"
+                                :name="group.title" :description="group.Description" :avatar-path="group.avatar"
+                                :members-count="group.Count || 0" :is-member="false"
+                                :is-pending="pendingGroupIds.has(group.ID)" @join="joinGroup" @open="openGroup" />
                         </div>
 
-                        <div
-                            v-if="loadingDiscover && discoverGroups.length"
-                            class="section-message"
-                        >
+                        <div v-if="loadingDiscover && discoverGroups.length" class="section-message">
                             Loading more groups...
                         </div>
 
-                        <div
-                            v-if="!hasMoreDiscover && discoverGroups.length"
-                            class="section-message"
-                        >
+                        <div v-if="!hasMoreDiscover && discoverGroups.length" class="section-message">
                             You've reached the end of discover groups.
                         </div>
                     </section>
@@ -408,11 +346,7 @@ onUnmounted(() => {
             </main>
         </div>
 
-        <GroupDialoge
-            :show="showCreateDialog"
-            @close="closeCreateDialog"
-            @created="handleGroupCreated"
-        />
+        <GroupCreateDialog :show="showCreateDialog" @close="closeCreateDialog" @created="handleGroupCreated" />
     </div>
 </template>
 

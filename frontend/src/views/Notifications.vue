@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 
 import { getNotifications, acceptFollowRequest, markNotificationsRead } from '@/api/common/notifications';
 
@@ -18,11 +18,27 @@ const offset = ref(0);
 const limit = 15;
 const selectedPostId = ref(null);
 const showPostDialog = ref(false);
+const activeTab = ref('all');
+
+const requestNotifications = computed(() =>
+    notifications.value.filter(isFollowRequest)
+);
+
+const generalNotifications = computed(() =>
+    notifications.value.filter(notification => !isFollowRequest(notification))
+);
+
+const visibleNotifications = computed(() =>
+    activeTab.value === 'requests'
+        ? requestNotifications.value
+        : generalNotifications.value
+);
 
 onMounted(async () => {
     await loadNotifications();
     window.addEventListener('scroll', handleScroll);
     markAsRead();
+    fillPage();
 });
 
 onUnmounted(() => {
@@ -63,10 +79,12 @@ async function loadNotifications() {
 
 async function loadMore() {
     if (loadingMore.value || !hasMore.value) {
-        return;
+        return 0;
     }
 
     loadingMore.value = true;
+
+    let loaded = 0;
 
     try {
         const result = await getNotifications(offset.value, limit);
@@ -82,12 +100,44 @@ async function loadMore() {
         hasMore.value = result.hasMore ?? newNotifications.length === limit;
 
         offset.value += newNotifications.length;
+
+        loaded = newNotifications.length;
     } catch (err) {
         console.error(err);
         addNotification('could not fetch notifications');
     } finally {
         loadingMore.value = false;
     }
+
+    return loaded;
+}
+
+async function fillPage() {
+    await nextTick();
+
+    while (
+        hasMore.value &&
+        !loadingMore.value &&
+        document.documentElement.scrollHeight <= window.innerHeight + 100
+    ) {
+        const loaded = await loadMore();
+
+        if (!loaded) {
+            break;
+        }
+
+        await nextTick();
+    }
+}
+
+function setTab(tab) {
+    if (activeTab.value === tab) {
+        return;
+    }
+
+    activeTab.value = tab;
+    window.scrollTo({ top: 0 });
+    fillPage();
 }
 
 const handleScroll = throttle(() => {
@@ -212,11 +262,9 @@ async function acceptRequest(notification) {
             return;
         }
 
-        notification.follow_request_user_id = null;
-        notification.follow_request_accept_user_id =
-            getActorID(notification);
-
-        notification.message = 'Follow request accepted';
+        notifications.value = notifications.value.filter(
+            item => item.id !== notification.id
+        );
 
         addNotification('follow request accepted');
     } catch (err) {
@@ -239,21 +287,48 @@ async function acceptRequest(notification) {
                     <h1>Notifications</h1>
                 </div>
 
+                <div class="notification-tabs">
+                    <button
+                        type="button"
+                        class="tab-button"
+                        :class="{ active: activeTab === 'all' }"
+                        @click="setTab('all')"
+                    >
+                        All
+                    </button>
+
+                    <button
+                        type="button"
+                        class="tab-button"
+                        :class="{ active: activeTab === 'requests' }"
+                        @click="setTab('requests')"
+                    >
+                        Follow requests
+                    </button>
+                </div>
+
                 <section class="notifications-card">
                     <div v-if="loading" class="empty-state">
                         Loading notifications...
                     </div>
 
                     <div
-                        v-else-if="notifications.length === 0"
+                        v-else-if="visibleNotifications.length === 0 && loadingMore"
                         class="empty-state"
                     >
-                        No notifications yet
+                        Loading...
+                    </div>
+
+                    <div
+                        v-else-if="visibleNotifications.length === 0"
+                        class="empty-state"
+                    >
+                        {{ activeTab === 'requests' ? 'No follow requests' : 'No notifications yet' }}
                     </div>
 
                     <div
                         v-else
-                        v-for="notification in notifications"
+                        v-for="notification in visibleNotifications"
                         :key="notification.id"
                         class="notification"
                     >
@@ -392,6 +467,34 @@ async function acceptRequest(notification) {
     color: #202b38;
     font-size: 32px;
     font-weight: 700;
+}
+
+.notification-tabs {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.tab-button {
+    padding: 10px 18px;
+    border: 2px solid #292929;
+    border-radius: 5px;
+    background: #fff;
+    color: #292929;
+    cursor: pointer;
+    box-shadow: 3px 3px 0 #292929;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.tab-button.active {
+    background: #292929;
+    color: #fff;
+}
+
+.tab-button:active {
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0 #292929;
 }
 
 .notifications-card {

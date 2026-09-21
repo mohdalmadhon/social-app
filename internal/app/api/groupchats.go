@@ -626,8 +626,9 @@ func (app *App) GetGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	helpers.WriteJson(w, http.StatusOK, map[string]any{
-		"status": true,
-		"data":   group,
+		"status":  true,
+		"data":    group,
+		"isOwner": group.UserID == userID,
 	})
 }
 
@@ -690,5 +691,247 @@ func (app *App) SearchMembers(w http.ResponseWriter, r *http.Request) {
 	helpers.WriteJson(w, http.StatusOK, map[string]any{
 		"status": true,
 		"data":   usersArray,
+	})
+}
+
+func (app *App) GroupRequest(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("userID").(int)
+	if !ok {
+		helpers.WriteJson(w, http.StatusUnauthorized, map[string]any{
+			"status":  false,
+			"message": "could not authorize user",
+		})
+		return
+	}
+
+	type Request struct {
+		GroupID int `json:"groupID"`
+		Code    int `json:"code"`
+	}
+
+	var req Request
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": "invalid data",
+		})
+		return
+	}
+
+	if req.GroupID <= 0 {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": "invalid group",
+		})
+		return
+	}
+
+	if req.Code != 0 && req.Code != -1 {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": "invalid request code",
+		})
+		return
+	}
+
+	if req.Code == 0 {
+		userIN, err := groups.UserIN(app.DB, req.GroupID, userID)
+		if err != nil {
+			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+				"status":  false,
+				"message": "could not check group membership",
+			})
+			return
+		}
+
+		if userIN {
+			helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+				"status":  false,
+				"message": "you are already a member of this group",
+			})
+			return
+		}
+	}
+
+	if err := groups.SendGroupRequest(
+		app.DB,
+		userID,
+		req.GroupID,
+		req.Code,
+	); err != nil {
+		log.Println(err)
+
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not process group request",
+		})
+		return
+	}
+
+	helpers.WriteJson(w, http.StatusOK, map[string]any{
+		"status": true,
+	})
+}
+
+func (app *App) GetGroupRequests(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("userID").(int)
+	if !ok {
+		helpers.WriteJson(w, http.StatusUnauthorized, map[string]any{
+			"status":  false,
+			"message": "could not authorize user",
+		})
+		return
+	}
+
+	groupID, err := strconv.Atoi(r.URL.Query().Get("groupID"))
+	if err != nil || groupID <= 0 {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": "invalid group",
+		})
+		return
+	}
+
+	offset, err := strconv.Atoi(r.URL.Query().Get("offset"))
+	if err != nil || offset < 0 {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": "invalid offset",
+		})
+		return
+	}
+
+	member, err := groups.UserIN(app.DB, groupID, userID)
+	if err != nil {
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not check group membership",
+		})
+		return
+	}
+
+	if !member {
+		helpers.WriteJson(w, http.StatusForbidden, map[string]any{
+			"status":  false,
+			"message": "you are not a member of this group",
+		})
+		return
+	}
+
+	requests, err := groups.GetGroupRequests(app.DB, groupID, offset)
+	if err != nil {
+		log.Println(err)
+
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not get group requests",
+		})
+		return
+	}
+
+	helpers.WriteJson(w, http.StatusOK, map[string]any{
+		"status": true,
+		"data":   requests,
+	})
+}
+
+func (app *App) HandleGroupRequest(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("userID").(int)
+	if !ok {
+		helpers.WriteJson(w, http.StatusUnauthorized, map[string]any{
+			"status":  false,
+			"message": "could not authorize user",
+		})
+		return
+	}
+
+	type Request struct {
+		GroupID int `json:"groupID"`
+		UserID  int `json:"userID"`
+		Code    int `json:"code"`
+	}
+
+	var req Request
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": "invalid data",
+		})
+		return
+	}
+
+	if req.GroupID <= 0 || req.UserID <= 0 {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": "invalid request",
+		})
+		return
+	}
+
+	if req.Code != 1 && req.Code != -1 {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": "invalid request code",
+		})
+		return
+	}
+
+	ownerID, err := groups.GetGroupOwner(app.DB, req.GroupID)
+	if err != nil {
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not check group membership",
+		})
+		return
+	}
+
+	if ownerID != userID {
+		if err != nil {
+			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+				"status":  false,
+				"message": "could not check group membership",
+			})
+			return
+		}
+	}
+
+	member, err := groups.UserIN(app.DB, req.GroupID, userID)
+	if err != nil {
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not check group membership",
+		})
+		return
+	}
+
+	if !member {
+		helpers.WriteJson(w, http.StatusForbidden, map[string]any{
+			"status":  false,
+			"message": "you are not a member of this group",
+		})
+		return
+	}
+
+	err = groups.HandleGroupRequest(
+		app.DB,
+		req.GroupID,
+		req.UserID,
+		req.Code,
+	)
+
+	if err != nil {
+		log.Println(err)
+
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not handle group request",
+		})
+		return
+	}
+
+	helpers.WriteJson(w, http.StatusOK, map[string]any{
+		"status": true,
 	})
 }

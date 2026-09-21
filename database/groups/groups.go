@@ -3,6 +3,7 @@ package groups
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"log"
 	"social/internal/helpers"
 	"social/internal/models"
@@ -147,20 +148,18 @@ func MakeNewGroup(db *sql.DB, g models.Group, userIDs []int) (models.Group, []in
 
 func AddMembers(db *sql.DB, groupID, userID int) error {
 	_, err := db.Exec(`
-			INSERT INTO groups_users (group_id, user_id)
-			VALUES (?,?)		
+			INSERT INTO groups_users (group_id, user_id, status)
+			VALUES (?,?, 1)		
 		`, groupID, userID)
 	return err
 }
 
 func SearchInvites(db *sql.DB, userID, groupID int, searchValue string) ([]models.UserRegistration, error) {
-	if groupID != -1 {
-	}
-
 	search := "%" + searchValue + "%"
+
 	users := make([]models.UserRegistration, 0)
 
-	rows, err := db.Query(`
+	query := `
 		SELECT
 			u.id,
 			u.first_name,
@@ -174,6 +173,29 @@ func SearchInvites(db *sql.DB, userID, groupID int, searchValue string) ([]model
 				OR u.first_name LIKE ?
 				OR u.last_name LIKE ?
 			)
+	`
+
+	args := []any{
+		userID,
+		search,
+		search,
+		search,
+	}
+
+	if groupID != -1 {
+		query += `
+			AND NOT EXISTS (
+				SELECT 1
+				FROM groups_users gu
+				WHERE gu.group_id = ?
+					AND gu.user_id = u.id
+			)
+		`
+
+		args = append(args, groupID)
+	}
+
+	query += `
 		ORDER BY
 			CASE
 				WHEN EXISTS (
@@ -194,8 +216,11 @@ func SearchInvites(db *sql.DB, userID, groupID int, searchValue string) ([]model
 			u.first_name,
 			u.last_name
 		LIMIT 10
-	`, userID, search, search, search, userID, userID)
+	`
 
+	args = append(args, userID, userID)
+
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -242,6 +267,7 @@ func GetGroupChats(db *sql.DB, userID, offset int) ([]models.Group, error) {
 			FROM groups_users gu
 			WHERE gu.group_id = g.id
 			  AND gu.user_id = ?
+			  AND status = 1
 		)
 		AND g.is_private_chat = 0
 		ORDER BY g.name, g.id
@@ -295,6 +321,7 @@ func DiscoverGroups(db *sql.DB, userID, offset int, search string) ([]models.Gro
 			FROM groups_users gu
 			WHERE gu.group_id = g.id
 			  AND gu.user_id = ?
+			  AND status <> 1
 		)
 		AND g.is_private_chat = 0
 	`
@@ -358,6 +385,7 @@ func GetGroup(de *sql.DB, userID, groupID int) (models.Group, error) {
 		g.avatar,
 		g.description,
 		g.created_at,
+		g.owner_id,
 		(
 			SELECT COUNT(*)
 			FROM groups_users gu
@@ -378,6 +406,7 @@ func GetGroup(de *sql.DB, userID, groupID int) (models.Group, error) {
 		&g.Avatar,
 		&g.Description,
 		&g.CreatedAt,
+		&g.UserID,
 		&g.Count,
 	)
 
@@ -466,8 +495,101 @@ func GetGroupData(db *sql.DB, groupID int) (models.Group, error) {
 		SELECT name, avatar FROM groups WHERE id = ?
 	`, groupID).Scan(
 		&g.Title,
-		g.Avatar,
+		&g.Avatar,
 	)
 
 	return g, err
+}
+
+func SendGroupRequest(db *sql.DB, userID, groupID, code int) error {
+	if code == -1 {
+		_, err := db.Exec(`
+		DELETE FROM groups_users WHERE user_id = ? AND group_id = ?
+	`, userID, groupID)
+		return err
+	}
+
+	_, err := db.Exec(`
+		INSERT INTO groups_users (group_id, user_id, status) VALUES (?,?,0)
+	`, groupID, userID)
+
+	return err
+}
+
+func GetGroupRequests(db *sql.DB, groupID, offset int) ([]models.UserRegistration, error) {
+	users := make([]models.UserRegistration, 0)
+
+	rows, err := db.Query(`
+		SELECT
+			u.id,
+			u.first_name,
+			u.last_name,
+			p.avatar_path
+		FROM groups_users gu
+		JOIN user u ON u.id = gu.user_id
+		JOIN profile p ON p.user_id = u.id
+		WHERE gu.group_id = ?
+			AND gu.status = 0
+		ORDER BY u.first_name, u.last_name
+		LIMIT 10 OFFSET ?
+	`, groupID, offset)
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var u models.UserRegistration
+
+		if err := rows.Scan(
+			&u.ID,
+			&u.FirstName,
+			&u.LastName,
+			&u.Avatar,
+		); err != nil {
+			return nil, err
+		}
+
+		users = append(users, u)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return users, nil
+}
+
+func HandleGroupRequest(db *sql.DB, groupID, userID, code int) error {
+	if code == 1 {
+		_, err := db.Exec(`
+			UPDATE groups_users
+			SET status = 1
+			WHERE group_id = ?
+				AND user_id = ?
+				AND status = 0
+		`, groupID, userID)
+
+		return err
+	}
+
+	if code == -1 {
+		_, err := db.Exec(`
+			DELETE FROM groups_users
+			WHERE group_id = ?
+				AND user_id = ?
+				AND status = 0
+		`, groupID, userID)
+
+		return err
+	}
+
+	return fmt.Errorf("invalid request code")
+}
+
+func GetGroupOwner(db *sql.DB, groupID int) (int, error) {
+	var id int
+	err := db.QueryRow(`SELECT owner_id FROM groups_users WHERE group_id = ?`, groupID).Scan(&id)
+	return id, err
 }

@@ -305,17 +305,16 @@ func AcceptFollowRequest(db *sql.DB, requesterID int, targetID int) error {
 	if err != nil {
 		return err
 	}
-
 	defer tx.Rollback()
 
 	var exists int
 
 	err = tx.QueryRow(`
 		SELECT 1
-		FROM follows_requests
+		FROM user_followers
 		WHERE follower_id = ?
-		AND following_id = ?
-		AND request_code = 0
+		AND target_id = ?
+		AND status = 0
 	`, requesterID, targetID).Scan(&exists)
 
 	if err != nil {
@@ -323,19 +322,36 @@ func AcceptFollowRequest(db *sql.DB, requesterID int, targetID int) error {
 	}
 
 	_, err = tx.Exec(`
-		INSERT INTO follows (follower_id, following_id)
-		VALUES (?, ?)
+		UPDATE user_followers
+		SET status = 1
+		WHERE follower_id = ?
+		AND target_id = ?
+		AND status = 0
 	`, requesterID, targetID)
 
 	if err != nil {
 		return err
 	}
 
+	var notificationID int
+
+	err = tx.QueryRow(`
+		SELECT nt.notifications_id
+		FROM notifications_types nt
+		JOIN notifications n
+			ON n.id = nt.notifications_id
+		WHERE nt.follow_request_user_id = ?
+		AND n.user_id = ?
+	`, requesterID, targetID).Scan(&notificationID)
+	
+	if err != nil {
+		return err
+	}
+
 	_, err = tx.Exec(`
-		DELETE FROM follows_requests
-		WHERE follower_id = ?
-		AND following_id = ?
-	`, requesterID, targetID)
+		DELETE FROM notifications
+		WHERE id = ?
+	`, notificationID)
 
 	if err != nil {
 		return err

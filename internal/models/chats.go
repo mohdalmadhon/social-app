@@ -24,3 +24,4 @@ type Message struct {
 	Content   string `json:"content"`
 	CreatedAt time.Time
 }
+

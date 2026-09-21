@@ -3,8 +3,10 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"social/database/groups"
+	"social/database/users"
 	"social/internal/helpers"
 )
 
@@ -32,72 +34,102 @@ func (app *App) InviteMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userIN, err := groups.UserIN(app.DB, req.GroupID, userID)
-	if err != nil {
+	if req.GroupID <= 0 || len(req.UserIDs) == 0 {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
-			"message": "could not invite user",
+			"message": "invalid group or users",
+		})
+		return
+	}
+
+	userIN, err := groups.UserIN(app.DB, req.GroupID, userID)
+	if err != nil {
+		log.Println(err)
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not check group membership",
 		})
 		return
 	}
 
 	if !userIN {
-		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+		helpers.WriteJson(w, http.StatusForbidden, map[string]any{
 			"status":  false,
-			"message": "could not invite user",
+			"message": "you are not a member of this group",
 		})
 		return
 	}
 
-	for _, id := range req.UserIDs {
-		alreadyIN, err := groups.UserIN(app.DB, req.GroupID, id)
-		if err != nil {
+	g, err := groups.GetGroupData(app.DB, req.GroupID)
+	if err != nil {
+		if err == sql.ErrNoRows {
 			helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 				"status":  false,
-				"message": "could not invite user",
+				"message": "could not find group",
 			})
 			return
+		}
+
+		log.Println(err)
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not get group data",
+		})
+		return
+	}
+
+	g.ID = req.GroupID
+	g.UserID = userID
+
+	sent := 0
+
+	for _, id := range req.UserIDs {
+		if id == userID {
+			continue
+		}
+
+		alreadyIN, err := groups.UserIN(app.DB, req.GroupID, id)
+		if err != nil {
+			log.Println(err)
+			continue
 		}
 
 		if alreadyIN {
-			helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
-				"status":  false,
-				"message": "could not invite user",
-			})
-			return
+			log.Println("already in")
+			continue
 		}
 
-		g, err := groups.GetGroupData(app.DB, req.GroupID)
+		isFriend, err := users.IsFriend(app.DB, userID, id)
 		if err != nil {
-			if err == sql.ErrNoRows {
-				helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
-					"status":  false,
-					"message": "could not find group",
-				})
-				return
+			continue
+		}
+
+		if isFriend {
+			err = groups.AddMembers(app.DB, req.GroupID, id)
+			if err != nil {
+				continue
 			}
-			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
-				"status":  false,
-				"message": "could not get group data",
-			})
-			return
+		} else {
+			err = groups.SendInvites(app.DB, id, g)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
 		}
+		sent++
+	}
 
-		g.ID = req.GroupID
-		g.UserID = userID
-		err = groups.SendInvites(app.DB, id, g)
-		if err != nil {
-			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
-				"status":  false,
-				"message": "could not send invite",
-			})
-			return
-		}
+	if sent == 0 {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": "no invites were sent",
+		})
+		return
 	}
 
 	helpers.WriteJson(w, http.StatusOK, map[string]any{
 		"status":  true,
 		"message": "invite sent",
+		"sent":    sent,
 	})
-	return
 }
