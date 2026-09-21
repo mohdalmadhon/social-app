@@ -1,8 +1,14 @@
 <script setup>
+import GroupPostCard from './GroupPostCard.vue';
+
 defineProps({
     posts: {
         type: Array,
         default: () => []
+    },
+    currentUserId: {
+        type: [Number, String],
+        default: null
     }
 });
 </script>
@@ -14,13 +20,12 @@ defineProps({
         </div>
 
         <div v-else class="posts-list">
-            <article
+            <GroupPostCard
                 v-for="post in posts"
                 :key="post.id"
-                class="post-placeholder"
-            >
-                {{ post.content }}
-            </article>
+                :post="post"
+                :current-user-id="currentUserId"
+            />
         </div>
     </section>
 </template>
@@ -50,20 +55,5 @@ defineProps({
     display: flex;
     flex-direction: column;
     gap: 18px;
-}
-
-.post-placeholder {
-    padding: 18px 20px;
-
-    border: 2px solid var(--main-color);
-    border-radius: 8px;
-
-    background: var(--bg-color);
-    box-shadow: 5px 5px var(--main-color);
-
-    color: var(--font-color);
-
-    font-size: 14px;
-    line-height: 1.55;
 }
 </style>

@@ -1,2 +1,2 @@
-ALTER TABLE groups_users
-ADD COLUMN status INTEGER CHECK (status IN (1, 0));
+-- ALTER TABLE groups_users
+-- ADD COLUMN status INTEGER CHECK (status IN (1, 0));

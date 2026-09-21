@@ -22,61 +22,71 @@ async function logoutHandler() {
 
 <template>
     <aside class="side-navigation">
-        <nav>
-            <a href="/home" :class="{ active: route.path === '/home' }">
-                <span class="icon">⌂</span>
-                <span class="label">Home</span>
-            </a>
+        <div class="side-inner">
+            <nav>
+                <a href="/home" :class="{ active: route.path === '/home' }">
+                    <span class="icon">⌂</span>
+                    <span class="label">Home</span>
+                </a>
 
-            <a href="/me" :class="{ active: route.path === '/me' }">
-                <span class="icon">◉</span>
-                <span class="label">Profile</span>
-            </a>
-
-
-            <a href="/groups" :class="{ active: route.path === '/groups' }">
-                <span class="icon">▦</span>
-                <span class="label">Groups</span>
-            </a>
-
-            <a href="/notifications" :class="{ active: route.path === '/notifications' }">
-                <span class="icon">♢</span>
-                <span class="label">notifications</span>
-
-                <span v-if="unreadNotificationCount > 0" class="badge">
-                    {{ unreadNotificationCount > 99 ? '99+' : unreadNotificationCount }}
-                </span>
-            </a>
-
-            <a href="/chats" :class="{ active: route.path === '/chats' }">
-                <span class="icon">✉</span>
-                <span class="label">chats</span>
-            </a>
+                <a href="/me" :class="{ active: route.path === '/me' }">
+                    <span class="icon">◉</span>
+                    <span class="label">Profile</span>
+                </a>
 
 
-        </nav>
+                <a href="/groups" :class="{ active: route.path === '/groups' }">
+                    <span class="icon">▦</span>
+                    <span class="label">Groups</span>
+                </a>
 
-        <div class="side-bottom">
-            <a href="/settings" :class="{ active: route.path === '/settings' }">
-                <span class="icon">⚙</span>
-                <span class="label">Settings</span>
-            </a>
+                <a href="/notifications" :class="{ active: route.path === '/notifications' }">
+                    <span class="icon">♢</span>
+                    <span class="label">notifications</span>
 
-            <a href="#" @click.prevent="logoutHandler">
-                <span class="icon">↪</span>
-                <span class="label">Log out</span>
-            </a>
+                    <span v-if="unreadNotificationCount > 0" class="badge">
+                        {{ unreadNotificationCount > 99 ? '99+' : unreadNotificationCount }}
+                    </span>
+                </a>
+
+                <a href="/chats" :class="{ active: route.path === '/chats' }">
+                    <span class="icon">✉</span>
+                    <span class="label">chats</span>
+                </a>
+
+
+            </nav>
+
+            <div class="side-bottom">
+                <a href="/settings" :class="{ active: route.path === '/settings' }">
+                    <span class="icon">⚙</span>
+                    <span class="label">Settings</span>
+                </a>
+
+                <a href="#" @click.prevent="logoutHandler">
+                    <span class="icon">↪</span>
+                    <span class="label">Log out</span>
+                </a>
+            </div>
         </div>
     </aside>
 </template>
 
 <style scoped>
+/* the aside only reserves the sidebar's width in the page layout,
+   the sidebar itself (.side-inner) stays fixed while the page scrolls */
 .side-navigation {
-    position: sticky;
-    top: 64px;
     flex-shrink: 0;
     width: clamp(72px, 16vw, 220px);
-    height: calc(100vh - 64px);
+}
+
+.side-inner {
+    position: fixed;
+    z-index: 50;
+    top: 64px;
+    bottom: 0;
+    left: 0;
+    width: clamp(72px, 16vw, 220px);
     padding: clamp(16px, 2.5vw, 25px) clamp(10px, 1.5vw, 18px);
     display: flex;
     flex-direction: column;
@@ -84,6 +94,7 @@ async function logoutHandler() {
     background: var(--bg-color);
     border-right: 2px solid var(--main-color);
     box-sizing: border-box;
+    overflow-y: auto;
 }
 
 .side-navigation nav,
@@ -169,15 +180,20 @@ async function logoutHandler() {
 
 @media (max-width: 800px) {
     .side-navigation {
+        width: 100%;
+        flex-shrink: initial;
+    }
+
+    .side-inner {
         position: static;
         width: 100%;
         height: auto;
-        flex-shrink: initial;
         padding: 8px 15px;
         border-right: 0;
         border-bottom: 2px solid var(--main-color);
         flex-direction: row;
         overflow-x: auto;
+        overflow-y: hidden;
         -webkit-overflow-scrolling: touch;
     }
 

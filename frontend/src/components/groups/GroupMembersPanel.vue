@@ -2,6 +2,7 @@
 import { ref, watch, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import Groupssearch from './Groupssearch.vue';
+import { searchInvites } from '@/api/chats/search';
 
 const props = defineProps({
     show: {
@@ -24,15 +25,25 @@ const router = useRouter();
 
 const search = ref('');
 const memberList = ref([...props.members]);
-
 const offset = ref(props.members.length);
 const limit = 20;
-
 const loading = ref(false);
 const hasMore = ref(true);
 
+const showInviteDialog = ref(false);
+const showConfirmDialog = ref(false);
+
+const inviteSearch = ref('');
+const inviteUsers = ref([]);
+const selectedUsers = ref([]);
+const inviteLoading = ref(false);
+const inviteSending = ref(false);
+const inviteError = ref('');
+const inviteSuccess = ref('');
+
 let debounceTimer = null;
 let scrollTimer = null;
+let inviteSearchTimer = null;
 let requestNumber = 0;
 
 function getMemberId(member) {
@@ -165,6 +176,189 @@ function openProfile(member) {
     router.push(`/user?id=${id}`);
 }
 
+function openInvite() {
+    showInviteDialog.value = true;
+    showConfirmDialog.value = false;
+    inviteSearch.value = '';
+    inviteUsers.value = [];
+    selectedUsers.value = [];
+    inviteError.value = '';
+    inviteSuccess.value = '';
+
+    searchInviteUsers();
+}
+
+function closeInvite() {
+    if (inviteSending.value) {
+        return;
+    }
+
+    showInviteDialog.value = false;
+    showConfirmDialog.value = false;
+    inviteSearch.value = '';
+    inviteUsers.value = [];
+    selectedUsers.value = [];
+    inviteError.value = '';
+    inviteSuccess.value = '';
+}
+
+function getInviteUserId(user) {
+    return user.ID ?? user.id;
+}
+
+function getInviteUserName(user) {
+    return `${user.firstName || user.FirstName || ''} ${user.lastName || user.LastName || ''}`.trim();
+}
+
+function getInviteUserAvatar(user) {
+    const avatar = user.avatar ?? user.Avatar;
+
+    if (!avatar) {
+        return '';
+    }
+
+    if (avatar.startsWith('/')) {
+        return avatar;
+    }
+
+    return `/uploads/${avatar}`;
+}
+
+function isSelected(user) {
+    const id = getInviteUserId(user);
+
+    return selectedUsers.value.some(
+        selected => getInviteUserId(selected) === id
+    );
+}
+
+function toggleUser(user) {
+    const id = getInviteUserId(user);
+
+    if (!id) {
+        return;
+    }
+
+    const index = selectedUsers.value.findIndex(
+        selected => getInviteUserId(selected) === id
+    );
+
+    if (index === -1) {
+        selectedUsers.value.push(user);
+    } else {
+        selectedUsers.value.splice(index, 1);
+    }
+}
+
+async function searchInviteUsers() {
+    if (inviteLoading.value) {
+        return;
+    }
+
+    inviteLoading.value = true;
+    inviteError.value = '';
+
+    try {
+        const result = await searchInvites(
+            inviteSearch.value.trim(),
+            props.groupID
+        );
+
+        inviteUsers.value = result.data || [];
+    } catch (error) {
+        console.error(error);
+        inviteUsers.value = [];
+        inviteError.value = error.message || 'Could not search users';
+    } finally {
+        inviteLoading.value = false;
+    }
+}
+
+function handleInviteSearch(value) {
+    inviteSearch.value = value;
+
+    clearTimeout(inviteSearchTimer);
+
+    inviteSearchTimer = setTimeout(() => {
+        searchInviteUsers();
+    }, 300);
+}
+
+function openConfirmDialog() {
+    if (!selectedUsers.value.length) {
+        return;
+    }
+
+    inviteError.value = '';
+    showConfirmDialog.value = true;
+}
+
+function closeConfirmDialog() {
+    if (inviteSending.value) {
+        return;
+    }
+
+    showConfirmDialog.value = false;
+}
+
+async function confirmInvite() {
+    if (!selectedUsers.value.length || inviteSending.value) {
+        return;
+    }
+
+    inviteSending.value = true;
+    inviteError.value = '';
+
+    const userIDs = selectedUsers.value
+        .map(user => Number(getInviteUserId(user)))
+        .filter(id => Number.isInteger(id) && id > 0);
+
+    if (!userIDs.length) {
+        inviteError.value = 'No valid users selected';
+        inviteSending.value = false;
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/group/invite', {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                groupID: Number(props.groupID),
+                userIDs
+            })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.status) {
+            throw new Error(
+                result.message || 'Could not send invitation'
+            );
+        }
+
+        showConfirmDialog.value = false;
+        inviteSuccess.value = result.message || 'Invite sent';
+
+        setTimeout(() => {
+            showInviteDialog.value = false;
+            inviteSuccess.value = '';
+            selectedUsers.value = [];
+            inviteUsers.value = [];
+            inviteSearch.value = '';
+        }, 800);
+    } catch (error) {
+        console.error(error);
+        inviteError.value =
+            error.message || 'Could not send invitation';
+    } finally {
+        inviteSending.value = false;
+    }
+}
+
 watch(search, () => {
     clearTimeout(debounceTimer);
 
@@ -198,6 +392,7 @@ watch(
 onBeforeUnmount(() => {
     clearTimeout(debounceTimer);
     clearTimeout(scrollTimer);
+    clearTimeout(inviteSearchTimer);
 });
 </script>
 
@@ -209,13 +404,23 @@ onBeforeUnmount(() => {
                 {{ memberList.length === 1 ? 'Member' : 'Members' }}
             </h3>
 
-            <button
-                class="close-button"
-                type="button"
-                @click="$emit('close')"
-            >
-                ×
-            </button>
+            <div class="header-actions">
+                <button
+                    class="invite-button"
+                    type="button"
+                    @click="openInvite"
+                >
+                    + Invite
+                </button>
+
+                <button
+                    class="close-button"
+                    type="button"
+                    @click="$emit('close')"
+                >
+                    ×
+                </button>
+            </div>
         </div>
 
         <Groupssearch
@@ -271,6 +476,190 @@ onBeforeUnmount(() => {
                 No members found.
             </p>
         </div>
+
+        <div
+            v-if="showInviteDialog"
+            class="dialog-overlay"
+            @click.self="closeInvite"
+        >
+            <div class="invite-dialog">
+                <div class="dialog-header">
+                    <h3>Invite Members</h3>
+
+                    <button
+                        type="button"
+                        class="dialog-close"
+                        @click="closeInvite"
+                    >
+                        ×
+                    </button>
+                </div>
+
+                <Groupssearch
+                    :model-value="inviteSearch"
+                    placeholder="Search users..."
+                    @update:model-value="handleInviteSearch"
+                />
+
+                <div class="selected-count">
+                    {{ selectedUsers.length }}
+                    {{ selectedUsers.length === 1 ? 'user' : 'users' }}
+                    selected
+                </div>
+
+                <div class="invite-users-list">
+                    <button
+                        v-for="user in inviteUsers"
+                        :key="getInviteUserId(user)"
+                        type="button"
+                        class="invite-user"
+                        :class="{ selected: isSelected(user) }"
+                        @click="toggleUser(user)"
+                    >
+                        <div class="invite-user-avatar">
+                            <img
+                                v-if="getInviteUserAvatar(user)"
+                                :src="getInviteUserAvatar(user)"
+                                :alt="getInviteUserName(user)"
+                            >
+
+                            <span v-else>
+                                {{ initials(getInviteUserName(user)) }}
+                            </span>
+                        </div>
+
+                        <div class="invite-user-info">
+                            <span class="invite-user-name">
+                                {{ getInviteUserName(user) }}
+                            </span>
+                        </div>
+
+                        <div
+                            class="select-check"
+                            :class="{ checked: isSelected(user) }"
+                        >
+                            {{ isSelected(user) ? '✓' : '' }}
+                        </div>
+                    </button>
+
+                    <div
+                        v-if="inviteLoading"
+                        class="dialog-loading"
+                    >
+                        Searching...
+                    </div>
+
+                    <div
+                        v-if="!inviteLoading && inviteError"
+                        class="dialog-error"
+                    >
+                        {{ inviteError }}
+                    </div>
+
+                    <div
+                        v-if="
+                            !inviteLoading &&
+                            !inviteError &&
+                            !inviteUsers.length
+                        "
+                        class="dialog-empty"
+                    >
+                        No users found.
+                    </div>
+                </div>
+
+                <div
+                    v-if="inviteSuccess"
+                    class="dialog-success"
+                >
+                    {{ inviteSuccess }}
+                </div>
+
+                <div class="dialog-footer">
+                    <button
+                        type="button"
+                        class="cancel-button"
+                        @click="closeInvite"
+                    >
+                        Cancel
+                    </button>
+
+                    <button
+                        type="button"
+                        class="confirm-invite-button"
+                        :disabled="
+                            !selectedUsers.length ||
+                            inviteSending ||
+                            !!inviteSuccess
+                        "
+                        @click="openConfirmDialog"
+                    >
+                        Invite
+                        <span v-if="selectedUsers.length">
+                            ({{ selectedUsers.length }})
+                        </span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div
+            v-if="showConfirmDialog"
+            class="dialog-overlay confirm-overlay"
+            @click.self="closeConfirmDialog"
+        >
+            <div class="confirm-dialog">
+                <div class="confirm-icon">
+                    ?
+                </div>
+
+                <h3>Confirm Invitation</h3>
+
+                <p>
+                    Are you sure you want to invite
+                    <strong>{{ selectedUsers.length }}</strong>
+                    {{ selectedUsers.length === 1 ? 'user' : 'users' }}
+                    to this group?
+                </p>
+
+                <div class="confirm-users">
+                    <span
+                        v-for="user in selectedUsers"
+                        :key="getInviteUserId(user)"
+                        class="confirm-user"
+                    >
+                        {{ getInviteUserName(user) }}
+                    </span>
+                </div>
+
+                <div
+                    v-if="inviteError"
+                    class="dialog-error"
+                >
+                    {{ inviteError }}
+                </div>
+
+                <div class="confirm-actions">
+                    <button
+                        type="button"
+                        class="cancel-button"
+                        :disabled="inviteSending"
+                        @click="closeConfirmDialog"
+                    >
+                        Cancel
+                    </button>
+
+                    <button
+                        type="button"
+                        class="confirm-invite-button"
+                        :disabled="inviteSending"
+                        @click="confirmInvite"
+                    >
+                        {{ inviteSending ? 'Sending...' : 'Confirm Invite' }}
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -296,6 +685,7 @@ onBeforeUnmount(() => {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 10px;
 }
 
 .members-title {
@@ -304,6 +694,30 @@ onBeforeUnmount(() => {
     font-family: "Liter", serif;
     font-size: 16px;
     font-weight: 700;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.invite-button {
+    min-height: 28px;
+    padding: 5px 9px;
+    border: 2px solid var(--main-color);
+    border-radius: 6px;
+    background: var(--main-color);
+    color: var(--bg-color);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.invite-button:hover {
+    background: var(--bg-color);
+    color: var(--main-color);
 }
 
 .close-button {
@@ -388,7 +802,8 @@ onBeforeUnmount(() => {
     white-space: nowrap;
 }
 
-.loading-members {
+.loading-members,
+.no-members {
     padding: 8px;
     text-align: center;
     color: var(--font-color-sub);
@@ -396,12 +811,279 @@ onBeforeUnmount(() => {
     font-size: 11px;
 }
 
-.no-members {
-    margin: 10px 0;
-    text-align: center;
+.dialog-overlay {
+    position: fixed;
+    z-index: 100;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.7);
+}
+
+.invite-dialog {
+    width: 420px;
+    max-width: 100%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 20px;
+    border: 2px solid var(--main-color);
+    border-radius: 10px;
+    background: var(--bg-color);
+    box-shadow: 8px 8px var(--main-color);
+}
+
+.dialog-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.dialog-header h3 {
+    margin: 0;
+    color: var(--font-color);
+    font-family: "Liter", serif;
+    font-size: 18px;
+}
+
+.dialog-close {
+    width: 28px;
+    height: 28px;
+    border: 2px solid var(--main-color);
+    border-radius: 50%;
+    background: transparent;
+    color: var(--main-color);
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.dialog-close:hover {
+    background: var(--main-color);
+    color: var(--bg-color);
+}
+
+.selected-count {
     color: var(--font-color-sub);
     font-family: "JetBrains Mono", monospace;
-    font-size: 12px;
+    font-size: 11px;
+}
+
+.invite-users-list {
+    min-height: 100px;
+    max-height: 320px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow-y: auto;
+}
+
+.invite-user {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border: 2px solid transparent;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--font-color);
+    text-align: left;
+    cursor: pointer;
+}
+
+.invite-user:hover {
+    background: var(--input-focus);
+}
+
+.invite-user.selected {
+    border-color: var(--main-color);
+    background: var(--input-focus);
+}
+
+.invite-user-avatar {
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border: 2px solid var(--main-color);
+    border-radius: 50%;
+    background: var(--bg-color-alt);
+    color: #fff;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+}
+
+.invite-user-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.invite-user-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.invite-user-name {
+    color: var(--font-color);
+    font-size: 13px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.select-check {
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--main-color);
+    border-radius: 4px;
+    color: var(--bg-color);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.select-check.checked {
+    background: var(--main-color);
+}
+
+.dialog-loading,
+.dialog-empty,
+.dialog-error,
+.dialog-success {
+    padding: 10px;
+    text-align: center;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+}
+
+.dialog-loading,
+.dialog-empty {
+    color: var(--font-color-sub);
+}
+
+.dialog-error {
+    color: #e57373;
+}
+
+.dialog-success {
+    color: #66bb6a;
+}
+
+.dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding-top: 4px;
+}
+
+.cancel-button,
+.confirm-invite-button {
+    padding: 8px 14px;
+    border: 2px solid var(--main-color);
+    border-radius: 6px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.cancel-button {
+    background: transparent;
+    color: var(--font-color);
+}
+
+.cancel-button:hover:not(:disabled) {
+    background: var(--bg-color-alt);
+}
+
+.confirm-invite-button {
+    background: var(--main-color);
+    color: var(--bg-color);
+}
+
+.confirm-invite-button:hover:not(:disabled) {
+    opacity: 0.85;
+}
+
+.cancel-button:disabled,
+.confirm-invite-button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.confirm-dialog {
+    width: 380px;
+    max-width: 100%;
+    padding: 24px;
+    border: 2px solid var(--main-color);
+    border-radius: 10px;
+    background: var(--bg-color);
+    box-shadow: 8px 8px var(--main-color);
+    text-align: center;
+}
+
+.confirm-icon {
+    width: 42px;
+    height: 42px;
+    margin: 0 auto 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--main-color);
+    border-radius: 50%;
+    color: var(--main-color);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.confirm-dialog h3 {
+    margin: 0 0 10px;
+    color: var(--font-color);
+    font-family: "Liter", serif;
+    font-size: 18px;
+}
+
+.confirm-dialog p {
+    margin: 0;
+    color: var(--font-color-sub);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.confirm-users {
+    max-height: 120px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    margin: 16px 0;
+    overflow-y: auto;
+}
+
+.confirm-user {
+    padding: 5px 8px;
+    border: 1px solid var(--bg-color-alt);
+    border-radius: 5px;
+    color: var(--font-color);
+    font-size: 11px;
+}
+
+.confirm-actions {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 18px;
 }
 
 @media (max-width: 650px) {
@@ -409,6 +1091,11 @@ onBeforeUnmount(() => {
         right: 12px;
         left: 12px;
         width: auto;
+    }
+
+    .invite-dialog,
+    .confirm-dialog {
+        width: 100%;
     }
 }
 </style>

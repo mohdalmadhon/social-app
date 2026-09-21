@@ -16,6 +16,7 @@ func StartServer(db *sql.DB) *http.ServeMux {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	mux := http.NewServeMux()
 
 	app := &api.App{
@@ -30,6 +31,7 @@ func StartServer(db *sql.DB) *http.ServeMux {
 	mux.HandleFunc("GET /api/user", app.AuthMiddleware(app.GetUserData))
 	mux.HandleFunc("POST /api/user", app.RegisterUser)
 	mux.HandleFunc("PATCH /api/user", app.AuthMiddleware(app.UpdateUserInfo))
+	mux.HandleFunc("DELETE /api/user", app.AuthMiddleware(app.DeleteAccount))
 
 	//session
 	mux.HandleFunc("POST /api/session", app.LoggingUser)
@@ -59,6 +61,7 @@ func StartServer(db *sql.DB) *http.ServeMux {
 	mux.HandleFunc("POST /api/post/reaction", app.AuthMiddleware(app.PostReaction))
 	mux.HandleFunc("GET /api/user/posts", app.AuthMiddleware(app.GetUserPosts))
 	mux.HandleFunc("POST /api/posts/seen", app.AuthMiddleware(app.ViewPost))
+	mux.HandleFunc("GET /api/post/single", app.AuthMiddleware(app.GetSinglePost))
 
 	// post's groups
 	mux.HandleFunc("GET /api/post/groups", app.AuthMiddleware(app.GetPostGroups))
@@ -78,6 +81,9 @@ func StartServer(db *sql.DB) *http.ServeMux {
 	mux.HandleFunc("GET /api/location/search", app.SearchLocation)
 	mux.HandleFunc("GET /api/groups/search", app.AuthMiddleware(app.SearchPrivateChats))
 	mux.HandleFunc("GET /api/group/users", app.AuthMiddleware(app.GetGroupMembers))
+	mux.HandleFunc("GET /api/search/groups", app.AuthMiddleware(app.GlobalSearchGroups))
+	mux.HandleFunc("GET /api/search/users", app.AuthMiddleware(app.GlobalSearchUsers))
+	mux.HandleFunc("GET /api/search/posts", app.AuthMiddleware(app.GlobalSearchPosts))
 
 	// chats
 	mux.HandleFunc("GET /api/groups", app.AuthMiddleware(app.GetGroups))
@@ -94,11 +100,26 @@ func StartServer(db *sql.DB) *http.ServeMux {
 	mux.HandleFunc("POST /api/group/posts", app.AuthMiddleware(app.AddGroupPost))
 	mux.HandleFunc("GET /api/group/post", app.AuthMiddleware(app.GetGroupPost))
 	mux.HandleFunc("POST /api/group/post/reaction", app.AuthMiddleware(app.InsertGroupPostReaction))
+	mux.HandleFunc("GET /api/group/posts", app.AuthMiddleware(app.GetGroupPosts))
+	mux.HandleFunc("POST /api/group/invite", app.AuthMiddleware(app.InviteMember))
+
+	//group posts comments
+	mux.HandleFunc("POST /api/group/post/comment", app.AuthMiddleware(app.AddGroupComment))
+	mux.HandleFunc("GET /api/group/post/comment", app.AuthMiddleware(app.GetGroupComments))
+	mux.HandleFunc("DELETE /api/group/post/comment", app.AuthMiddleware(app.DeleteGroupComment))
+	mux.HandleFunc("POST /api/group/post/comment/vote", app.AuthMiddleware(app.VoteGroupComment))
+
+	//group events
+	mux.HandleFunc("POST /api/group/events", app.AuthMiddleware(app.AddGroupEvent))
+	mux.HandleFunc("GET /api/group/events", app.AuthMiddleware(app.GetGroupEvents))
+	mux.HandleFunc("POST /api/group/event/response", app.AuthMiddleware(app.RespondGroupEvent))
+	mux.HandleFunc("GET /api/group/event/votes", app.AuthMiddleware(app.GetGroupEventVotes))
 	
 	//ws
 	mux.Handle("/api/ws", app.WSAuthMiddleware(websocket.Handler(app.HandleWS)))
 	mux.HandleFunc("/api/notifications", app.AuthMiddleware(app.GetNotification))
 	mux.HandleFunc("GET /api/notifications/unread", app.AuthMiddleware(app.GetUnreadNotificationCount))
 	mux.HandleFunc("POST /api/notifications/read", app.AuthMiddleware(app.MarkNotificationsRead))
+
 	return mux
 }

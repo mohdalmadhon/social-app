@@ -12,6 +12,38 @@ import (
 	"social/internal/validation"
 )
 
+func (app *App) DeleteAccount(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("userID").(int)
+	if !ok {
+		helpers.WriteJson(w, http.StatusUnauthorized, map[string]any{
+			"status":  false,
+			"message": "could not authorize user",
+		})
+		return
+	}
+
+	if err := users.DeleteUser(app.DB, userID); err != nil {
+		log.Println(err)
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not delete account",
+		})
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:   "token",
+		Value:  "",
+		MaxAge: -1,
+		Path:   "/",
+	})
+
+	helpers.WriteJson(w, http.StatusOK, map[string]any{
+		"status":  true,
+		"message": "account deleted",
+	})
+}
+
 func (app *App) GetUserData(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value("userID").(int)
 	if !ok {

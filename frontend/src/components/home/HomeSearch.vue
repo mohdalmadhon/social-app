@@ -1,12 +1,20 @@
 <script setup>
-import { ref } from 'vue';
+import { useSearchBox } from '@/helpers/search/useSearchBox';
 
-const searchQuery = ref('');
+const { searchQuery, submitSearch, clearSearch } = useSearchBox();
 </script>
 
 <template>
-    <div class="search-container">
-        <div class="search-icon">
+    <form
+        class="search-container"
+        role="search"
+        @submit.prevent="submitSearch"
+    >
+        <button
+            class="search-icon"
+            type="submit"
+            aria-label="Search"
+        >
             <svg
                 viewBox="0 0 24 24"
                 fill="none"
@@ -16,24 +24,28 @@ const searchQuery = ref('');
                 <circle cx="11" cy="11" r="7"></circle>
                 <path d="m20 20-4-4"></path>
             </svg>
-        </div>
+        </button>
 
         <input
             v-model="searchQuery"
             type="text"
-            placeholder="Search..."
+            placeholder="Search groups, users and posts..."
             class="search-input"
+            aria-label="Search groups, users and posts"
+            enterkeyhint="search"
+            autocomplete="off"
         >
 
         <button
             v-if="searchQuery"
             class="clear-button"
             type="button"
-            @click="searchQuery = ''"
+            aria-label="Clear search"
+            @click="clearSearch"
         >
             ×
         </button>
-    </div>
+    </form>
 </template>
 
 <style scoped>
@@ -75,11 +87,19 @@ const searchQuery = ref('');
     align-items: center;
     justify-content: center;
 
+    padding: 0;
+
     border: 2px solid var(--main-color);
     border-radius: 50%;
 
     background: var(--input-focus);
     color: white;
+
+    transition: transform 0.1s;
+}
+
+.search-icon:active {
+    transform: translate(2px, 2px);
 }
 
 .search-icon svg {

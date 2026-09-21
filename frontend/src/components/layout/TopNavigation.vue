@@ -1,9 +1,11 @@
 <script setup>
 import { getUserData } from '@/api/users/personalProfile';
 import { addNotification } from '@/data/notifications';
+import { useSearchBox } from '@/helpers/search/useSearchBox';
 import { onMounted, ref } from 'vue';
 
 const avatar = ref('');
+const { searchQuery, submitSearch } = useSearchBox();
 
 async function getData() {
     try {
@@ -20,21 +22,26 @@ onMounted(getData)
 <template>
     <header class="top-navigation">
         <div class="nav-left">
-            <a href="/" class="logo">N</a>
 
-            <div class="search">
-                <span>⌕</span>
-                <input type="text" placeholder="Search" />
-            </div>
+            <form class="search" role="search" @submit.prevent="submitSearch">
+                <button class="search-submit" type="submit" aria-label="Search">⌕</button>
+                <input
+                    v-model="searchQuery"
+                    type="text"
+                    placeholder="Search"
+                    aria-label="Search groups, users and posts"
+                    enterkeyhint="search"
+                    autocomplete="off"
+                />
+            </form>
         </div>
-
+        
         <nav class="nav-links">
             <a href="/home">Home</a>
         </nav>
 
         <div class="nav-right">
             <a href="/post/new"><button class="nav-button">+</button></a>
-            <button class="nav-button">☼</button>
 
             <a href="/me" class="nav-avatar">
                 <img :src="`/uploads/${avatar}`" alt="">
@@ -106,9 +113,14 @@ onMounted(getData)
     min-width: 0;
 }
 
-.search span {
+.search-submit {
     flex-shrink: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--main-color);
     font-size: 20px;
+    line-height: 1;
 }
 
 .search input {
@@ -209,10 +221,6 @@ onMounted(getData)
 }
 
 @media (max-width: 480px) {
-    .search span {
-        display: none;
-    }
-
     .nav-right > .nav-button {
         display: none;
     }

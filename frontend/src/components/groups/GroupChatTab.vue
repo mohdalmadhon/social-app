@@ -6,6 +6,7 @@ import { getMessages } from '@/api/chats/chats';
 import { getGroupPost, insertPostReaction } from '@/api/posts/groups';
 import { activePage } from '@/data/chatState';
 import HomePosts from '@/components/home/HomePosts.vue';
+import GroupEventDialog from '@/components/groups/GroupEventDialog.vue';
 
 const props = defineProps({
     groupID: {
@@ -34,6 +35,8 @@ const props = defineProps({
     }
 });
 
+const emit = defineEmits(['event-created']);
+
 const message = ref('');
 const messages = ref([]);
 const sending = ref(false);
@@ -46,6 +49,7 @@ const selectedPost = ref(null);
 const showPostDialog = ref(false);
 const loadingPost = ref(false);
 const reacting = ref(false);
+const showEventDialog = ref(false);
 
 let fetchTimer = null;
 let requestID = 0;
@@ -673,6 +677,19 @@ function send() {
     }
 }
 
+function openEventDialog() {
+    showEventDialog.value = true;
+}
+
+function closeEventDialog() {
+    showEventDialog.value = false;
+}
+
+function eventCreated(event) {
+    showEventDialog.value = false;
+    emit('event-created', event);
+}
+
 function handleKeydown(event) {
     if (
         event.key === 'Enter' &&
@@ -916,6 +933,10 @@ onUnmounted(() => {
         </div>
 
         <form class="composer" @submit.prevent="send">
+            <button type="button" class="event-trigger" title="Create event" @click="openEventDialog">
+                + Event
+            </button>
+
             <input v-model="message" type="text" placeholder="Type a message..." :disabled="loading"
                 @keydown="handleKeydown" />
 
@@ -930,6 +951,9 @@ onUnmounted(() => {
                 }}
             </button>
         </form>
+
+        <GroupEventDialog :show="showEventDialog" :group-id="groupID" @close="closeEventDialog"
+            @created="eventCreated" />
 
         <div v-if="showPostDialog" class="post-dialog-overlay" @click.self="closePost">
             <div class="post-dialog">
@@ -1435,10 +1459,31 @@ onUnmounted(() => {
     font-size: 10px;
 }
 
+.event-trigger {
+    flex-shrink: 0;
+    padding: 0 14px;
+    height: 42px;
+    border: 2px solid var(--main-color);
+    border-radius: 5px;
+    background: var(--bg-color);
+    color: var(--font-color);
+    box-shadow: 4px 4px var(--main-color);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.event-trigger:active {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px var(--main-color);
+}
+
 @media (max-width: 800px) {
     .chat-window {
-        height: 480px;
-        max-height: 480px;
+        height: calc(100vh - 220px);
+        min-height: 380px;
+        max-height: none;
     }
 
     .message {
@@ -1460,6 +1505,55 @@ onUnmounted(() => {
     .post-dialog-close {
         top: -8px;
         right: -8px;
+    }
+}
+
+@media (max-width: 560px) {
+    .chat-window {
+        height: calc(100vh - 200px);
+        min-height: 340px;
+        box-shadow: 4px 4px var(--main-color);
+    }
+
+    .messages {
+        padding: 14px;
+    }
+
+    .message {
+        max-width: 92%;
+    }
+
+    .post-message {
+        width: 100%;
+    }
+
+    .composer {
+        flex-wrap: wrap;
+        padding: 12px 14px;
+    }
+
+    .composer input {
+        flex: 1 1 100%;
+        order: 1;
+    }
+
+    .event-trigger {
+        order: 2;
+        flex: 1 1 auto;
+    }
+
+    .composer button[type="submit"] {
+        order: 3;
+        flex: 1 1 auto;
+    }
+
+    .post-dialog-overlay {
+        padding: 10px;
+    }
+
+    .post-dialog-close {
+        top: 4px;
+        right: 4px;
     }
 }
 </style>

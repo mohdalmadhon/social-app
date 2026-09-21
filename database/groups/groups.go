@@ -460,3 +460,14 @@ func UserIN(db *sql.DB, groupID, userID int) (bool, error) {
 	return exists, nil
 }
 
+func GetGroupData(db *sql.DB, groupID int) (models.Group, error) {
+	var g models.Group
+	err := db.QueryRow(`
+		SELECT name, avatar FROM groups WHERE id = ?
+	`, groupID).Scan(
+		&g.Title,
+		g.Avatar,
+	)
+
+	return g, err
+}

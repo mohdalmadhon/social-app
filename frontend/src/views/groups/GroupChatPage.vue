@@ -6,15 +6,17 @@ import GroupHeader from '@/components/groups/GroupHeader.vue';
 import GroupMembersPanel from '@/components/groups/GroupMembersPanel.vue';
 import GroupTabs from '@/components/groups/GroupTabs.vue';
 import GroupFeedHeader from '@/components/groups/GroupFeedHeader.vue';
+import GroupDialoge from '@/components/groups/GroupDialoge.vue';
 
 import SideNavigation from '@/components/layout/SideNavigation.vue';
 import TopNavigation from '@/components/layout/TopNavigation.vue';
 
 import { addNotification } from '@/data/notifications';
+import { getGroupPosts as fetchGroupPosts } from '@/api/posts/groupComments';
+import { throttle } from '@/helpers/throttle';
 
-import { onMounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import GroupDialoge from '@/components/groups/GroupDialoge.vue';
 
 const group = ref({});
 const members = ref([]);
@@ -22,13 +24,23 @@ const route = useRoute();
 
 const groupID = Number(route.params.id);
 
+const postsLimit = 10;
+
 const posts = ref([]);
+const postsOffset = ref(0);
+const postsHasMore = ref(true);
+const loadingPosts = ref(false);
+const currentUserId = ref(null);
+const postsScroll = ref(null);
+
 const events = ref([]);
-const messages = ref([]);
+const eventsTab = ref(null);
 
 const activeTab = ref('group');
 const showMembers = ref(false);
 const showPostDialog = ref(false);
+
+let postsRequestID = 0;
 
 function toggleMembers() {
     showMembers.value = !showMembers.value;
@@ -52,89 +64,116 @@ function closePostDialog() {
 
 async function handlePostCreated() {
     showPostDialog.value = false;
-    await getGroupPosts();
+    await getGroupPosts(true);
 }
 
 async function getGroupData() {
     try {
-        const resp = await fetch(
-            `/api/group?groupID=${groupID}`,
-            {
-                method: 'GET',
-                credentials: 'include'
-            }
-        );
-
-        const result = await resp.json();
-
-        if (!resp.ok) {
-            addNotification(
-                result.message ||
-                result.messages ||
-                'Could not get group data',
-                'error'
-            );
-            return;
-        }
-
-        if (!result.status) {
-            addNotification(
-                result.message ||
-                result.messages ||
-                'Could not get group data',
-                'error'
-            );
-            return;
-        }
-
-        group.value = {
-            ...result.data
-        };
-    } catch (err) {
-        addNotification(
-            err.message || 'Could not get group data',
-            'error'
-        );
-    }
-}
-
-async function getGroupPosts() {
-    try {
-        const resp = await fetch(
-            `/api/group/posts?groupID=${groupID}&offset=0`,
-            {
-                method: 'GET',
-                credentials: 'include'
-            }
-        );
+        const resp = await fetch(`/api/group?groupID=${groupID}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
 
         const result = await resp.json();
 
         if (!resp.ok || !result.status) {
             addNotification(
-                result.message ||
-                'Could not get group posts',
+                result.message || result.messages || 'Could not get group data',
                 'error'
             );
             return;
         }
 
-        posts.value =
-            result.data ||
-            result.posts ||
-            [];
+        group.value = { ...result.data };
     } catch (err) {
-        addNotification(
-            err.message ||
-            'Could not get group posts',
-            'error'
-        );
+        addNotification(err.message || 'Could not get group data', 'error');
     }
 }
 
+async function getGroupPosts(reset = false) {
+    if (loadingPosts.value) return;
+    if (!reset && !postsHasMore.value) return;
+
+    const requestID = ++postsRequestID;
+
+    loadingPosts.value = true;
+
+    if (reset) {
+        postsOffset.value = 0;
+        postsHasMore.value = true;
+        posts.value = [];
+    }
+
+    try {
+        const result = await fetchGroupPosts(groupID, postsOffset.value);
+
+        if (requestID !== postsRequestID) return;
+
+        posts.value = [...posts.value, ...result.posts];
+        postsOffset.value += result.posts.length;
+        currentUserId.value = result.userId;
+
+        if (result.posts.length < postsLimit) {
+            postsHasMore.value = false;
+        }
+    } catch (err) {
+        if (requestID !== postsRequestID) return;
+
+        postsHasMore.value = false;
+
+        addNotification(err.message || 'Could not get group posts', 'error');
+    } finally {
+        if (requestID === postsRequestID) {
+            loadingPosts.value = false;
+        }
+    }
+}
+
+const handlePostsScroll = throttle(() => {
+    if (activeTab.value !== 'group') return;
+
+    const container = postsScroll.value;
+    if (!container) return;
+
+    const distance =
+        container.scrollHeight - container.scrollTop - container.clientHeight;
+
+    if (distance < 200) {
+        getGroupPosts();
+    }
+}, 300);
+
+function handleEventCreated(event) {
+    activeTab.value = 'events';
+
+    if (eventsTab.value) {
+        eventsTab.value.addCreatedEvent(event);
+    } else {
+        events.value = [event, ...events.value];
+    }
+}
+
+watch(postsScroll, (newEl, oldEl) => {
+    if (oldEl) {
+        oldEl.removeEventListener('scroll', handlePostsScroll);
+    }
+
+    if (newEl) {
+        newEl.addEventListener('scroll', handlePostsScroll);
+    }
+});
+
 onMounted(async () => {
     await getGroupData();
-    await getGroupPosts();
+    await getGroupPosts(true);
+});
+
+onUnmounted(() => {
+    postsRequestID++;
+
+    if (postsScroll.value) {
+        postsScroll.value.removeEventListener('scroll', handlePostsScroll);
+    }
 });
 </script>
 
@@ -162,23 +201,23 @@ onMounted(async () => {
                     <template v-if="activeTab === 'group'">
                         <GroupFeedHeader @add-post="openPostDialog" />
 
-                        <GroupFeedTab :posts="posts" />
+                        <div ref="postsScroll" class="posts-scroll">
+                            <GroupFeedTab :posts="posts" :current-user-id="currentUserId" />
+
+                            <div v-if="loadingPosts" class="loading-more">Loading posts...</div>
+                        </div>
                     </template>
 
-                    <GroupEventsTab v-else-if="activeTab === 'events'" :events="events" />
+                    <GroupEventsTab v-else-if="activeTab === 'events'" ref="eventsTab" :group-id="groupID" />
 
-                    <GroupChatTab v-else :messages="messages" :group-i-d="groupID" />
+                    <GroupChatTab v-else :group-i-d="groupID" :user-i-d="currentUserId" :group="group"
+                        @event-created="handleEventCreated" />
                 </div>
             </main>
         </div>
 
-        <GroupDialoge
-            :show="showPostDialog"
-            :group-id="groupID"
-            :group-title="group.title"
-            @close="closePostDialog"
-            @created="handlePostCreated"
-        />
+        <GroupDialoge :show="showPostDialog" :group-id="groupID" :group-title="group.title" @close="closePostDialog"
+            @created="handlePostCreated" />
     </div>
 </template>
 
@@ -200,17 +239,45 @@ onMounted(async () => {
 }
 
 .content-container {
+    display: flex;
     width: 100%;
     max-width: 760px;
-    margin: 0 auto;
-    padding: 30px 25px 60px;
-    display: flex;
     flex-direction: column;
     gap: 22px;
+    margin: 0 auto;
+    padding: 30px 25px 60px;
 }
 
 .header-wrapper {
     position: relative;
+}
+
+.posts-scroll {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+
+    max-height: calc(100vh - 260px);
+    overflow-y: auto;
+    overflow-x: hidden;
+
+    padding-right: 6px;
+    margin-right: -6px;
+}
+
+.loading-more {
+    padding: 14px;
+    color: var(--font-color-sub);
+    text-align: center;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+}
+
+@media (max-width: 1024px) {
+    .content-container {
+        max-width: 100%;
+        padding: 26px 20px 50px;
+    }
 }
 
 @media (max-width: 800px) {
@@ -219,7 +286,29 @@ onMounted(async () => {
     }
 
     .content-container {
+        gap: 18px;
         padding: 20px 15px 50px;
+    }
+
+    .posts-scroll {
+        max-height: calc(100vh - 320px);
+    }
+}
+
+@media (max-width: 520px) {
+    .group-page {
+        padding-top: 58px;
+    }
+
+    .content-container {
+        gap: 14px;
+        padding: 14px 10px 44px;
+    }
+
+    .posts-scroll {
+        max-height: calc(100vh - 300px);
+        padding-right: 0;
+        margin-right: 0;
     }
 }
 </style>

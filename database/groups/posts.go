@@ -135,13 +135,13 @@ func GetGroupPost(db *sql.DB, postID int, userID int) (models.Post, error) {
 			COALESCE(SUM(CASE WHEN pr.value = -1 THEN 1 ELSE 0 END), 0),
 			(
 				SELECT COUNT(*)
-				FROM comments c
+				FROM group_comments c
 				WHERE c.post_id = gp.id
 			),
 
 			(
 				SELECT pr2.value
-				FROM post_reactions pr2
+				FROM group_post_reactions pr2
 				WHERE pr2.post_id = gp.id
 				AND pr2.user_id = ?
 			)
@@ -151,7 +151,7 @@ func GetGroupPost(db *sql.DB, postID int, userID int) (models.Post, error) {
 		LEFT JOIN groups g
 			ON g.id = gp.group_id
 
-		LEFT JOIN post_reactions pr
+		LEFT JOIN group_post_reactions pr
 			ON pr.post_id = gp.id
 
 		WHERE gp.id = ?

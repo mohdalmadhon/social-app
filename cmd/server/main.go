@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	db, err := server.ConnectToDB("sqlite3", "./db/social_network.db")
+	db, err := server.ConnectToDB("sqlite3", "./db/social_network.db?_foreign_keys=on")
 	if err != nil {
 		log.Println(err)
 		return

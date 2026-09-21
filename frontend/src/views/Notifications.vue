@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 
 import { getNotifications, acceptFollowRequest, markNotificationsRead } from '@/api/common/notifications';
 
@@ -7,6 +7,8 @@ import { addNotification } from '@/data/notifications';
 import { clearUnreadNotificationCount } from '@/data/notificationCount';
 import SideNavigation from '@/components/layout/SideNavigation.vue';
 import TopNavigation from '@/components/layout/TopNavigation.vue';
+import NotificationPostDialog from '@/components/notifications/NotificationPostDialog.vue';
+import { throttle } from '@/helpers/throttle';
 
 const notifications = ref([]);
 const loading = ref(true);
@@ -14,11 +16,17 @@ const loadingMore = ref(false);
 const hasMore = ref(true);
 const offset = ref(0);
 const limit = 15;
+const selectedPostId = ref(null);
+const showPostDialog = ref(false);
 
 onMounted(async () => {
     await loadNotifications();
     window.addEventListener('scroll', handleScroll);
     markAsRead();
+});
+
+onUnmounted(() => {
+    window.removeEventListener('scroll', handleScroll);
 });
 
 async function markAsRead() {
@@ -82,14 +90,14 @@ async function loadMore() {
     }
 }
 
-function handleScroll() {
+const handleScroll = throttle(() => {
     const scrollPosition = window.innerHeight + window.scrollY;
     const pageHeight = document.documentElement.scrollHeight;
 
     if (scrollPosition >= pageHeight - 300) {
         loadMore();
     }
-}
+}, 300);
 
 function getActor(notification) {
     return notification.actor || {};
@@ -135,7 +143,13 @@ function openPost(postID) {
         return;
     }
 
-    window.location.href = `/post/${postID}`;
+    selectedPostId.value = Number(postID);
+    showPostDialog.value = true;
+}
+
+function closePostDialog() {
+    showPostDialog.value = false;
+    selectedPostId.value = null;
 }
 
 function getMessage(notification) {
@@ -301,15 +315,15 @@ async function acceptRequest(notification) {
                             </div>
 
                             <div
-                                v-if="isPostNotification(notification) && notification.post"
+                                v-if="isPostNotification(notification)"
                                 class="post-preview"
-                                @click="openPost(notification.post.id)"
+                                @click="openPost(notification.post?.id || notification.post_id)"
                             >
                                 <div class="post-preview-text">
                                     <span>POST</span>
 
                                     <p>
-                                        {{ notification.post.content }}
+                                        {{ notification.post?.content || 'Open post' }}
                                     </p>
                                 </div>
 
@@ -332,6 +346,12 @@ async function acceptRequest(notification) {
                 </section>
             </main>
         </div>
+
+        <NotificationPostDialog
+            :show="showPostDialog"
+            :post-id="selectedPostId"
+            @close="closePostDialog"
+        />
     </div>
 </template>
 
@@ -556,9 +576,54 @@ async function acceptRequest(notification) {
     font-size: 12px;
 }
 
+@media (max-width: 1024px) {
+    .notifications-page {
+        width: min(100%, calc(100% - 32px));
+    }
+}
+
 @media (max-width: 800px) {
     .page-layout {
         display: block;
+        gap: 0;
+    }
+
+    .notifications-page {
+        width: calc(100% - 28px);
+        padding: 24px 0 50px;
+    }
+
+    .page-header h1 {
+        font-size: 26px;
+    }
+}
+
+@media (max-width: 420px) {
+    .notifications-page {
+        width: calc(100% - 16px);
+    }
+
+    .notification {
+        gap: 10px;
+        padding: 13px;
+    }
+
+    .notification-avatar {
+        flex: 0 0 38px;
+        width: 38px;
+        height: 38px;
+        font-size: 15px;
+    }
+
+    .post-preview {
+        flex-direction: column;
+    }
+
+    .post-image {
+        width: 100%;
+        height: 140px;
+        border-left: none;
+        border-top: 2px solid #292929;
     }
 }
 

@@ -10,8 +10,60 @@
     --page-background: #f4f4f2;
 }
 
+:root[data-theme="dark"] {
+    --input-focus: #4d9cf6;
+    --font-color: #ededed;
+    --font-color-sub: #a3a3a3;
+    --bg-color: #1c1c1c;
+    --bg-color-alt: #a3a3a3;
+    --main-color: #ededed;
+    --page-background: #121212;
+}
+
+:root[data-theme="blue"] {
+    --input-focus: #5b9cff;
+    --font-color: #e8eef7;
+    --font-color-sub: #8d9aae;
+
+    --bg-color: #161c25;
+    --bg-color-alt: #293241;
+
+    --main-color: #5b9cff;
+    --page-background: #0d1219;
+
+    --blue-light: #8ab8ff;
+    --blue-soft: #263a55;
+    --blue: #5b9cff;
+    --blue-dark: #3977d6;
+
+    --border-color: #283342;
+    --card-background: #151b23;
+    --input-background: #1d2632;
+}
+
+:root[data-theme="pink"] {
+    --input-focus: #e88ca8;
+    --font-color: #3f3035;
+    --font-color-sub: #806b73;
+    --bg-color: #fffafa;
+    --bg-color-alt: #b98797;
+    --main-color: #d96b8a;
+    --page-background: #fff0f3;
+
+    --pink-light: #fff0f3;
+    --pink-soft: #f9d8e1;
+    --pink: #e8a0b5;
+    --pink-dark: #d96b8a;
+    --pink-deep: #b94f70;
+    --border-color: #efc4d0;
+}
+
 * {
     box-sizing: border-box;
+}
+
+body {
+    transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 html {
@@ -53,4 +105,42 @@ a {
 img {
     max-width: 100%;
     display: block;
+}
+html,
+body {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+img,
+video,
+canvas,
+svg {
+    max-width: 100%;
+    height: auto;
+}
+
+input,
+textarea,
+select,
+button {
+    max-width: 100%;
+}
+
+@media (max-width: 1024px) {
+    body {
+        font-size: 15px;
+    }
+}
+
+@media (max-width: 800px) {
+    body {
+        font-size: 14px;
+    }
+}
+
+@media (max-width: 520px) {
+    body {
+        font-size: 13px;
+    }
 }
