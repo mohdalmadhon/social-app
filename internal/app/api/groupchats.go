@@ -620,7 +620,7 @@ func (app *App) GetGroup(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
+	log.Println(groupID)
 	group, err := groups.GetGroup(app.DB, userID, groupID)
 	if err != nil {
 		if err == sql.ErrNoRows {

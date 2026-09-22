@@ -321,7 +321,6 @@ func DiscoverGroups(db *sql.DB, userID, offset int, search string) ([]models.Gro
 			FROM groups_users gu
 			WHERE gu.group_id = g.id
 			  AND gu.user_id = ?
-			  AND status <> 1
 		)
 		AND g.is_private_chat = 0
 	`

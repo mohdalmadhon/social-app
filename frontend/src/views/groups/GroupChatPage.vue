@@ -69,6 +69,7 @@ async function handlePostCreated() {
 
 const isOwner = ref(false);
 async function getGroupData() {
+    console.log(groupID)
     try {
         const resp = await fetch(`/api/group?groupID=${groupID}`, {
             method: 'GET',
