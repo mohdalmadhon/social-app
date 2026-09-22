@@ -1,0 +1,21 @@
+# Frontend has its own build context
+frontend
+
+# VCS / editor
+.git
+.gitignore
+.vscode
+.idea
+
+# Docker files themselves
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Runtime data — should live in a volume, not the image
+db
+*.db
+
+# Misc
+tests
+*.md

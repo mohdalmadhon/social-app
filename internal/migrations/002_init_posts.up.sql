@@ -11,7 +11,6 @@ CREATE TABLE IF NOT EXISTS posts (
     public int CHECK (public in (1,0)),
     private int CHECK (public in (1,0)),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    tags TEXT,
     like_count INTEGER NOT NULL DEFAULT 0,
     dislike_count INTEGER NOT NULL DEFAULT 0,
     comment_count INTEGER NOT NULL DEFAULT 0,
