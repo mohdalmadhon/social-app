@@ -44,6 +44,21 @@ export async function getUserPosts(userID = "", offset = 0) {
     return result;
 }
 
+export async function deletePost(postID) {
+    const resp = await fetch(`/api/post?postId=${postID}`, {
+        method: 'DELETE',
+        credentials: 'include'
+    });
+
+    const result = await resp.json();
+
+    if (!resp.ok) {
+        throw new Error(result.message || 'could not delete post');
+    }
+
+    return result;
+}
+
 export async function viewPost(postID) {
     const resp = await fetch('/api/posts/seen', {
         method: 'POST',

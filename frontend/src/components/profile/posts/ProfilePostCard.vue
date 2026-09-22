@@ -8,6 +8,9 @@ import HomePostAction from '@/components/home/HomePostAction.vue';
 import HomePostComments from '@/components/home/HomePostComments.vue';
 import LocationDialouge from '@/components/home/LocationDialouge.vue';
 import TaggedPeopleDialoug from '@/components/home/TaggedPeopleDialoug.vue';
+import ConfirmModal from '@/components/personalProfile/group/ConfirmModal.vue';
+import { deletePost } from '@/api/posts/posts';
+import { addNotification } from '@/data/notifications';
 
 const props = defineProps({
     post: {
@@ -21,9 +24,21 @@ const props = defineProps({
     }
 });
 
+const emit = defineEmits(['deleted']);
+
 const showComments = ref(false);
 const showLocationDialog = ref(false);
 const showTaggedDialog = ref(false);
+const showDeleteConfirm = ref(false);
+const deleting = ref(false);
+
+const canDelete = computed(() => {
+    return (
+        props.currentUserId !== null &&
+        props.currentUserId !== undefined &&
+        String(props.post.userId) === String(props.currentUserId)
+    );
+});
 
 const locationParts = computed(() => {
     if (!props.post.location) {
@@ -118,11 +133,54 @@ function openLocationDialog() {
 function closeLocationDialog() {
     showLocationDialog.value = false;
 }
+
+function openDeleteConfirm() {
+    showDeleteConfirm.value = true;
+}
+
+function closeDeleteConfirm() {
+    showDeleteConfirm.value = false;
+}
+
+async function confirmDelete() {
+    if (deleting.value) {
+        return;
+    }
+
+    deleting.value = true;
+
+    try {
+        const result = await deletePost(props.post.id);
+
+        if (!result || !result.status) {
+            throw new Error(result?.message || 'Could not delete post');
+        }
+
+        addNotification('Post deleted', 'success');
+        showDeleteConfirm.value = false;
+        emit('deleted', props.post.id);
+    } catch (err) {
+        console.error(err);
+        addNotification(err.message || 'Could not delete post', 'error');
+    } finally {
+        deleting.value = false;
+    }
+}
 </script>
 
 <template>
     <article class="profile-post-card">
         <ProfilePostGroupBadge :group-id="post.groupId" :group-name="post.groupName" />
+
+        <button
+            v-if="canDelete"
+            type="button"
+            class="delete-post-btn"
+            title="Delete post"
+            @click="openDeleteConfirm"
+        >
+            🗑
+        </button>
 
         <HomePostHeader :user-id="post.userId" :group-id="post.groupId" :first-name="post.firstName"
             :last-name="post.lastName" :avatar-path="post.avatarPath" :relationship="post.relationship"
@@ -152,11 +210,24 @@ function closeLocationDialog() {
             :external-url="mapExternalUrl" @close="closeLocationDialog" />
 
         <TaggedPeopleDialoug :show="showTaggedDialog" :people="post.taggedPeople" @close="closeTaggedDialog" />
+
+        <ConfirmModal
+            v-if="showDeleteConfirm"
+            title="Delete this post?"
+            confirm-label="Delete"
+            cancel-label="Cancel"
+            :danger="true"
+            @confirm="confirmDelete"
+            @cancel="closeDeleteConfirm"
+        >
+            <p>This will permanently delete the post, its comments, and reactions. This cannot be undone.</p>
+        </ConfirmModal>
     </article>
 </template>
 
 <style scoped>
 .profile-post-card {
+    position: relative;
     display: flex;
     flex-direction: column;
 
@@ -168,6 +239,41 @@ function closeLocationDialog() {
 
     background: var(--bg-color);
     box-shadow: 7px 7px var(--main-color);
+}
+
+.delete-post-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 2;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+
+    border: 2px solid var(--main-color);
+    border-radius: 50%;
+
+    background: var(--bg-color);
+    color: var(--font-color);
+
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+
+    box-shadow: 3px 3px var(--main-color);
+    transition:
+        transform 0.15s ease,
+        box-shadow 0.15s ease,
+        border-color 0.15s ease;
+}
+
+.delete-post-btn:hover {
+    border-color: #c0392b;
+    transform: translate(-1px, -1px);
+    box-shadow: 4px 4px var(--main-color);
 }
 
 .post-content {

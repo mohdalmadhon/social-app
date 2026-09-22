@@ -49,6 +49,7 @@ func StartServer(db *sql.DB) *http.ServeMux {
 	mux.HandleFunc("DELETE /api/profile/follow", app.AuthMiddleware(app.CancelRequest))
 	mux.HandleFunc("GET /api/profile/follow", app.AuthMiddleware(app.GetFollowers))
 	mux.HandleFunc("GET /api/profile/following", app.AuthMiddleware(app.GetFollowing))
+	mux.HandleFunc("DELETE /api/profile/followers", app.AuthMiddleware(app.RemoveFollower))
 	mux.HandleFunc("/api/follow/accept", app.AuthMiddleware(app.AcceptFollowRequest))
 
 	//folder handlers
@@ -60,6 +61,7 @@ func StartServer(db *sql.DB) *http.ServeMux {
 	mux.HandleFunc("GET /api/posts", app.AuthMiddleware(app.GetHomePosts))
 	mux.HandleFunc("POST /api/post/reaction", app.AuthMiddleware(app.PostReaction))
 	mux.HandleFunc("GET /api/user/posts", app.AuthMiddleware(app.GetUserPosts))
+	mux.HandleFunc("DELETE /api/post", app.AuthMiddleware(app.DeletePost))
 	mux.HandleFunc("POST /api/posts/seen", app.AuthMiddleware(app.ViewPost))
 	mux.HandleFunc("GET /api/post/single", app.AuthMiddleware(app.GetSinglePost))
 

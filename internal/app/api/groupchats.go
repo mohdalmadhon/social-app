@@ -359,6 +359,7 @@ func (app *App) MakeNewGroup(w http.ResponseWriter, r *http.Request) {
 	var userIDs []int
 
 	usersArray := r.FormValue("users")
+	log.Println(usersArray)
 	if usersArray != "" {
 		if err := json.Unmarshal([]byte(usersArray), &userIDs); err != nil {
 			helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
@@ -388,6 +389,7 @@ func (app *App) MakeNewGroup(w http.ResponseWriter, r *http.Request) {
 
 		path, err := helpers.SaveUploads(avatar, header, "group/avatar")
 		if err != nil {
+			log.Println(err)
 			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 				"status":  false,
 				"message": "failed to save group avatar",
@@ -400,6 +402,8 @@ func (app *App) MakeNewGroup(w http.ResponseWriter, r *http.Request) {
 
 	g, ids, err := groups.MakeNewGroup(app.DB, group, userIDs)
 	if err != nil {
+		log.Println(err)
+
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 			"status":  false,
 			"message": "failed to make new group",
@@ -409,9 +413,14 @@ func (app *App) MakeNewGroup(w http.ResponseWriter, r *http.Request) {
 
 	requests := []int{}
 
+	log.Println(userIDs)
 	for _, id := range ids {
+		if id == userID {
+			continue
+		}
 		isFriend, err := users.IsFriend(app.DB, userID, id)
 		if err != nil {
+			log.Println(err, "here")
 			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 				"status":  false,
 				"message": "failed to check data",
@@ -422,10 +431,16 @@ func (app *App) MakeNewGroup(w http.ResponseWriter, r *http.Request) {
 		if isFriend {
 			err = groups.AddMembers(app.DB, g.ID, userID)
 		} else {
+			err = groups.SendInvites(app.DB, id, g)
+			if err != nil {
+				log.Println(err, "err1")
+				continue
+			}
 			requests = append(requests, id)
 		}
 
 		if err != nil {
+			log.Println(err, "here2")
 			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 				"status":  false,
 				"message": "failed to check data",

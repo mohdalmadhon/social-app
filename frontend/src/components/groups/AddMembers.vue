@@ -29,7 +29,7 @@ function handleSearchFriends() {
 
         try {
             const result = await searchInvites(value);
-
+            console.log(result)
             if (!result.data) {
                 friends.value = [];
                 return;

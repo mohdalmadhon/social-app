@@ -836,6 +836,7 @@ func GetUserPosts(db *sql.DB, targetID, offset int) ([]models.Post, error) {
 
 	rows, err := db.Query(`
 		SELECT
+			p.id,
 			u.id,
 			u.first_name,
 			u.last_name,
@@ -883,6 +884,7 @@ func GetUserPosts(db *sql.DB, targetID, offset int) ([]models.Post, error) {
 		var p models.Post
 
 		err := rows.Scan(
+			&p.Id,
 			&p.UserId,
 			&p.FirstName,
 			&p.LastName,
@@ -938,6 +940,29 @@ func GetUserPosts(db *sql.DB, targetID, offset int) ([]models.Post, error) {
 	}
 
 	return posts, nil
+}
+
+func DeletePost(db *sql.DB, postID, userID int) error {
+	result, err := db.Exec(`
+		DELETE FROM posts
+		WHERE id = ?
+		AND user_id = ?
+	`, postID, userID)
+
+	if err != nil {
+		return err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
 }
 
 func ViewPost(db *sql.DB, postID, userID int) error {

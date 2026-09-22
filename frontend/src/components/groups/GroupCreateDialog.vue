@@ -78,20 +78,19 @@ async function handleSubmit() {
 
     try {
         const userIDs = group.members
-            .map(member => Number(member.id))
+            .map(member => Number(member.ID))
             .filter(id => Number.isInteger(id) && id > 0);
+
+        console.log('Users being sent:', userIDs);
 
         const result = await createGroup({
             title: group.title.trim(),
             description: group.description.trim(),
             avatar: group.avatar,
-            userIDs
+            users: userIDs
         });
 
-        creating.value = false;
-
         addNotification('Group created!', 'success');
-
         emit('created', result.data);
         closeDialog();
     } catch (err) {

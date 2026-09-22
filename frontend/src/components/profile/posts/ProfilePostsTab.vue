@@ -61,6 +61,10 @@ async function loadMorePosts() {
     }
 }
 
+function handlePostDeleted(postId) {
+    posts.value = posts.value.filter(post => post.id !== postId);
+}
+
 function setupObserver() {
     observer = new IntersectionObserver(entries => {
         if (entries[0].isIntersecting) {
@@ -89,7 +93,7 @@ onBeforeUnmount(() => {
         <div class="profile-posts-body">
 
             <main class="profile-posts-content">
-                <ProfilePostGrid :posts="posts" :current-user-id="currentUserId" />
+                <ProfilePostGrid :posts="posts" :current-user-id="currentUserId" @deleted="handlePostDeleted" />
 
                 <div v-if="error" class="profile-posts-error">{{ error }}</div>
                 <div v-if="loading" class="profile-posts-loading">Loading posts...</div>

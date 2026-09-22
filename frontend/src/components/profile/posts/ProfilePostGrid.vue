@@ -12,11 +12,14 @@ defineProps({
         default: null
     }
 });
+
+const emit = defineEmits(['deleted']);
 </script>
 
 <template>
     <div class="profile-post-grid">
-        <ProfilePostCard v-for="post in posts" :key="post.id" :post="post" :current-user-id="currentUserId" />
+        <ProfilePostCard v-for="post in posts" :key="post.id" :post="post" :current-user-id="currentUserId"
+            @deleted="emit('deleted', $event)" />
     </div>
 </template>
 

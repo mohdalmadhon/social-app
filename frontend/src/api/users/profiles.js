@@ -130,6 +130,26 @@ export async function getFollowers(id, count, offset = 0) {
     return result;
 }
 
+export async function removeFollower(id) {
+    const resp = await fetch(`/api/profile/followers?targetid=${id}`, {
+        method: "DELETE",
+        credentials: 'include'
+    });
+
+    if (!checkSessionResponse(resp)) {
+        router.replace("/login");
+        return;
+    }
+
+    const result = await resp.json();
+
+    if (!resp.ok) {
+        throw new Error(result.message || 'could not connect to network')
+    }
+
+    return result;
+}
+
 export async function getFollowing(id, count, offset = 0) {
     const resp = await fetch(`/api/profile/following?targetid=${id}&count=${count}&offset=${offset}`, {
         method: "GET",

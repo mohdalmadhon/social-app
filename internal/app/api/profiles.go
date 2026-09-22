@@ -388,6 +388,44 @@ func (app *App) GetFollowing(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (app *App) RemoveFollower(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("userID").(int)
+	if !ok {
+		helpers.WriteJson(w, http.StatusUnauthorized, map[string]any{
+			"status":  false,
+			"message": "could not authorize user",
+		})
+		return
+	}
+
+	queryID := r.URL.Query().Get("targetid")
+	followerID, err := strconv.Atoi(queryID)
+	if err != nil || followerID == userID {
+		log.Println(err)
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": "invalid target ID",
+		})
+		return
+	}
+
+	// The requesting user is the target (owner of the followers list);
+	// the follower being removed is the one following them.
+	if err := profiles.SendFollowRequest(app.DB, userID, followerID, -1); err != nil {
+		log.Println(err)
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not remove follower",
+		})
+		return
+	}
+
+	helpers.WriteJson(w, http.StatusOK, map[string]any{
+		"status":  true,
+		"message": "follower removed",
+	})
+}
+
 func (app *App) AcceptFollowRequest(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value("userID").(int)
 

@@ -3,7 +3,8 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { getFriends } from '@/api/common/friends';
-import { searchFollowing, searchFollows } from '@/api/users/profiles';
+import { searchFollowing, searchFollows, removeFollower } from '@/api/users/profiles';
+import { addNotification } from '@/data/notifications';
 
 const props = defineProps({
     type: {
@@ -17,6 +18,10 @@ const props = defineProps({
     followerList: {
         type: Object,
         default: () => ({})
+    },
+    ownProfile: {
+        type: Boolean,
+        default: false
     }
 });
 
@@ -39,9 +44,22 @@ const error = ref(null);
 const searchResults = ref([]);
 const searchQuery = ref('');
 const scrollBox = ref(null);
+const removingIds = ref(new Set());
+const localFollowerList = ref({ ...(props.followerList || {}) });
 
 let searchDebounce;
 let targetID = props.targetId || route.query.id;
+
+const canRemove = computed(() => {
+    return props.type === 'followers' && props.ownProfile;
+});
+
+watch(
+    () => props.followerList,
+    value => {
+        localFollowerList.value = { ...(value || {}) };
+    }
+);
 
 const dialogTitle = computed(() => {
     if (props.type === 'following') return 'Following';
@@ -62,7 +80,7 @@ const emptyText = computed(() => {
 });
 
 const previewList = computed(() => {
-    return Object.entries(props.followerList || {})
+    return Object.entries(localFollowerList.value || {})
         .slice(0, PREVIEW_SIZE)
         .map(([id, user]) => ({
             ...user,
@@ -71,7 +89,7 @@ const previewList = computed(() => {
 });
 
 const totalCount = computed(() => {
-    return Object.keys(props.followerList || {}).length;
+    return Object.keys(localFollowerList.value || {}).length;
 });
 
 function throttle(fn, wait) {
@@ -265,6 +283,42 @@ async function goToProfile(id) {
     window.location.reload();
 }
 
+async function removeFollowerHandler(id, event) {
+    event?.stopPropagation();
+
+    if (removingIds.value.has(id)) {
+        return;
+    }
+
+    removingIds.value = new Set(removingIds.value).add(id);
+
+    try {
+        const result = await removeFollower(id);
+
+        if (!result || !result.status) {
+            throw new Error(result?.message || 'Could not remove follower');
+        }
+
+        const updated = { ...localFollowerList.value };
+        delete updated[id];
+        localFollowerList.value = updated;
+
+        list.value = list.value.filter(follower => follower.ID !== id);
+        searchResults.value = searchResults.value.filter(
+            user => user.ID !== id
+        );
+
+        addNotification('Follower removed', 'success');
+    } catch (err) {
+        console.error(err);
+        addNotification(err.message || 'Could not remove follower', 'error');
+    } finally {
+        const next = new Set(removingIds.value);
+        next.delete(id);
+        removingIds.value = next;
+    }
+}
+
 onMounted(() => {
     window.addEventListener('keydown', handleKeydown);
 });
@@ -321,6 +375,17 @@ onUnmounted(() => {
                             {{ follower.lastName }}
                         </p>
                     </div>
+
+                    <button
+                        v-if="canRemove"
+                        type="button"
+                        class="remove-follower-btn"
+                        :disabled="removingIds.has(follower.ID)"
+                        title="Remove follower"
+                        @click="removeFollowerHandler(follower.ID, $event)"
+                    >
+                        ×
+                    </button>
                 </article>
             </div>
 
@@ -459,7 +524,18 @@ onUnmounted(() => {
                                 </span>
                             </div>
 
-                            <span class="row-arrow">↗</span>
+                            <button
+                                v-if="canRemove"
+                                type="button"
+                                class="remove-follower-row-btn"
+                                :disabled="removingIds.has(follower.ID)"
+                                title="Remove follower"
+                                @click="removeFollowerHandler(follower.ID, $event)"
+                            >
+                                {{ removingIds.has(follower.ID) ? '…' : 'Remove' }}
+                            </button>
+
+                            <span v-else class="row-arrow">↗</span>
                         </article>
 
                         <p
@@ -589,6 +665,7 @@ onUnmounted(() => {
 }
 
 .follower-card {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -625,6 +702,7 @@ onUnmounted(() => {
 
 .follower-info {
     min-width: 0;
+    flex: 1;
 }
 
 .follower-name {
@@ -635,6 +713,76 @@ onUnmounted(() => {
     font-weight: 700;
     line-height: 1.3;
     overflow-wrap: anywhere;
+}
+
+.remove-follower-btn {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 2px solid var(--main-color);
+    border-radius: 50%;
+    background: var(--bg-color);
+    color: var(--main-color);
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    transition:
+        transform 0.15s ease,
+        box-shadow 0.15s ease,
+        border-color 0.15s ease,
+        color 0.15s ease;
+}
+
+.remove-follower-btn:hover {
+    border-color: #c0392b;
+    color: #c0392b;
+    transform: translate(-1px, -1px);
+    box-shadow: 2px 2px var(--main-color);
+}
+
+.remove-follower-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.remove-follower-row-btn {
+    flex: 0 0 auto;
+    padding: 6px 10px;
+    border: 2px solid var(--main-color);
+    border-radius: 6px;
+    background: var(--bg-color);
+    color: var(--main-color);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    cursor: pointer;
+    transition:
+        transform 0.15s ease,
+        box-shadow 0.15s ease,
+        border-color 0.15s ease,
+        color 0.15s ease;
+}
+
+.remove-follower-row-btn:hover {
+    border-color: #c0392b;
+    color: #c0392b;
+    transform: translate(-1px, -1px);
+    box-shadow: 2px 2px var(--main-color);
+}
+
+.remove-follower-row-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
 }
 
 .empty {

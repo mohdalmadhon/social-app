@@ -63,7 +63,7 @@ onMounted(() => {
                     <AboutTab v-if="activeTab === 'about'" :about="user.Profile.About" />
 
                     <FollowersTab v-if="activeTab === 'followers'" type="followers" :target-id="user.ID"
-                        :follower-list="user.Profile.followers" />
+                        :follower-list="user.Profile.followers" :own-profile="true" />
 
                     <FollowersTab v-if="activeTab === 'following'" type="following" :target-id="user.ID"
                         :follower-list="user.Profile.following" />
@@ -71,7 +71,7 @@ onMounted(() => {
                     <FollowersTab v-if="activeTab === 'friends'" type="friends" :target-id="user.ID"
                         :follower-list="user.Profile.friends" />
 
-                    <ProfilePostsTab v-if="activeTab === 'posts'" />
+                    <ProfilePostsTab v-if="activeTab === 'posts'" :current-user-id="user.ID" />
                     <GroupTab v-if="activeTab === 'groups'" />
                 </template>
             </main>

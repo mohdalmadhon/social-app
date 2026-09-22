@@ -340,6 +340,50 @@ func (app *App) GetUserPosts(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (app *App) DeletePost(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("userID").(int)
+	if !ok {
+		helpers.WriteJson(w, http.StatusUnauthorized, map[string]any{
+			"status":  false,
+			"message": "could not authorize user",
+		})
+		return
+	}
+
+	postID, err := strconv.Atoi(r.URL.Query().Get("postId"))
+	if err != nil {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": "invalid post id",
+		})
+		return
+	}
+
+	err = posts.DeletePost(app.DB, postID, userID)
+
+	if err == sql.ErrNoRows {
+		helpers.WriteJson(w, http.StatusForbidden, map[string]any{
+			"status":  false,
+			"message": "you cannot delete this post",
+		})
+		return
+	}
+
+	if err != nil {
+		log.Println(err)
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not delete post",
+		})
+		return
+	}
+
+	helpers.WriteJson(w, http.StatusOK, map[string]any{
+		"status":  true,
+		"message": "post deleted",
+	})
+}
+
 func (app *App) ViewPost(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value("userID").(int)
 	if !ok {

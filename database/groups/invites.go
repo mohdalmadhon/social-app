@@ -15,6 +15,11 @@ func SendInvites(db *sql.DB, targetID int, g models.Group) error {
 		return err
 	}
 	
+	_, err = db.Exec(`INSERT INTO groups_users (group_id, user_id, status) VALUES (?,?,0)`, g.ID, targetID)
+	if err != nil {
+		return err
+	}
+
 	payload := map[string]any{
 		"type": "invite",
 		"group": map[string]any{

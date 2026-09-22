@@ -3,7 +3,7 @@ export async function createGroup(data) {
 
     formData.append('title', data.title);
     formData.append('description', data.description || '');
-    formData.append('userIDs', JSON.stringify(data.userIDs || []));
+    formData.append('users', JSON.stringify(data.users || []));
 
     if (data.avatar) {
         formData.append('avatar', data.avatar);
