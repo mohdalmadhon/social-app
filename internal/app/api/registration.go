@@ -110,7 +110,6 @@ func (app *App) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	userData.Password = hashedPassword
 
 	if err := users.RegisterUser(app.DB, &userData); err != nil {
-		log.Println("here1", err)
 
 		status, message := helpers.NormalizeSQLError(err)
 

@@ -8,6 +8,9 @@ import { addNotification } from '@/data/notifications';
 import { Reaction } from '@/models/posts';
 
 const props = defineProps({
+    allowComments: {
+        type: Boolean
+    },
 
     reaction: {
 
@@ -144,21 +147,15 @@ onMounted(() => {
 
     <div class="post-actions">
 
-        <button
-            class="action-button"
-            :class="{
-                active: currentReaction === 1,
-                'reaction-jump': reactionAnimation === 'like'
-            }"
-            type="button"
-            @click="handleReaction(1)"
-        >
+        <button class="action-button" :class="{
+            active: currentReaction === 1,
+            'reaction-jump': reactionAnimation === 'like'
+        }" type="button" @click="handleReaction(1)">
 
             <svg viewBox="0 0 24 24" aria-hidden="true">
 
                 <path
-                    d="M7 10v10H3V10h4Zm3 10h7.2a2 2 0 0 0 1.9-1.4l2.3-7A2 2 0 0 0 19.5 9H15l.7-3.4A2.2 2.2 0 0 0 13.5 3L9 9v11h1Z"
-                />
+                    d="M7 10v10H3V10h4Zm3 10h7.2a2 2 0 0 0 1.9-1.4l2.3-7A2 2 0 0 0 19.5 9H15l.7-3.4A2.2 2.2 0 0 0 13.5 3L9 9v11h1Z" />
 
             </svg>
 
@@ -166,21 +163,14 @@ onMounted(() => {
 
         </button>
 
-        <button
-            class="action-button dislike"
-            :class="{
-                active: currentReaction === -1,
-                'reaction-jump': reactionAnimation === 'dislike'
-            }"
-            type="button"
-            @click="handleReaction(-1)"
-        >
+        <button class="action-button dislike" :class="{
+            active: currentReaction === -1,
+            'reaction-jump': reactionAnimation === 'dislike'
+        }" type="button" @click="handleReaction(-1)">
 
             <svg viewBox="0 0 24 24" aria-hidden="true">
 
-                <path
-                    d="M7 14V4H3v10h4Zm3-10h7.2a2 2 0 0 1 1.9 1.4l.7 3.4a2.2 2.2 0 0 1-2.2 2.6L9 15V4h1Z"
-                />
+                <path d="M7 14V4H3v10h4Zm3-10h7.2a2 2 0 0 1 1.9 1.4l.7 3.4a2.2 2.2 0 0 1-2.2 2.6L9 15V4h1Z" />
 
             </svg>
 
@@ -188,13 +178,11 @@ onMounted(() => {
 
         </button>
 
-        <button class="action-button" type="button" @click="toggleComments">
+        <button v-if="props.allowComments" class="action-button" type="button" @click="toggleComments">
 
             <svg viewBox="0 0 24 24" aria-hidden="true">
 
-                <path
-                    d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9.6 9.6 0 0 1-4-.9L3 21l1.5-4.2A8.5 8.5 0 0 1 21 11.5Z"
-                />
+                <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9.6 9.6 0 0 1-4-.9L3 21l1.5-4.2A8.5 8.5 0 0 1 21 11.5Z" />
 
             </svg>
 
@@ -207,7 +195,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-
 .post-actions {
 
     display: grid;
@@ -354,5 +341,4 @@ onMounted(() => {
     }
 
 }
-
 </style>

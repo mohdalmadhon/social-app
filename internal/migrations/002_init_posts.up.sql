@@ -8,20 +8,27 @@ CREATE TABLE IF NOT EXISTS posts (
     allow_comments INTEGER NOT NULL DEFAULT 1,
     location TEXT,
     group_id INTEGER,
+    public int CHECK (public in (1,0)),
+    private int CHECK (public in (1,0)),
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE,
-    FOREIGN KEY (group_id) REFERENCES user_posts_groups(id) ON DELETE
-    SET
-        NULL
+    tags TEXT,
+    like_count INTEGER NOT NULL DEFAULT 0,
+    dislike_count INTEGER NOT NULL DEFAULT 0,
+    comment_count INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (user_id)
+        REFERENCES user(id)
+        ON DELETE CASCADE,
+
+    FOREIGN KEY (group_id)
+        REFERENCES user_posts_groups(id)
+        ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS user_posts_groups (
-    id INTEGER NOT NULL,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     name VARCHAR(15) NOT NULL,
     user_id INTEGER NOT NULL,
     users TEXT NOT NULL DEFAULT '',
-
-    PRIMARY KEY (user_id, id),
     UNIQUE (user_id, name),
 
     FOREIGN KEY (user_id)
@@ -56,17 +63,4 @@ BEGIN
     UPDATE profile
     SET num_of_posts = num_of_posts - 1
     WHERE user_id = OLD.user_id;
-END;
-
-DROP TRIGGER IF EXISTS trg_post_groups;
-
-CREATE TRIGGER trg_post_groups
-AFTER INSERT ON user
-FOR EACH ROW
-BEGIN
-    INSERT INTO user_posts_groups (id, name, user_id, users)
-    VALUES (-1, 'public', NEW.id, '');
-
-    INSERT INTO user_posts_groups (id, name, user_id, users)
-    VALUES (0, 'private', NEW.id, '');
 END;

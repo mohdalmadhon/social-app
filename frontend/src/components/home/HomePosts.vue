@@ -15,6 +15,9 @@ const props = defineProps({
         type: [Number, String],
         default: null
     },
+    allowComments: {
+        type: Boolean
+    },
     reaction: {
         type: Number,
         required: true
@@ -320,6 +323,7 @@ onBeforeUnmount(() => {
             :user-reaction="userReaction"
             :post-id="postId"
             :likes="props.likes"
+            :allowComments="props.allowComments"
             :dislikes="props.dislikes"
             @like="handleLike"
             @dislike="handleDislike"

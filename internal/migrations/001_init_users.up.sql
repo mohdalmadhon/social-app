@@ -59,3 +59,64 @@ BEGIN
     SET avatar_path = 'avatars/default.png'
     WHERE user_id = NEW.user_id;
 END;
+
+CREATE TRIGGER IF NOT EXISTS trg_increase_followers
+AFTER INSERT ON user_followers
+FOR EACH ROW
+WHEN NEW.status = 1
+BEGIN
+    UPDATE profile
+    SET num_of_followers = num_of_followers + 1
+    WHERE user_id = NEW.target_id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_increase_following
+AFTER INSERT ON user_followers
+FOR EACH ROW
+WHEN NEW.status = 1
+BEGIN
+    UPDATE profile
+    SET num_of_following = num_of_following + 1
+    WHERE user_id = NEW.follower_id;
+END;
+
+
+
+CREATE TRIGGER IF NOT EXISTS trg_decrease_followers
+AFTER DELETE ON user_followers
+FOR EACH ROW
+BEGIN
+    UPDATE profile
+    SET num_of_followers = num_of_followers - 1
+    WHERE user_id = OLD.target_id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_decrease_following
+AFTER DELETE ON user_followers
+FOR EACH ROW
+BEGIN
+    UPDATE profile
+    SET num_of_following = num_of_following - 1
+    WHERE user_id = OLD.follower_id;
+END;
+
+
+CREATE TRIGGER IF NOT EXISTS trg_increase_followers_update
+AFTER UPDATE ON user_followers
+FOR EACH ROW
+WHEN NEW.status = 1
+BEGIN
+    UPDATE profile
+    SET num_of_followers = num_of_followers + 1
+    WHERE user_id = NEW.target_id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_increase_following_update
+AFTER UPDATE ON user_followers
+FOR EACH ROW
+WHEN NEW.status = 1
+BEGIN
+    UPDATE profile
+    SET num_of_following = num_of_following + 1
+    WHERE user_id = NEW.follower_id;
+END;

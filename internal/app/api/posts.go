@@ -71,9 +71,7 @@ func (app *App) AddPost(w http.ResponseWriter, r *http.Request) {
 		defer file.Close()
 
 		imagePath, err := helpers.SaveUploads(file, header, "post")
-
 		if err != nil {
-			log.Println(err)
 			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 				"status":  false,
 				"message": "could not save image",
@@ -82,6 +80,12 @@ func (app *App) AddPost(w http.ResponseWriter, r *http.Request) {
 		}
 
 		post.Image_path = imagePath
+	} else if err != http.ErrMissingFile {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": "invalid image",
+		})
+		return
 	}
 
 	if err := posts.GroupExists(app.DB, post.GroupID, userID); err != nil {
@@ -111,7 +115,7 @@ func (app *App) AddPost(w http.ResponseWriter, r *http.Request) {
 	postID, err := posts.AddPost(app.DB, post)
 
 	if err != nil {
-		log.Println(err)
+		log.Println("here2", err)
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 			"status":  false,
 			"message": "could not upload post",
@@ -251,7 +255,7 @@ func (app *App) PostReaction(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) GetUserPosts(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value("userID").(int)
-
+	
 	if !ok {
 		helpers.WriteJson(w, http.StatusUnauthorized, map[string]any{
 			"status":  false,
@@ -262,11 +266,12 @@ func (app *App) GetUserPosts(w http.ResponseWriter, r *http.Request) {
 
 	targetIDStr := r.URL.Query().Get("targetID")
 	targetID := 0
+	log.Println(targetIDStr, "str")
+
 	if targetIDStr != "" {
 		var err error
 
 		targetID, err = strconv.Atoi(targetIDStr)
-
 		if err != nil {
 			helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 				"status":  false,
@@ -275,6 +280,7 @@ func (app *App) GetUserPosts(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
+		log.Println("dont need filtering")
 		targetID = userID
 	}
 
@@ -306,6 +312,7 @@ func (app *App) GetUserPosts(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		log.Println(err)
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 			"status":  false,
 			"message": "could not get posts",
@@ -314,9 +321,11 @@ func (app *App) GetUserPosts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if targetID != userID {
+		log.Println("need filtering")
 		userPosts, err = posts.FilterPosts(app.DB, &userPosts, userID, targetID)
 
 		if err != nil {
+			log.Println(err, "filtering")
 			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 				"status":  false,
 				"message": "could not filter posts",

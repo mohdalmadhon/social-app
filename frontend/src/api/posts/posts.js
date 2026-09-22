@@ -29,6 +29,7 @@ export async function addPost(post = {}, image = null) {
 }
 
 export async function getUserPosts(userID = "", offset = 0) {
+    console.log(userID)
     const resp = await fetch(`/api/user/posts?offset=${offset}&targetID=${userID}`, {
         method: "GET",
         credentials: 'include',

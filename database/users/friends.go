@@ -286,3 +286,26 @@ func IsFriend(db *sql.DB, userID, targetID int) (bool, error) {
 
 	return true, nil
 }
+
+func IsFollowing(db *sql.DB, userID, targetID int) (bool, error) {
+	var exists int
+
+	err := db.QueryRow(`
+		SELECT 1
+		FROM user_followers
+		WHERE follower_id = ?
+		  AND target_id = ?
+		  AND status = 1
+		LIMIT 1
+	`, userID, targetID).Scan(&exists)
+
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}

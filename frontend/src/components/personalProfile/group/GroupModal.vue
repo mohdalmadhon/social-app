@@ -23,14 +23,27 @@ let searchTimeout;
 
 async function getSearchedFriends() {
     loading.value = true;
+
     try {
         const result = await getFriends(search.value.trim());
 
-        friends.value = Array.isArray(result)
-            ? result
-            : (result && typeof result === 'object'
-                ? Object.entries(result).map(([id, friend]) => ({ ...friend, id }))
-                : []);
+        const data = result?.data;
+
+        if (data && typeof data === 'object' && !Array.isArray(data)) {
+            friends.value = Object.entries(data).map(([id, friend]) => ({
+                ...friend,
+                id: Number(id)
+            }));
+        } else if (Array.isArray(data)) {
+            friends.value = data.map(friend => ({
+                ...friend,
+                id: Number(friend.ID ?? friend.id)
+            }));
+        } else {
+            friends.value = [];
+        }
+
+        console.log('friends:', friends.value);
     } catch (error) {
         console.error(error);
         friends.value = [];
@@ -54,7 +67,7 @@ const nameError = computed(() => {
 const canSubmit = computed(() => !!name.value.trim());
 
 function toggleFriend(friend) {
-    const index = selected.value.findIndex(item => item.id === friend.id);
+    const index = selected.value.findIndex(item => Number(item.id) === Number(friend.id));
 
     if (index !== -1) {
         selected.value.splice(index, 1);
@@ -65,16 +78,21 @@ function toggleFriend(friend) {
 }
 
 function removeSelected(friend) {
-    selected.value = selected.value.filter(item => item.id !== friend.id);
+    selected.value = selected.value.filter(
+        item => Number(item.id) !== Number(friend.id)
+    );
 }
 
 function isSelected(friend) {
-    return selected.value.some(item => item.id === friend.id);
+    return selected.value.some(
+        item => Number(item.id) === Number(friend.id)
+    );
 }
 
 function initials(friend) {
-    const first = friend.FirstName?.charAt(0) || '';
-    const last = friend.LastName?.charAt(0) || '';
+    const first = friend.firstName?.charAt(0) || '';
+    const last = friend.lastName?.charAt(0) || '';
+
     return (first + last).toUpperCase();
 }
 
@@ -85,26 +103,28 @@ async function submit() {
         return;
     }
 
-    emit('save', {
-        name: name.value.trim(),
-        members: [...selected.value]
-    });
-
     const data = {
         name: name.value.trim(),
         users: selected.value.map(friend => Number(friend.id))
-    }
+    };
 
     try {
         const result = await addPostGroup(data);
+
         if (!result.status) {
-            addNotification(result.message, 'error')
+            addNotification(result.message, 'error');
             return;
         }
-        addNotification('group created!!', 'succuss');
+
+        emit('save', {
+            name: name.value.trim(),
+            members: [...selected.value]
+        });
+
+        addNotification('Group created!', 'success');
     } catch (err) {
-        addNotification(err, 'error')
-        return;
+        console.error(err);
+        addNotification(err?.message || 'Could not create group', 'error');
     }
 }
 
@@ -125,6 +145,7 @@ onMounted(() => {
 
 onUnmounted(() => {
     window.removeEventListener('keydown', handleKeydown);
+    clearTimeout(searchTimeout);
 });
 </script>
 
@@ -179,11 +200,11 @@ onUnmounted(() => {
             <div class="selected-chips" v-if="selected.length">
                 <span v-for="friend in selected" :key="friend.id" class="chip">
                     <span class="chip-avatar">
-                        <img v-if="friend.Avatar" :src="`/uploads/${friend.Avatar}`" :alt="friend.FirstName">
+                        <img v-if="friend.avatar" :src="`/uploads/${friend.avatar}`" :alt="friend.firstName">
                         <span v-else>{{ initials(friend) }}</span>
                     </span>
 
-                    {{ friend.FirstName }}
+                    {{ friend.firstName }}
 
                     <button type="button" class="chip-remove" @click="removeSelected(friend)">
                         ×
@@ -200,14 +221,17 @@ onUnmounted(() => {
                     <button v-for="friend in filteredFriends" :key="friend.id" type="button" class="friend"
                         :class="{ selected: isSelected(friend) }" @click="toggleFriend(friend)">
                         <div class="avatar">
-                            <img v-if="friend.Avatar" :src="`/uploads/${friend.Avatar}`"
-                                :alt="`${friend.FirstName} ${friend.LastName}`">
-                            <span v-else>{{ initials(friend) }}</span>
+                            <img v-if="friend.avatar" :src="`/uploads/${friend.avatar}`"
+                                :alt="`${friend.firstName} ${friend.lastName}`">
+
+                            <span v-else>
+                                {{ initials(friend) }}
+                            </span>
                         </div>
 
                         <div class="friend-info">
                             <strong>
-                                {{ friend.FirstName }} {{ friend.LastName }}
+                                {{ friend.firstName }} {{ friend.lastName }}
                             </strong>
                         </div>
 

@@ -1,10 +1,12 @@
+```vue
 <script setup>
 import { ref } from 'vue';
 import { requestFollow } from '@/api/users/profiles';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { addNotification } from '@/data/notifications';
 
 const route = useRoute();
+const router = useRouter();
 
 const props = defineProps({
     addEdit: Boolean,
@@ -27,6 +29,27 @@ const emit = defineEmits([
 
 const followingStatus = ref(props.isFollowing);
 
+function handleMessage() {
+    const id = route.query.id;
+
+    if (!id) {
+        addNotification("could not open chat", 'error');
+        return;
+    }
+
+    router.push({
+        path: '/chats',
+        query: {
+            userId: id,
+            firstName: props.firstName || '',
+            lastName: props.lastName || '',
+            avatar: (props.avatarPath || '').replace(/^\/uploads\//, '')
+        }
+    });
+}
+
+
+
 async function handleFollow() {
     const id = route.query.id;
 
@@ -37,10 +60,10 @@ async function handleFollow() {
             followingStatus.value = result.followStatus;
             emit('follow');
         } else {
-            addNotification("could not follow user", 'error')
+            addNotification("could not follow user", 'error');
         }
     } catch (err) {
-        addNotification("could not follow user", 'error')
+        addNotification("could not follow user", 'error');
         console.error(err);
     }
 }
@@ -51,9 +74,10 @@ async function handleRemoveFollow() {
 
     try {
         const result = await requestFollow(id, "DELETE");
-        
+
         if (result.status) {
             followingStatus.value = result.followStatus;
+
             if (oldStatus === 0) {
                 emit('cancel-request');
             } else if (oldStatus === 1) {
@@ -61,7 +85,7 @@ async function handleRemoveFollow() {
             }
         }
     } catch (err) {
-        addNotification("could not unfollow user", 'error')
+        addNotification("could not unfollow user", 'error');
         console.error(err);
     }
 }
@@ -94,37 +118,48 @@ async function handleRemoveFollow() {
                         </p>
                     </div>
 
-                    <a
-                        v-if="props.addEdit"
-                        href="/me/edit"
-                        class="edit-button"
-                    >
-                        Edit profile
-                    </a>
+                    <div class="profile-actions">
+                        <a
+                            v-if="props.addEdit"
+                            href="/me/edit"
+                            class="edit-button"
+                        >
+                            Edit profile
+                        </a>
 
-                    <button
-                        v-else-if="followingStatus === -1"
-                        class="relationship-button follow"
-                        @click="handleFollow"
-                    >
-                        Follow
-                    </button>
+                        <template v-else>
+                            <button
+                                class="relationship-button message"
+                                @click="handleMessage"
+                            >
+                                Message
+                            </button>
 
-                    <button
-                        v-else-if="followingStatus === 0"
-                        class="relationship-button requested"
-                        @click="handleRemoveFollow"
-                    >
-                        Requested
-                    </button>
+                            <button
+                                v-if="followingStatus === -1"
+                                class="relationship-button follow"
+                                @click="handleFollow"
+                            >
+                                Follow
+                            </button>
 
-                    <button
-                        v-else-if="followingStatus === 1"
-                        class="relationship-button following"
-                        @click="handleRemoveFollow"
-                    >
-                        Following
-                    </button>
+                            <button
+                                v-else-if="followingStatus === 0"
+                                class="relationship-button requested"
+                                @click="handleRemoveFollow"
+                            >
+                                Requested
+                            </button>
+
+                            <button
+                                v-else-if="followingStatus === 1"
+                                class="relationship-button following"
+                                @click="handleRemoveFollow"
+                            >
+                                Following
+                            </button>
+                        </template>
+                    </div>
                 </div>
 
                 <p class="about">
@@ -245,6 +280,13 @@ async function handleRemoveFollow() {
     gap: 20px;
 }
 
+.profile-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
 h1 {
     margin: 0;
     color: var(--main-color);
@@ -296,6 +338,11 @@ h1 {
 .relationship-button.following {
     background: var(--main-color);
     color: var(--bg-color);
+}
+
+.relationship-button.message {
+    background: var(--bg-color);
+    color: var(--main-color);
 }
 
 .relationship-button:active {
@@ -352,6 +399,15 @@ h1 {
 
     .name-row {
         align-items: center;
+    }
+
+    .profile-actions {
+        gap: 8px;
+    }
+
+    .profile-actions .relationship-button,
+    .profile-actions .edit-button {
+        padding: 9px 12px;
     }
 
     .profile-stats {

@@ -2,6 +2,8 @@ package posts
 
 import (
 	"database/sql"
+	"fmt"
+	"log"
 	"social/internal/models"
 	"strconv"
 	"strings"
@@ -9,17 +11,108 @@ import (
 
 func AddPost(db *sql.DB, post models.RegsiterPost) (int, error) {
 	tags := func() string {
-		tags := make([]string, len(post.PeopleTagged))
+		values := make([]string, len(post.PeopleTagged))
 		for i, v := range post.PeopleTagged {
-			tags[i] = strconv.Itoa(v)
+			values[i] = strconv.Itoa(v)
 		}
-		return strings.Join(tags, ":")
+		return strings.Join(values, ":")
 	}
 
-	result, err := db.Exec(`
-		INSERT INTO posts (user_id, content, image_path, allow_comments, location, group_id, tags)
-		VALUES (?,?,?,?,?,?,?)
-	`, post.UserID, post.Content, post.Image_path, post.AllowComments, post.Location, post.GroupID, tags())
+	var result sql.Result
+	var err error
+
+	log.Println("groupID", post.GroupID)
+	if post.GroupID > 0 {
+		var exists int
+
+		err = db.QueryRow(`
+            SELECT 1
+            FROM user_posts_groups
+            WHERE id = ?
+        `, post.GroupID).Scan(&exists)
+
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return 0, fmt.Errorf("group %d does not exist", post.GroupID)
+			}
+			return 0, err
+		}
+
+		result, err = db.Exec(`
+            INSERT INTO posts (
+                user_id,
+                content,
+                image_path,
+                allow_comments,
+                location,
+                group_id,
+                public,
+                private,
+                tags
+            )
+            VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?)
+        `,
+			post.UserID,
+			post.Content,
+			post.Image_path,
+			post.AllowComments,
+			post.Location,
+			post.GroupID,
+			tags(),
+		)
+
+	} else if post.GroupID == -1 {
+
+		result, err = db.Exec(`
+            INSERT INTO posts (
+                user_id,
+                content,
+                image_path,
+                allow_comments,
+                location,
+                group_id,
+                public,
+                private,
+                tags
+            )
+            VALUES (?, ?, ?, ?, ?, NULL, 0, 1, ?)
+        `,
+			post.UserID,
+			post.Content,
+			post.Image_path,
+			post.AllowComments,
+			post.Location,
+			tags(),
+		)
+
+	} else {
+
+		result, err = db.Exec(`
+            INSERT INTO posts (
+                user_id,
+                content,
+                image_path,
+                allow_comments,
+                location,
+                group_id,
+                public,
+                private,
+                tags
+            )
+            VALUES (?, ?, ?, ?, ?, NULL, 1, 0, ?)
+        `,
+			post.UserID,
+			post.Content,
+			post.Image_path,
+			post.AllowComments,
+			post.Location,
+			tags(),
+		)
+	}
+
+	if err != nil {
+		return 0, err
+	}
 
 	id, err := result.LastInsertId()
 	if err != nil {
@@ -33,9 +126,11 @@ func GroupExists(db *sql.DB, groupID, userID int) error {
 	if groupID == 0 || groupID == -1 {
 		return nil
 	}
+
 	err := db.QueryRow(`
 		SELECT 1 FROM user_posts_groups WHERE id = ? AND user_id = ?
 	`, groupID, userID)
+
 	return err.Err()
 }
 
@@ -275,14 +370,27 @@ func GetHomePosts(db *sql.DB, userID, offset int) ([]models.Post, error) {
 		return appendPosts(rows)
 	}
 
-	runUserPostsQuery := func(userIDs []int, groupIDs []int, unviewedOnly bool, limit int) error {
-		if len(userIDs) == 0 || len(groupIDs) == 0 || limit <= 0 {
+	runUserPostsQuery := func(userIDs []int, includePrivate bool, unviewedOnly bool, limit int) error {
+		if len(userIDs) == 0 || limit <= 0 {
 			return nil
 		}
 
 		userPh, userArgs := idsToPlaceholders(userIDs)
-		groupPh, groupArgs := idsToPlaceholders(groupIDs)
+
 		exClause, exArgs := excludeClause()
+
+		visibilityClause := `
+			AND p.public = 1
+		`
+
+		if includePrivate {
+			visibilityClause = `
+				AND (
+					p.public = 1
+					OR p.private = 1
+				)
+			`
+		}
 
 		viewClause := ""
 
@@ -324,7 +432,7 @@ func GetHomePosts(db *sql.DB, userID, offset int) ([]models.Post, error) {
 				ON prx.post_id = p.id
 				AND prx.user_id = ?
 			WHERE p.user_id IN (` + userPh + `)
-				AND p.group_id IN (` + groupPh + `)` +
+				` + visibilityClause +
 			exClause +
 			viewClause + `
 			ORDER BY p.created_at DESC
@@ -335,7 +443,6 @@ func GetHomePosts(db *sql.DB, userID, offset int) ([]models.Post, error) {
 
 		args = append(args, userID)
 		args = append(args, userArgs...)
-		args = append(args, groupArgs...)
 		args = append(args, exArgs...)
 
 		if unviewedOnly {
@@ -415,7 +522,7 @@ func GetHomePosts(db *sql.DB, userID, offset int) ([]models.Post, error) {
 			LEFT JOIN post_reactions prx
 				ON prx.post_id = p.id
 				AND prx.user_id = ?
-			WHERE p.group_id = 0
+			WHERE p.public = 1
 				AND p.user_id != ?` +
 			excludeUserClause +
 			exClause +
@@ -449,13 +556,11 @@ func GetHomePosts(db *sql.DB, userID, offset int) ([]models.Post, error) {
 	}
 
 	friendIDs, err := getFriendIDs()
-
 	if err != nil {
 		return nil, err
 	}
 
 	followingIDs, err := getFollowingIDs(friendIDs)
-
 	if err != nil {
 		return nil, err
 	}
@@ -473,7 +578,7 @@ func GetHomePosts(db *sql.DB, userID, offset int) ([]models.Post, error) {
 
 		if err := runUserPostsQuery(
 			friendIDs,
-			[]int{0, -1},
+			true,
 			true,
 			remaining,
 		); err != nil {
@@ -490,7 +595,7 @@ func GetHomePosts(db *sql.DB, userID, offset int) ([]models.Post, error) {
 
 		if err := runUserPostsQuery(
 			followingIDs,
-			[]int{-1},
+			true,
 			true,
 			remaining,
 		); err != nil {
@@ -529,7 +634,7 @@ func GetHomePosts(db *sql.DB, userID, offset int) ([]models.Post, error) {
 
 		if err := runUserPostsQuery(
 			friendIDs,
-			[]int{0, -1},
+			true,
 			false,
 			remaining,
 		); err != nil {
@@ -542,7 +647,7 @@ func GetHomePosts(db *sql.DB, userID, offset int) ([]models.Post, error) {
 
 		if err := runUserPostsQuery(
 			followingIDs,
-			[]int{-1},
+			true,
 			false,
 			remaining,
 		); err != nil {
@@ -567,7 +672,7 @@ func GetHomePosts(db *sql.DB, userID, offset int) ([]models.Post, error) {
 			return nil, err
 		}
 	}
-	
+
 	if err := attachGroupOwnerNames(db, posts); err != nil {
 		return nil, err
 	}
@@ -726,13 +831,29 @@ func attachTaggedPeople(db *sql.DB, posts []models.Post, tagsByPostIndex map[int
 
 func GetUserPosts(db *sql.DB, targetID, offset int) ([]models.Post, error) {
 	var posts []models.Post
+
 	tagsByPostIndex := make(map[int]string)
 
 	rows, err := db.Query(`
-		SELECT u.id, u.first_name, u.last_name, p.content, p.image_path, p.allow_comments,
-			   p.location, p.group_id, p.created_at, p.tags, p.like_count, p.dislike_count, p.comment_count
+		SELECT
+			u.id,
+			u.first_name,
+			u.last_name,
+			p.content,
+			p.image_path,
+			p.allow_comments,
+			p.location,
+			p.group_id,
+			p.created_at,
+			p.tags,
+			p.like_count,
+			p.dislike_count,
+			p.comment_count,
+			p.public,
+			p.private
 		FROM user u
-		JOIN posts p ON p.user_id = u.id
+		JOIN posts p
+			ON p.user_id = u.id
 		WHERE p.user_id = ?
 		ORDER BY p.created_at DESC
 		LIMIT 9
@@ -743,44 +864,62 @@ func GetUserPosts(db *sql.DB, targetID, offset int) ([]models.Post, error) {
 		return nil, err
 	}
 
+	defer rows.Close()
+
+	var avatar string
+
+	err = db.QueryRow(`
+		SELECT avatar_path
+		FROM profile
+		WHERE user_id = ?
+	`, targetID).Scan(&avatar)
+
+	if err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+
 	for rows.Next() {
 		var tags sql.NullString
 		var p models.Post
 
 		err := rows.Scan(
-			&p.UserId, &p.FirstName, &p.LastName,
-			&p.Content, &p.ImagePath, &p.AllowComments,
-			&p.Location, &p.GroupId, &p.CreatedAt, &tags,
-			&p.LikeCount, &p.DisLikeCount, &p.CommentCount,
+			&p.UserId,
+			&p.FirstName,
+			&p.LastName,
+			&p.Content,
+			&p.ImagePath,
+			&p.AllowComments,
+			&p.Location,
+			&p.GroupId,
+			&p.CreatedAt,
+			&tags,
+			&p.LikeCount,
+			&p.DisLikeCount,
+			&p.CommentCount,
+			&p.Public,
+			&p.Private,
 		)
-		if err != nil {
-			rows.Close()
-			return nil, err
-		}
 
-		if tags.Valid {
-			tagsByPostIndex[len(posts)] = tags.String
-		}
-
-		var avatar string
-		err = db.QueryRow(`
-			SELECT avatar_path FROM profile WHERE user_id = ?
-		`, targetID).Scan(&avatar)
 		if err != nil {
-			rows.Close()
 			return nil, err
 		}
 
 		p.AvatarPath = avatar
 
+		if tags.Valid {
+			tagsByPostIndex[len(posts)] = tags.String
+		}
+
 		if p.GroupId != nil && *p.GroupId > 0 {
 			var groupName string
 
 			err = db.QueryRow(`
-				SELECT name FROM user_posts_groups WHERE id = ?
+				SELECT name
+				FROM user_posts_groups
+				WHERE id = ?
 			`, *p.GroupId).Scan(&groupName)
+
 			if err != nil && err != sql.ErrNoRows {
-				rows.Close()
 				return nil, err
 			}
 
@@ -791,11 +930,8 @@ func GetUserPosts(db *sql.DB, targetID, offset int) ([]models.Post, error) {
 	}
 
 	if err := rows.Err(); err != nil {
-		rows.Close()
 		return nil, err
 	}
-
-	rows.Close()
 
 	if err := attachTaggedPeople(db, posts, tagsByPostIndex); err != nil {
 		return nil, err

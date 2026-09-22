@@ -3,6 +3,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue';
 import ProfilePostGrid from './ProfilePostGrid.vue';
 import { getUserPosts } from '@/api/posts/posts';
 import { normalizeProfilePost } from '@/helpers/common/locationHelpers';
+import { useRoute } from 'vue-router';
 
 const props = defineProps({
     userId: {
@@ -22,7 +23,7 @@ const offset = ref(0);
 const loading = ref(false);
 const hasMore = ref(true);
 const error = ref('');
-
+const route = useRoute();
 const sentinel = ref(null);
 let observer = null;
 
@@ -35,10 +36,18 @@ async function loadMorePosts() {
     error.value = '';
 
     try {
-        const response = await getUserPosts("", offset.value);
+        const targetID = route.path === '/me'
+            ? ''
+            : route.path === '/user'
+                ? route.query.id || ''
+                : '';
+
+        const response = await getUserPosts(targetID, offset.value);
         const rawPosts = response?.data || [];
         const normalized = rawPosts.map(normalizeProfilePost);
-        console.log(response)
+
+        console.log(response);
+
         posts.value.push(...normalized);
         offset.value += BATCH_SIZE;
 

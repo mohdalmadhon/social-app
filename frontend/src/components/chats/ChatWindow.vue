@@ -33,6 +33,7 @@ const props = defineProps({
     }
 });
 
+
 const message = ref('');
 const messages = ref([]);
 const sending = ref(false);
@@ -585,7 +586,7 @@ onUnmounted(() => {
                                 <button type="button" class="invite-accept" @click="respondToInvite(msg, 1)">
                                     Accept
                                 </button>
-
+                                
                                 <button type="button" class="invite-reject" @click="respondToInvite(msg, -1)">
                                     Reject
                                 </button>

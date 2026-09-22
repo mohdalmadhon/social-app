@@ -20,6 +20,8 @@ type TaggedPerson struct {
 }
 
 type Post struct {
+	Public         int
+	Private        int
 	Id             int     `json:"id"`
 	UserId         int     `json:"userId"`
 	FirstName      string  `json:"firstName"`

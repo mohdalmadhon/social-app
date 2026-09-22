@@ -3,6 +3,13 @@ import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { getPrivateChatsLists, searchChats } from '@/api/chats/chats';
 import { addNotification } from '@/data/notifications';
 
+const props = defineProps({
+    targetUserId: {
+        type: [Number, String],
+        default: null
+    }
+});
+
 const emit = defineEmits(['select-chat']);
 
 const chats = ref([]);
@@ -87,7 +94,7 @@ async function loadChats({ reset = false } = {}) {
         const result = searchValue.value
             ? await searchChats(nextOffset, searchValue.value)
             : await getPrivateChatsLists(nextOffset);
-
+``
         const list = normalizeList(result);
         console.log(list)
         chats.value = mergeByUserId(reset ? [] : chats.value, list);
@@ -96,8 +103,18 @@ async function loadChats({ reset = false } = {}) {
         offset.value = nextOffset + list.length;
         hasMore.value = normalizeHasMore(result, list);
 
-        if (reset && !activeChatId.value && chats.value.length) {
-            selectChat(chats.value[0]);
+        if (reset && chats.value.length) {
+            if (props.targetUserId) {
+                const match = chats.value.find(
+                    (chat) => String(chat.UserID) === String(props.targetUserId)
+                );
+
+                if (match) {
+                    selectChat(match);
+                }
+            } else if (!activeChatId.value) {
+                selectChat(chats.value[0]);
+            }
         }
     } catch (err) {
         addNotification(err.message || "could not load chats", 'error');
@@ -108,6 +125,7 @@ async function loadChats({ reset = false } = {}) {
 }
 
 function selectChat(chat) {
+    console.log(chat)
     activeChatId.value = chat.UserID;
     emit('select-chat', chat);
 }
@@ -150,41 +168,22 @@ onBeforeUnmount(() => {
         <div class="search">
             <span class="search-icon">⌕</span>
 
-            <input
-                v-model="searchValue"
-                type="text"
-                placeholder="Search chats..."
-                @input="handleSearchInput"
-            />
+            <input v-model="searchValue" type="text" placeholder="Search chats..." @input="handleSearchInput" />
 
-            <button
-                v-if="searchValue"
-                type="button"
-                class="clear-search"
-                @click="searchValue = ''; handleSearchInput()"
-            >
+            <button v-if="searchValue" type="button" class="clear-search"
+                @click="searchValue = ''; handleSearchInput()">
                 ×
             </button>
         </div>
 
         <div ref="listEl" class="chat-list">
 
-            <button
-                v-for="chat in chats"
-                :key="chat.UserID"
-                type="button"
-                class="chat-item"
-                :class="{ active: activeChatId === chat.UserID }"
-                @click="selectChat(chat)"
-            >
+            <button v-for="chat in chats" :key="chat.UserID" type="button" class="chat-item"
+                :class="{ active: activeChatId === chat.UserID }" @click="selectChat(chat)">
 
                 <div class="avatar">
 
-                    <img
-                        v-if="chat.Avatar"
-                        :src="`/uploads/${chat.Avatar}`"
-                        alt=""
-                    />
+                    <img v-if="chat.Avatar" :src="`/uploads/${chat.Avatar}`" alt="" />
 
                     <span v-else>
                         {{ (chat.FirstName || '?').charAt(0).toUpperCase() }}
@@ -201,30 +200,21 @@ onBeforeUnmount(() => {
                             {{ chat.FirstName }} {{ chat.LastName }}
                         </strong>
 
-                        <span
-                            v-if="chat.UnreadCount"
-                            class="badge"
-                        >
+                        <span v-if="chat.UnreadCount" class="badge">
                             {{ chat.UnreadCount > 99 ? '99+' : chat.UnreadCount }}
                         </span>
 
                     </div>
 
-                   
+
 
                 </div>
 
-                <span
-                    v-if="chat.LastMessageAt"
-                    class="time"
-                >
+                <span v-if="chat.LastMessageAt" class="time">
                     {{ chat.LastMessageAt }}
                 </span>
 
-                <span
-                    v-if="activeChatId === chat.UserID"
-                    class="active-arrow"
-                >
+                <span v-if="activeChatId === chat.UserID" class="active-arrow">
                     ›
                 </span>
 
@@ -248,7 +238,6 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-
 .chat-sidebar {
     display: flex;
     flex-direction: column;
@@ -543,5 +532,4 @@ h2 {
     }
 
 }
-
 </style>

@@ -4,19 +4,41 @@ import ChatWindow from '@/components/chats/ChatWindow.vue';
 import SideNavigation from '@/components/layout/SideNavigation.vue';
 import TopNavigation from '@/components/layout/TopNavigation.vue';
 import { activePage } from '@/data/chatState';
-import { ref } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
+
+const route = useRoute();
 
 activePage.value = 'chat:';
 
 const activeChat = ref(null);
 
+const targetUserId = computed(() => route.query.userId || null);
+
 function handleSelectChat(chat) {
-    console.log(chat)
     activeChat.value = chat;
     activePage.value = 'chat:' + chat.UserID;
-
-    console.log(activeChat.value);
 }
+
+watch(
+    targetUserId,
+    (userId) => {
+        if (!userId) {
+            return;
+        }
+
+        activeChat.value = {
+            UserID: Number(userId),
+            GroupID: null,
+            FirstName: route.query.firstName || '',
+            LastName: route.query.lastName || '',
+            Avatar: route.query.avatar || ''
+        };
+
+        activePage.value = 'chat:' + userId;
+    },
+    { immediate: true }
+);
 </script>
 
 <template>
@@ -27,12 +49,15 @@ function handleSelectChat(chat) {
             <SideNavigation />
 
             <main class="chats-page">
-                <ChatsSideBar @select-chat="handleSelectChat" />
+                <ChatsSideBar :target-user-id="targetUserId" @select-chat="handleSelectChat" />
 
                 <ChatWindow
                     :chat="activeChat"
                     :userID="activeChat?.UserID"
                     :groupID="activeChat?.GroupID"
+                    :userFirstName="activeChat?.FirstName"
+                    :userLastName="activeChat?.LastName"
+                    :userAvatar="activeChat?.Avatar"
                 />
             </main>
         </div>

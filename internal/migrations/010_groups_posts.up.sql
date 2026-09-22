@@ -21,10 +21,6 @@ CREATE TABLE IF NOT EXISTS group_post_user_tags (
     FOREIGN KEY (post_id) REFERENCES group_posts(id) ON DELETE CASCADE
 );
 
-ALTER TABLE posts ADD COLUMN like_count INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE posts ADD COLUMN dislike_count INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE posts ADD COLUMN comment_count INTEGER NOT NULL DEFAULT 0;
-
 CREATE TABLE IF NOT EXISTS group_post_reactions (
     post_id INTEGER NOT NULL,
     user_id INTEGER NOT NULL,
@@ -56,8 +52,6 @@ CREATE TABLE IF NOT EXISTS group_comment_votes (
     FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_post_reactions_user_id
-ON group_post_reactions(user_id);
 
 CREATE INDEX IF NOT EXISTS idx_group_comments_post_id
 ON group_comments(post_id);

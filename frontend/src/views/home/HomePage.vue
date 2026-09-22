@@ -26,7 +26,7 @@ async function loadPosts() {
         );
 
         const data = await response.json();
-
+        console.log(data)
         if (!response.ok || !data.status) {
             return;
         }
@@ -70,6 +70,7 @@ onMounted(() => {
                             :likes="post.likeCount"
                             :dislikes="post.disLikeCount"
                             :reaction="post.ReactionValue"
+                            :allowComments="post.allowComments"
                             v-bind="post"
                         />
                     </section>

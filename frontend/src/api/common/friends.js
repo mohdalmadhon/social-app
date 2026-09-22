@@ -15,7 +15,6 @@ export async function getFriends(searchValue = "", targetId, offset = 0) {
     }
 
     const result = await resp.json();
-
     if (!result.status) {
         throw new Error("could not fetch data");
     }

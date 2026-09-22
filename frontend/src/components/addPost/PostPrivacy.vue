@@ -140,8 +140,8 @@ async function getGroups() {
 
                 <button v-for="group in groups" v-else :key="group.ID" type="button" class="group-item"
                     :class="{ selected: groupIDValue === group.ID }" @click="selectGroup(group.ID)">
-                    <span class="group-name">{{ group.Name }}</span>
-
+                    <span class="group-name">{{ group.name }}</span>
+                
                     <span class="radio radio--small">
                         <span v-if="groupIDValue === group.ID"></span>
                     </span>
