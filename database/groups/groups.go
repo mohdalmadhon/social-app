@@ -418,6 +418,7 @@ func SearchGroupMembers(db *sql.DB, groupID int, search string, offset int, limi
 		FROM user u
 		INNER JOIN groups_users gu ON gu.user_id = u.id
 		WHERE gu.group_id = ?
+		AND status = 1
 		AND (
 			u.first_name LIKE ?
 			OR u.last_name LIKE ?
@@ -589,6 +590,6 @@ func HandleGroupRequest(db *sql.DB, groupID, userID, code int) error {
 
 func GetGroupOwner(db *sql.DB, groupID int) (int, error) {
 	var id int
-	err := db.QueryRow(`SELECT owner_id FROM groups_users WHERE group_id = ?`, groupID).Scan(&id)
+	err := db.QueryRow(`SELECT owner_id FROM groups WHERE id = ?`, groupID).Scan(&id)
 	return id, err
 }

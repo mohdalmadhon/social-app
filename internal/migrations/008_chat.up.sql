@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS groups (
 CREATE TABLE IF NOT EXISTS groups_users (
     group_id INTEGER NOT NULL,
     user_id INTEGER NOT NULL,
+    status INTEGER CHECK (status IN (1,0)),
     PRIMARY KEY (group_id, user_id),
 
     FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE,

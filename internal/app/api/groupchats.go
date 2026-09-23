@@ -895,6 +895,7 @@ func (app *App) HandleGroupRequest(w http.ResponseWriter, r *http.Request) {
 
 	ownerID, err := groups.GetGroupOwner(app.DB, req.GroupID)
 	if err != nil {
+		log.Panicln(err)
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 			"status":  false,
 			"message": "could not check group membership",

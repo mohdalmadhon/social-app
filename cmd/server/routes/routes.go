@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"social/internal/app/api"
 	"sync"
-
 	"golang.org/x/net/websocket"
 )
 

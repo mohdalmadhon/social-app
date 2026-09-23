@@ -1,4 +1,3 @@
-```vue
 <script setup>
 import { ref, watch, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';

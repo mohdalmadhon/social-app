@@ -403,6 +403,7 @@ func (app *App) ViewPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Println(postID, userID)
 	if err := posts.ViewPost(app.DB, postID, userID); err != nil {
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 			"status":  false,

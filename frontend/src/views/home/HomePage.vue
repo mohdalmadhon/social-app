@@ -1,14 +1,25 @@
+```vue
 <script setup>
-import { ref, onMounted } from 'vue';
+
+import { ref, onMounted, onUnmounted } from 'vue';
+
 import HomePosts from '@/components/home/HomePosts.vue';
+
 import HomeSearch from '@/components/home/HomeSearch.vue';
+
 import SideNavigation from '@/components/layout/SideNavigation.vue';
+
 import TopNavigation from '@/components/layout/TopNavigation.vue';
 
 const posts = ref([]);
+
 const loading = ref(false);
+
 const hasMore = ref(true);
+
 const offset = ref(0);
+
+let throttleTimeout = null;
 
 async function loadPosts() {
     if (loading.value || !hasMore.value) {
@@ -26,7 +37,9 @@ async function loadPosts() {
         );
 
         const data = await response.json();
-        console.log(data)
+
+        console.log(data);
+
         if (!response.ok || !data.status) {
             return;
         }
@@ -34,6 +47,7 @@ async function loadPosts() {
         const newPosts = data.posts || [];
 
         posts.value.push(...newPosts);
+
         offset.value += newPosts.length;
 
         if (newPosts.length < 13) {
@@ -46,9 +60,37 @@ async function loadPosts() {
     }
 }
 
+function handleScroll() {
+    if (throttleTimeout) {
+        return;
+    }
+
+    throttleTimeout = setTimeout(() => {
+        throttleTimeout = null;
+
+        const scrollPosition = window.innerHeight + window.scrollY;
+        const pageHeight = document.documentElement.scrollHeight;
+
+        if (scrollPosition >= pageHeight - 500) {
+            loadPosts();
+        }
+    }, 200);
+}
+
 onMounted(() => {
     loadPosts();
+    window.addEventListener('scroll', handleScroll, { passive: true });
 });
+
+onUnmounted(() => {
+    window.removeEventListener('scroll', handleScroll);
+
+    if (throttleTimeout) {
+        clearTimeout(throttleTimeout);
+        throttleTimeout = null;
+    }
+});
+
 </script>
 
 <template>
@@ -85,14 +127,6 @@ onMounted(() => {
                     >
                         You're all caught up.
                     </div>
-
-                    <button
-                        v-if="hasMore && !loading"
-                        class="load-more"
-                        @click="loadPosts"
-                    >
-                        Load more
-                    </button>
                 </div>
             </main>
         </div>
@@ -100,6 +134,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
+
 .home-page {
     min-height: 100vh;
     padding-top: 64px;
@@ -139,18 +174,6 @@ onMounted(() => {
     font-size: 12px;
 }
 
-.load-more {
-    display: block;
-    margin: 20px auto;
-    padding: 10px 20px;
-    border: 2px solid var(--main-color);
-    border-radius: 5px;
-    background: var(--page-background);
-    color: var(--font-color);
-    font-family: "JetBrains Mono", monospace;
-    cursor: pointer;
-}
-
 @media (max-width: 800px) {
     .page-layout {
         display: block;
@@ -167,4 +190,6 @@ onMounted(() => {
         padding-right: 10px;
     }
 }
+
 </style>
+```

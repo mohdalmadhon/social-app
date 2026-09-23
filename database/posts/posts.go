@@ -969,7 +969,7 @@ func ViewPost(db *sql.DB, postID, userID int) error {
 	_, err := db.Exec(`
 		INSERT INTO post_views (user_id, post_id)
 		VALUES (?,?)
-	`, postID, userID)
+	`, userID, postID)
 	return err
 }
 
