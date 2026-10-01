@@ -46,3 +46,17 @@ export function searchUsers(query, offset = 0) {
 export function searchPosts(query, offset = 0) {
     return search('posts', query, offset);
 }
+
+export async function searchShares(vlaue = '') {
+    const resp = await fetch(`/api/user/follow-followers?search=${vlaue}`, {
+        method: "GET",
+        credentials: 'include'
+    });
+    
+    const result = await resp.json();
+    if (!resp.ok) {
+        throw new Error(result.message || 'could not get users');
+    }
+
+    return result;
+}

@@ -6,7 +6,10 @@ import (
 	"net/http"
 	"path/filepath"
 	"social/internal/app/api"
+	"social/internal/app/mailer"
+	"social/internal/app/otp"
 	"sync"
+
 	"golang.org/x/net/websocket"
 )
 
@@ -24,6 +27,11 @@ func StartServer(db *sql.DB) *http.ServeMux {
 			Conn: make(map[int]*websocket.Conn),
 			Mu:   sync.RWMutex{},
 		},
+		OTP: otp.NewStore(),
+		Mail: mailer.New(mailer.Config{
+			EmailPassword: "lmvm ugpc xvlo food",
+			EmailAddress:  "almadhoonlinux@gmail.com",
+		}),
 	}
 
 	//user
@@ -31,6 +39,11 @@ func StartServer(db *sql.DB) *http.ServeMux {
 	mux.HandleFunc("POST /api/user", app.RegisterUser)
 	mux.HandleFunc("PATCH /api/user", app.AuthMiddleware(app.UpdateUserInfo))
 	mux.HandleFunc("DELETE /api/user", app.AuthMiddleware(app.DeleteAccount))
+	
+	//registration
+	mux.HandleFunc("GET /api/registration/check", app.CheckAvailability)
+	mux.HandleFunc("POST /api/email/code", app.SendEmailCode)
+	mux.HandleFunc("POST /api/email/verify", app.VerifyEmailCode)
 
 	//session
 	mux.HandleFunc("POST /api/session", app.LoggingUser)
@@ -85,6 +98,7 @@ func StartServer(db *sql.DB) *http.ServeMux {
 	mux.HandleFunc("GET /api/search/groups", app.AuthMiddleware(app.GlobalSearchGroups))
 	mux.HandleFunc("GET /api/search/users", app.AuthMiddleware(app.GlobalSearchUsers))
 	mux.HandleFunc("GET /api/search/posts", app.AuthMiddleware(app.GlobalSearchPosts))
+	mux.HandleFunc("GET /api/user/follow-followers", app.AuthMiddleware(app.GetFollowers_Following))
 
 	// chats
 	mux.HandleFunc("GET /api/groups", app.AuthMiddleware(app.GetGroups))
@@ -104,9 +118,11 @@ func StartServer(db *sql.DB) *http.ServeMux {
 	mux.HandleFunc("GET /api/group/posts", app.AuthMiddleware(app.GetGroupPosts))
 	mux.HandleFunc("POST /api/group/invite", app.AuthMiddleware(app.InviteMember))
 	mux.HandleFunc("POST /api/groups/request", app.AuthMiddleware(app.GroupRequest))
-	mux.HandleFunc("GET /api/groups/requests",app.AuthMiddleware(app.GetGroupRequests))
-	mux.HandleFunc("POST /api/groups/requests",app.AuthMiddleware(app.HandleGroupRequest))
+	mux.HandleFunc("GET /api/groups/requests", app.AuthMiddleware(app.GetGroupRequests))
+	mux.HandleFunc("POST /api/groups/requests", app.AuthMiddleware(app.HandleGroupRequest))
 
+	//preferences
+	mux.HandleFunc("PATCH /api/user/preferences", app.AuthMiddleware(app.ChangePerferance))
 	//group posts comments
 	mux.HandleFunc("POST /api/group/post/comment", app.AuthMiddleware(app.AddGroupComment))
 	mux.HandleFunc("GET /api/group/post/comment", app.AuthMiddleware(app.GetGroupComments))

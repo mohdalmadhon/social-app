@@ -309,3 +309,68 @@ func IsFollowing(db *sql.DB, userID, targetID int) (bool, error) {
 
 	return true, nil
 }
+
+func Get_followers_following_chatList(db *sql.DB, userID int, search string) ([]models.UserRegistration, error) {
+	var users []models.UserRegistration
+
+	search = "%" + search + "%"
+
+	rows, err := db.Query(`
+		SELECT u.id, u.first_name, u.last_name, u.username, p.avatar_path
+		FROM user u
+		JOIN profile p ON p.user_id = u.id
+		WHERE (
+			EXISTS (
+				SELECT 1
+				FROM user_followers
+				WHERE follower_id = ? AND target_id = u.id
+			)
+			OR
+			EXISTS (
+				SELECT 1
+				FROM user_followers
+				WHERE target_id = ? AND follower_id = u.id
+			)
+			OR
+			EXISTS (
+				SELECT 1
+				FROM groups_users gu1
+				JOIN groups g ON g.id = gu1.group_id
+				JOIN groups_users gu2 ON gu2.group_id = gu1.group_id
+				WHERE gu1.user_id = ?
+					AND gu2.user_id = u.id
+					AND g.is_private_chat = 1
+			)
+		)
+		AND u.id != ?
+		AND (
+			u.first_name LIKE ?
+			OR u.last_name LIKE ?
+			OR u.username LIKE ?
+		)
+		LIMIT 30
+	`, userID, userID, userID, userID, search, search, search)
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var u models.UserRegistration
+
+		if err := rows.Scan(
+			&u.ID,
+			&u.FirstName,
+			&u.LastName,
+			&u.UserName,
+			&u.Avatar,
+		); err != nil {
+			return nil, err
+		}
+
+		users = append(users, u)
+	}
+
+	return users, rows.Err()
+}

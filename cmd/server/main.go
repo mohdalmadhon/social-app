@@ -5,6 +5,7 @@ import (
 	"net/http"
 	server "social/cmd"
 	"social/cmd/server/routes"
+	"social/cmd/utils"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -16,6 +17,17 @@ func main() {
 		return
 	}
 
+	if err := utils.MakeUploadDirectories(); err != nil {
+		log.Println(err)
+		return
+	} 		
+
+	// copy default avatar
+	if err := utils.CopyDefaultAvatar(); err != nil {
+		log.Println(err)
+		return
+	}
+	
 	server := http.Server{
 		Handler: routes.StartServer(db),
 		Addr:    ":4000",

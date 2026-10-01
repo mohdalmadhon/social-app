@@ -1,3 +1,5 @@
+import { sendWS } from "../socket/socket";
+
 export async function getPrivateChatsLists(offset) {
     const resp = await fetch(`/api/groups?offset=${offset}&private=1`, {
         method: "GET",
@@ -8,7 +10,7 @@ export async function getPrivateChatsLists(offset) {
     if (!resp.ok) {
         throw new Error(result.message || "coud not get data")
     }
-    
+
     return result;
 }
 
@@ -33,7 +35,7 @@ export async function sendMessage(data) {
         credentials: 'include',
         body: JSON.stringify(data)
     });
-    
+
     const result = await resp.json();
     if (!resp.ok) {
         throw new Error(result.message || "coud not get data")
@@ -43,8 +45,8 @@ export async function sendMessage(data) {
     return result;
 }
 
-export async function getMessages(groupID, offset = 0) {
-    const resp = await fetch(`/api/chats?groupID=${groupID}&offset=${offset}`, {
+export async function getMessages(groupID, offset = 0, userID = 0) {
+    const resp = await fetch(`/api/chats?groupID=${groupID}&offset=${offset}&userID=${userID}`, {
         method: "GET",
         credentials: 'include'
     });
@@ -67,6 +69,29 @@ export async function getGroupChats(offset) {
     if (!resp.ok) {
         throw new Error(result.message || "coud not get data")
     }
-    
+
     return result;
+}
+
+export function sendPost(userID = 0, postID = 0, recieverID = 0) {
+    if (!userID || userID <= 0) {
+        return
+    }
+
+    if (!postID || postID <= 0) {
+        return
+    }
+
+    if (!recieverID || recieverID <= 0) {
+        return;
+    }
+
+    sendWS({
+        type: "post-message",
+        data: {
+            postID: postID,
+            userID: userID,
+            recieverID: recieverID
+        }
+    });
 }

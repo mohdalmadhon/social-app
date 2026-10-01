@@ -113,6 +113,7 @@ onUnmounted(() => {
                             :dislikes="post.disLikeCount"
                             :reaction="post.ReactionValue"
                             :allowComments="post.allowComments"
+                            :avatar-path="post.avatarPath"
                             v-bind="post"
                         />
                     </section>

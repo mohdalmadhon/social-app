@@ -40,7 +40,7 @@ func (app *App) LoggingUser(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
+	
 	if match := helpers.AuthonticateUser(logger.Pass, hashedPassword); !match {
 		helpers.WriteJson(w, http.StatusUnauthorized, map[string]any{
 			"status":  false,

@@ -264,6 +264,7 @@ func (app *App) GetMessages(w http.ResponseWriter, r *http.Request) {
 
 	groupID, err := strconv.Atoi(r.URL.Query().Get("groupID"))
 	if err != nil {
+		log.Println(err)
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
 			"message": "invalid groupID",
@@ -273,6 +274,7 @@ func (app *App) GetMessages(w http.ResponseWriter, r *http.Request) {
 
 	offset, err := strconv.Atoi(r.URL.Query().Get("offset"))
 	if err != nil {
+		log.Println(err)
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
 			"message": "invalid groupID",
@@ -280,6 +282,7 @@ func (app *App) GetMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Println(groupID)
 	exists, err := chats.ChatExists(app.DB, groupID)
 	if err != nil {
 		log.Println(err, "here1")
@@ -290,30 +293,25 @@ func (app *App) GetMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !exists {
-		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
-			"status":  false,
-			"message": "invalid group",
-		})
-		return
-	}
+	if exists {
+		userIN, err := chats.UserInGroup(app.DB, userID, groupID)
+		if err != nil {
+			log.Println(err, "here2")
+			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+				"status":  false,
+				"message": "could not verify group",
+			})
+			return
+		}
 
-	userIN, err := chats.UserInGroup(app.DB, userID, groupID)
-	if err != nil {
-		log.Println(err, "here2")
-		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
-			"status":  false,
-			"message": "could not verify group",
-		})
-		return
-	}
-
-	if !userIN {
-		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
-			"status":  false,
-			"message": "invalid request",
-		})
-		return
+		if !userIN {
+			log.Println("user not in")
+			helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+				"status":  false,
+				"message": "invalid request",
+			})
+			return
+		}
 	}
 
 	msgs, err := chats.GetMessages(app.DB, userID, groupID, offset)
@@ -322,6 +320,35 @@ func (app *App) GetMessages(w http.ResponseWriter, r *http.Request) {
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 			"status":  false,
 			"message": "could not get messages",
+		})
+		return
+	}
+
+	targetID, err := strconv.Atoi(r.URL.Query().Get("userID"))
+	if err != nil {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+				"status":  false,
+				"message": "invalid user ID",
+			})
+			return
+	}
+
+	log.Println("tagetID", targetID)
+	if targetID != 0 {
+		canMessage, err := chats.CanSendMessage(app.DB, userID, targetID)
+		if err != nil {
+			log.Println(err, "here")
+			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+				"status":  false,
+				"message": "could not get group data",
+			})
+			return
+		}
+
+		helpers.WriteJson(w, http.StatusOK, map[string]any{
+			"status":     true,
+			"data":       msgs,
+			"canMessage": canMessage,
 		})
 		return
 	}

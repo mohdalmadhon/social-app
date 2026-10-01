@@ -5,11 +5,59 @@ import TopNavigation from '@/components/layout/TopNavigation.vue';
 import { addNotification } from '@/data/notifications';
 import { activePage } from '@/data/chatState';
 import { THEMES, getThemeCookie, setTheme } from '@/helpers/common/theme';
-import { deleteAccount } from '@/api/users/settings';
+import { deleteAccount, changePreferences } from '@/api/users/settings';
 
 activePage.value = 'settings';
 
+const TABS = [
+    { value: 'general', label: 'General' },
+    { value: 'preferences', label: 'Preferences' },
+];
+
+const CHAT_OPTIONS = [
+    {
+        value: 'following-followers',
+        label: 'Following or followers',
+        description: 'Anyone you follow or who follows you can message you.',
+        icon: '⇄',
+    },
+    {
+        value: 'friends',
+        label: 'Friends only',
+        description: 'Only your friends can start a chat with you.',
+        icon: '♥',
+    },
+    {
+        value: 'following',
+        label: 'Following only',
+        description: 'Only people you follow can message you.',
+        icon: '→',
+    },
+    {
+        value: 'friends-following',
+        label: 'Following or friends',
+        description: 'People you follow and your friends can message you.',
+        icon: '★',
+    },
+    {
+        value: 'any',
+        label: 'Any',
+        description: 'Everyone can start a chat with you.',
+        icon: '∞',
+    },
+    {
+        value: 'none',
+        label: 'None',
+        description: 'Nobody can start a chat with you.',
+        icon: '⊘',
+    },
+];
+
+const activeTab = ref('general');
+
 const selectedTheme = ref(getThemeCookie());
+const selectedChat = ref('following-followers');
+const savingChat = ref(false);
 
 const showDeleteConfirm = ref(false);
 const confirmText = ref('');
@@ -19,6 +67,26 @@ function selectTheme(theme) {
     selectedTheme.value = theme;
     setTheme(theme);
     addNotification('Theme updated', 'success');
+}
+
+async function selectChat(value) {
+    if (savingChat.value || value === selectedChat.value) {
+        return;
+    }
+
+    const previous = selectedChat.value;
+    selectedChat.value = value;
+    savingChat.value = true;
+
+    try {
+        await changePreferences('chat', value);
+        addNotification('Chat preference updated', 'success');
+    } catch (err) {
+        selectedChat.value = previous;
+        addNotification(err.message || 'Could not update preferences', 'error');
+    } finally {
+        savingChat.value = false;
+    }
 }
 
 function openDeleteConfirm() {
@@ -61,77 +129,152 @@ async function confirmDeleteAccount() {
                     <h1>Settings</h1>
                 </div>
 
-                <section class="settings-section">
-                    <h2>Appearance</h2>
+                <div class="tabs" role="tablist">
+                    <button
+                        v-for="tab in TABS"
+                        :key="tab.value"
+                        type="button"
+                        role="tab"
+                        class="tab"
+                        :class="{ active: activeTab === tab.value }"
+                        :aria-selected="activeTab === tab.value"
+                        @click="activeTab = tab.value"
+                    >
+                        {{ tab.label }}
+                    </button>
+                </div>
 
-                    <div class="theme-options">
-                        <button
-                            v-for="theme in THEMES"
-                            :key="theme.value"
-                            type="button"
-                            class="theme-option"
-                            :class="{ selected: selectedTheme === theme.value }"
-                            @click="selectTheme(theme.value)"
-                        >
-                            <span class="swatch" :class="`swatch-${theme.value}`"></span>
+                <template v-if="activeTab === 'general'">
+                    <section class="settings-section">
+                        <h2>Appearance</h2>
 
-                            <span class="option-info">
-                                <span class="option-name">{{ theme.label }}</span>
-                            </span>
-
-                            <span class="radio">
-                                <span v-if="selectedTheme === theme.value"></span>
-                            </span>
-                        </button>
-                    </div>
-                </section>
-
-                <section class="settings-section danger-zone">
-                    <h2>Danger zone</h2>
-
-                    <div class="danger-row">
-                        <div class="text-group">
-                            <p class="option-title">Delete account</p>
-                            <p class="option-subtitle">
-                                This permanently deletes your account, posts, messages and all
-                                related data. This cannot be undone.
-                            </p>
-                        </div>
-
-                        <button type="button" class="delete-btn" @click="openDeleteConfirm">
-                            Delete account
-                        </button>
-                    </div>
-
-                    <div v-if="showDeleteConfirm" class="confirm-box">
-                        <p class="confirm-text">
-                            Type <strong>DELETE</strong> to permanently remove your account.
-                        </p>
-
-                        <input
-                            v-model="confirmText"
-                            type="text"
-                            placeholder="DELETE"
-                            autocomplete="off"
-                            @keyup.enter="confirmDeleteAccount"
-                        />
-
-                        <div class="confirm-actions">
-                            <button type="button" class="cancel-btn" @click="cancelDeleteConfirm">
-                                Cancel
-                            </button>
-
+                        <div class="theme-options">
                             <button
+                                v-for="theme in THEMES"
+                                :key="theme.value"
                                 type="button"
-                                class="delete-btn"
-                                :disabled="confirmText.trim().toUpperCase() !== 'DELETE' || deleting"
-                                @click="confirmDeleteAccount"
+                                class="theme-option"
+                                :class="[`screen-${theme.value}`, { selected: selectedTheme === theme.value }]"
+                                @click="selectTheme(theme.value)"
                             >
-                                {{ deleting ? 'Deleting...' : 'Permanently delete' }}
+                                <span class="monitor">
+                                    <span class="monitor-top">
+                                        <span class="top-logo"></span>
+                                        <span class="top-search"></span>
+                                        <span class="top-avatar"></span>
+                                    </span>
+                                    <span class="monitor-body">
+                                        <span class="monitor-side">
+                                            <span class="side-item active"></span>
+                                            <span class="side-item"></span>
+                                            <span class="side-item"></span>
+                                            <span class="side-item"></span>
+                                        </span>
+                                        <span class="monitor-content">
+                                            <span class="mini-post">
+                                                <span class="post-head">
+                                                    <span class="post-avatar"></span>
+                                                    <span class="post-name"></span>
+                                                </span>
+                                                <span class="line long"></span>
+                                                <span class="line"></span>
+                                                <span class="post-image"></span>
+                                            </span>
+                                        </span>
+                                    </span>
+                                </span>
+                                <span class="monitor-stand"></span>
+
+                                <span class="option-footer">
+                                    <span class="option-name">{{ theme.label }}</span>
+                                    <span class="radio">
+                                        <span v-if="selectedTheme === theme.value"></span>
+                                    </span>
+                                </span>
                             </button>
                         </div>
-                    </div>
-                </section>
+                    </section>
+
+                    <section class="settings-section danger-zone">
+                        <h2>Danger zone</h2>
+
+                        <div class="danger-row">
+                            <div class="text-group">
+                                <p class="option-title">Delete account</p>
+                                <p class="option-subtitle">
+                                    This permanently deletes your account, posts, messages and all
+                                    related data. This cannot be undone.
+                                </p>
+                            </div>
+
+                            <button type="button" class="delete-btn" @click="openDeleteConfirm">
+                                Delete account
+                            </button>
+                        </div>
+
+                        <div v-if="showDeleteConfirm" class="confirm-box">
+                            <p class="confirm-text">
+                                Type <strong>DELETE</strong> to permanently remove your account.
+                            </p>
+
+                            <input
+                                v-model="confirmText"
+                                type="text"
+                                placeholder="DELETE"
+                                autocomplete="off"
+                                @keyup.enter="confirmDeleteAccount"
+                            />
+
+                            <div class="confirm-actions">
+                                <button type="button" class="cancel-btn" @click="cancelDeleteConfirm">
+                                    Cancel
+                                </button>
+
+                                <button
+                                    type="button"
+                                    class="delete-btn"
+                                    :disabled="confirmText.trim().toUpperCase() !== 'DELETE' || deleting"
+                                    @click="confirmDeleteAccount"
+                                >
+                                    {{ deleting ? 'Deleting...' : 'Permanently delete' }}
+                                </button>
+                            </div>
+                        </div>
+                    </section>
+                </template>
+
+                <template v-else-if="activeTab === 'preferences'">
+                    <section class="settings-section">
+                        <div class="section-head">
+                            <div>
+                                <h2>Chat</h2>
+                                <p class="section-subtitle">Choose who can start a chat with you.</p>
+                            </div>
+                            <span v-if="savingChat" class="saving">Saving...</span>
+                        </div>
+
+                        <div class="choice-grid">
+                            <button
+                                v-for="option in CHAT_OPTIONS"
+                                :key="option.value"
+                                type="button"
+                                class="choice-card"
+                                :class="{ selected: selectedChat === option.value }"
+                                :disabled="savingChat"
+                                @click="selectChat(option.value)"
+                            >
+                                <span class="choice-top">
+                                    <span class="choice-icon">{{ option.icon }}</span>
+                                    <span class="radio">
+                                        <span v-if="selectedChat === option.value"></span>
+                                    </span>
+                                </span>
+                                <span class="choice-name">{{ option.label }}</span>
+                                <span class="choice-desc">{{ option.description }}</span>
+                            </button>
+                        </div>
+                    </section>
+                </template>
             </main>
         </div>
     </div>
@@ -178,23 +321,150 @@ async function confirmDeleteAccount() {
     color: var(--font-color);
 }
 
-.theme-options {
+.tabs {
+    display: inline-flex;
+    align-self: flex-start;
+    gap: 4px;
+    padding: 4px;
+    border: 2px solid var(--main-color);
+    border-radius: 8px;
+    background: var(--bg-color);
+    box-shadow: 3px 3px var(--main-color);
+}
+
+.tab {
+    padding: 9px 22px;
+    border: none;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--font-color);
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.tab:hover:not(.active) {
+    background: var(--page-background);
+}
+
+.tab.active {
+    background: var(--input-focus);
+    color: #fff;
+}
+
+.section-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.section-head h2 {
+    margin-bottom: 6px;
+}
+
+.section-subtitle {
+    margin: 0 0 18px;
+    color: var(--font-color-sub);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 9px;
+}
+
+.saving {
+    padding: 4px 10px;
+    border: 2px dashed var(--main-color);
+    border-radius: 20px;
+    color: var(--font-color-sub);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 9px;
+}
+
+.choice-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 16px;
+}
+
+.choice-card {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 16px;
+    border: 2px solid var(--main-color);
+    border-radius: 8px;
+    background: var(--bg-color);
+    color: var(--font-color);
+    text-align: left;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.choice-card:hover:not(:disabled):not(.selected) {
+    transform: translate(-2px, -2px);
+    box-shadow: 4px 4px var(--main-color);
+}
+
+.choice-card.selected {
+    background: var(--input-focus);
+    color: #fff;
+    box-shadow: 4px 4px var(--main-color);
+}
+
+.choice-card:disabled {
+    cursor: not-allowed;
+    opacity: 0.75;
+}
+
+.choice-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-bottom: 8px;
+}
+
+.choice-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border: 2px solid currentColor;
+    border-radius: 10px;
+    font-size: 18px;
+    line-height: 1;
+}
+
+.choice-name {
+    font-weight: 700;
+    font-size: 15px;
+}
+
+.choice-desc {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    line-height: 1.5;
+    opacity: 0.8;
+}
+
+.theme-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 16px;
 }
 
 .theme-option {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 14px;
-    width: 100%;
-    padding: 14px 16px;
+    gap: 0;
+    padding: 14px;
     border: 2px solid var(--main-color);
     border-radius: 6px;
     background: var(--bg-color);
     color: var(--font-color);
-    text-align: left;
     cursor: pointer;
 }
 
@@ -204,32 +474,197 @@ async function confirmDeleteAccount() {
     box-shadow: 3px 3px var(--main-color);
 }
 
-.swatch {
+.screen-light {
+    --s-accent: #5b9cff;
+    --s-bg: #f4f4f2;
+    --s-bar: #dcdcd8;
+    --s-side: #e6e6e2;
+    --s-line: #b5b5b0;
+    --s-card: #ffffff;
+}
+
+.screen-dark {
+    --s-accent: #8a7dff;
+    --s-bg: #121212;
+    --s-bar: #1f1f1f;
+    --s-side: #1a1a1a;
+    --s-line: #444;
+    --s-card: #262626;
+}
+
+.screen-blue {
+    --s-accent: #ffffff;
+    --s-bg: #5b9cff;
+    --s-bar: #3f7fe0;
+    --s-side: #4d8ff0;
+    --s-line: #a9ccff;
+    --s-card: #8bb8ff;
+}
+
+.screen-pink {
+    --s-accent: #ffffff;
+    --s-bg: #e88ca8;
+    --s-bar: #d06f8d;
+    --s-side: #dc7f9b;
+    --s-line: #f5c2d2;
+    --s-card: #f2a9bf;
+}
+
+.monitor {
+    width: 100%;
+    aspect-ratio: 16 / 10;
+    display: flex;
+    flex-direction: column;
+    border: 3px solid var(--main-color);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--s-bg);
+}
+
+.monitor-top {
+    flex: 0 0 16%;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 6px;
+    background: var(--s-bar);
+}
+
+.top-logo {
     flex-shrink: 0;
-    width: 28px;
-    height: 28px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
-    border: 2px solid var(--main-color);
+    background: var(--s-accent);
 }
 
-.swatch-light {
-    background: #f4f4f2;
-}
-
-.swatch-dark {
-    background: #121212;
-}
-
-.swatch-blue {
-    background: #5b9cff;
-}
-
-.swatch-pink {
-    background: #e88ca8;
-}
-
-.option-info {
+.top-search {
     flex: 1;
+    max-width: 45%;
+    height: 6px;
+    margin: 0 auto 0 4px;
+    border-radius: 3px;
+    background: var(--s-line);
+    opacity: 0.6;
+}
+
+.top-avatar {
+    flex-shrink: 0;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--s-line);
+}
+
+.monitor-body {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+}
+
+.monitor-side {
+    flex: 0 0 22%;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 6px 5px;
+    background: var(--s-side);
+}
+
+.side-item {
+    height: 5px;
+    border-radius: 3px;
+    background: var(--s-line);
+    opacity: 0.6;
+}
+
+.side-item.active {
+    background: var(--s-accent);
+    opacity: 1;
+}
+
+.monitor-content {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
+    min-width: 0;
+}
+
+.mini-post {
+    width: 78%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 5px;
+    border-radius: 4px;
+    background: var(--s-card);
+    overflow: hidden;
+}
+
+.post-head {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.post-avatar {
+    flex-shrink: 0;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--s-accent);
+}
+
+.post-name {
+    width: 40%;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--s-line);
+}
+
+.line {
+    height: 4px;
+    width: 55%;
+    border-radius: 3px;
+    background: var(--s-line);
+}
+
+.line.long {
+    width: 90%;
+}
+
+.post-image {
+    flex: 1;
+    min-height: 0;
+    border-radius: 3px;
+    background: var(--s-side);
+}
+
+.monitor-stand {
+    width: 28%;
+    height: 8px;
+    background: var(--main-color);
+}
+
+.monitor-stand::after {
+    content: "";
+    display: block;
+    width: 160%;
+    height: 4px;
+    margin: 8px 0 0 -30%;
+    border-radius: 2px;
+    background: var(--main-color);
+}
+
+.option-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-top: 14px;
 }
 
 .option-name {

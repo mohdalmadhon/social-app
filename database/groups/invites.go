@@ -19,7 +19,7 @@ func SendInvites(db *sql.DB, targetID int, g models.Group) error {
 	if err != nil {
 		return err
 	}
-
+	
 	payload := map[string]any{
 		"type": "invite",
 		"group": map[string]any{

@@ -5,6 +5,9 @@ import (
 	"log"
 	"net/http"
 	"social/database/users"
+	"social/internal/app/mailer"
+	"social/internal/app/otp"
+	"social/internal/app/tokens"
 	"social/internal/helpers"
 	"social/internal/models"
 	"social/internal/validation"
@@ -15,8 +18,10 @@ import (
 )
 
 type App struct {
-	DB *sql.DB
-	H  *Hub
+	DB   *sql.DB
+	H    *Hub
+	OTP  *otp.Store
+	Mail *mailer.Mailer
 }
 
 type Hub struct {
@@ -70,6 +75,16 @@ func (app *App) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	verifyToken := r.FormValue("VerifyToken")
+
+	if !app.OTP.CheckToken(verifyToken, userData.Email) {
+		helpers.WriteJson(w, http.StatusForbidden, map[string]any{
+			"status":  false,
+			"message": "Email verification is required",
+		})
+		return
+	}
+
 	file, header, err := r.FormFile("Avatar")
 	if err != nil {
 		if err != http.ErrMissingFile {
@@ -119,6 +134,38 @@ func (app *App) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	app.OTP.DeleteToken(verifyToken)
+
+	userID := users.GetUserID(app.DB, userData.Email)
+	if userID == -1 {
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not get user data",
+		})
+		return
+	}
+
+	token, err := tokens.GenerateToken(userID)
+	if err != nil {
+		log.Println(err)
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not create authentication token",
+		})
+		return
+	}
+
+	cookie := http.Cookie{
+		Name:     "token",
+		Value:    token,
+		Path:     "/",
+		Expires:  time.Now().Add(24 * 30 * time.Hour),
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	}
+
+	http.SetCookie(w, &cookie)
 
 	helpers.WriteJson(w, http.StatusCreated, map[string]any{
 		"status":  true,

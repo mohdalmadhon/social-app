@@ -45,7 +45,6 @@ func (app *App) readLoop(userID int, ws *websocket.Conn) {
 			continue
 		}
 
-
 		switch payload.Type {
 		case "privateMessage":
 			app.handleMessage(userID, payload.Data, "message")
@@ -57,9 +56,9 @@ func (app *App) readLoop(userID int, ws *websocket.Conn) {
 			app.handleInvite(userID, payload.Data)
 
 		case "postGroup":
-
 			app.handleMessage(userID, payload.Data, "postGroup")
-
+		case "post-message":
+			
 		default:
 			log.Println("unknown websocket type:", payload.Type)
 		}

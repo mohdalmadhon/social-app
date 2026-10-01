@@ -1,10 +1,10 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
-
 import { addNotification } from '@/data/notifications';
 import { Message } from '@/models/chats';
 import { sendWS } from '@/api/socket/socket';
 import { getMessages } from '@/api/chats/chats';
+import { router } from '@/router/router';
 
 const props = defineProps({
     chat: {
@@ -33,7 +33,6 @@ const props = defineProps({
     }
 });
 
-
 const message = ref('');
 const messages = ref([]);
 const sending = ref(false);
@@ -43,9 +42,15 @@ const hasMore = ref(true);
 const offset = ref(0);
 const messagesContainer = ref(null);
 const inviteStatus = ref({});
+const canMessage = ref(false);
+
 let fetchTimer = null;
 let requestID = 0;
 
+function sendToProfile() {
+    router.push(`/user?id=${props.userID}`);
+    window.location.reload();
+}
 function parseInvite(content) {
     if (typeof content !== 'string') {
         return null;
@@ -54,7 +59,7 @@ function parseInvite(content) {
     try {
         const data = JSON.parse(content);
 
-        if (data?.type !== 'invite' || !data.group || !data.user) {
+        if (!data?.type || data.type !== 'invite' || !data.group || !data.user) {
             return null;
         }
 
@@ -108,7 +113,9 @@ function formatMessage(msg) {
         },
         groupID: msg.GroupID ?? msg.groupID,
         invite,
-        inviteStatus: invite ? inviteStatus.value[invite.group.id] ?? null : null
+        inviteStatus: invite
+            ? inviteStatus.value[invite.group.id] ?? null
+            : null
     };
 }
 
@@ -122,10 +129,6 @@ async function scrollToBottom() {
 }
 
 async function fetchChatMessages(groupID) {
-    if (groupID === null || groupID === undefined) {
-        messages.value = [];
-        return;
-    }
 
     const currentRequestID = ++requestID;
 
@@ -136,11 +139,13 @@ async function fetchChatMessages(groupID) {
     messages.value = [];
 
     try {
-        const result = await getMessages(groupID, 0);
-
+        const result = await getMessages(groupID, 0, props.userID);
+        console.log(result);
         if (currentRequestID !== requestID) {
             return;
         }
+
+        canMessage.value = result.canMessage ?? false;
 
         const data = Array.isArray(result)
             ? result
@@ -163,6 +168,7 @@ async function fetchChatMessages(groupID) {
         messages.value = [];
         offset.value = 0;
         hasMore.value = false;
+        canMessage.value = false;
 
         addNotification(
             err.message || 'Error happened while fetching messages',
@@ -203,12 +209,16 @@ async function fetchOlderMessages() {
     try {
         const result = await getMessages(
             props.groupID,
-            offset.value
+            offset.value,
+            props.userID
         );
+
 
         if (currentRequestID !== requestID) {
             return;
         }
+
+        canMessage.value = result.canMessage ?? canMessage.value;
 
         const data = Array.isArray(result)
             ? result
@@ -290,7 +300,9 @@ function handleScroll() {
 }
 
 async function respondToInvite(msg, status) {
-    if (!msg.invite || msg.invite.responding) return;
+    if (!msg.invite || msg.invite.responding) {
+        return;
+    }
 
     msg.invite.responding = true;
 
@@ -315,7 +327,9 @@ async function respondToInvite(msg, status) {
             throw new Error(result.message || 'Could not update invite');
         }
 
-        messages.value = messages.value.filter(message => message !== msg);
+        messages.value = messages.value.filter(
+            message => message !== msg
+        );
 
         addNotification(
             status === 1 ? 'Invite accepted' : 'Invite rejected',
@@ -323,6 +337,7 @@ async function respondToInvite(msg, status) {
         );
     } catch (err) {
         msg.invite.responding = false;
+
         addNotification(
             err.message || 'Could not update invite',
             'error'
@@ -341,7 +356,6 @@ function receiveMessage(event) {
     }
 
     const formatted = formatMessage(incoming);
-
     const senderID = formatted.sender.id;
 
     messages.value.push({
@@ -374,7 +388,12 @@ function receiveMessage(event) {
 async function send() {
     const content = message.value.trim();
 
-    if (!content || sending.value || !props.chat) {
+    if (
+        !content ||
+        sending.value ||
+        !props.chat ||
+        !canMessage.value
+    ) {
         return;
     }
 
@@ -404,6 +423,7 @@ async function send() {
         });
 
         message.value = '';
+
         await scrollToBottom();
     } catch (err) {
         addNotification(
@@ -424,11 +444,11 @@ watch(
         }
 
         requestID++;
-
         messages.value = [];
         offset.value = 0;
         hasMore.value = true;
         loadingMore.value = false;
+        canMessage.value = false;
 
         if (
             newGroupID === null ||
@@ -497,7 +517,8 @@ onUnmounted(() => {
         <template v-if="chat">
             <header class="chat-window-header">
                 <div class="avatar">
-                    <img v-if="chat.Avatar" :src="`/uploads/${chat.Avatar}`" alt="" />
+                    <img style="cursor: pointer;" v-if="chat.Avatar" :src="`/uploads/${chat.Avatar}`" alt=""
+                        @click="sendToProfile" />
                 </div>
 
                 <div class="chat-user-info">
@@ -581,12 +602,14 @@ onUnmounted(() => {
                                 </div>
                             </div>
 
-                            <div v-if="msg.inviteStatus === null || msg.inviteStatus === undefined"
-                                class="invite-actions">
+                            <div v-if="
+                                msg.inviteStatus === null ||
+                                msg.inviteStatus === undefined
+                            " class="invite-actions">
                                 <button type="button" class="invite-accept" @click="respondToInvite(msg, 1)">
                                     Accept
                                 </button>
-                                
+
                                 <button type="button" class="invite-reject" @click="respondToInvite(msg, -1)">
                                     Reject
                                 </button>
@@ -620,9 +643,15 @@ onUnmounted(() => {
             </div>
 
             <form class="composer" @submit.prevent="send">
-                <input v-model="message" type="text" placeholder="Type a message..." :disabled="loading" />
+                <input v-model="message" type="text" :placeholder="canMessage
+                        ? 'Type a message...'
+                        : 'You cannot text this user because of user preferences'
+                    " :disabled="loading || !canMessage" />
 
-                <button type="submit" :disabled="sending || loading">
+                <button type="submit" :disabled="sending ||
+                    loading ||
+                    !canMessage
+                    ">
                     {{ sending ? 'Sending...' : 'Send' }}
                 </button>
             </form>

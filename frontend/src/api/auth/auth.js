@@ -1,20 +1,63 @@
 import { checkSessionResponse } from "@/helpers/auth/auth";
 import { router } from "@/router/router";
 
+async function parseResponse(resp, fallback) {
+    let result = {}
+
+    try {
+        result = await resp.json()
+    } catch {
+        result = {}
+    }
+
+    if (!resp.ok) {
+        const error = new Error(result.message || `${fallback}: ${resp.status}`)
+
+        error.status = resp.status
+        error.retryAfter = result.retryAfter
+        error.attemptsLeft = result.attemptsLeft
+
+        throw error
+    }
+
+    return result
+}
+
 export async function registerUser(userData) {
     const resp = await fetch("/api/user", {
         method: "POST",
         body: userData
     })
 
-    const result = await resp.json()
+    return parseResponse(resp, "Registration failed")
+}
 
+export async function checkRegistration(type, value) {
+    const params = new URLSearchParams({ type, value })
 
-    if (!resp.ok) {
-        throw new Error(result.message || `Registration failed: ${resp.status}`)
-    }
+    const resp = await fetch(`/api/registration/check?${params}`)
 
-    return result
+    return parseResponse(resp, "Check failed")
+}
+
+export async function sendEmailCode(email) {
+    const resp = await fetch("/api/email/code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email })
+    })
+
+    return parseResponse(resp, "Could not send code")
+}
+
+export async function verifyEmailCode(email, code) {
+    const resp = await fetch("/api/email/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code })
+    })
+
+    return parseResponse(resp, "Verification failed")
 }
 
 export async function loggingSession(userLogger) {

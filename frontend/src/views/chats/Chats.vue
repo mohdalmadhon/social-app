@@ -47,7 +47,7 @@ watch(
 
         <div class="body-layout">
             <SideNavigation />
-
+            
             <main class="chats-page">
                 <ChatsSideBar :target-user-id="targetUserId" @select-chat="handleSelectChat" />
 

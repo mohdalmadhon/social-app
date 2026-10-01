@@ -25,3 +25,9 @@ type Message struct {
 	CreatedAt time.Time
 }
 
+type SentPost struct {
+	PostID int `json:"postID"`
+	UserID int `json:"userID"`
+	RecieverID int `json:"recieverID"`
+}
+

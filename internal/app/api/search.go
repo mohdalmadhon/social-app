@@ -1,6 +1,7 @@
 package api
 
 import (
+	"database/sql"
 	"log"
 	"net/http"
 	"strconv"
@@ -117,5 +118,33 @@ func serveSearch[T any](
 		"status":  true,
 		"data":    results,
 		"hasMore": hasMore,
+	})
+}
+
+func (app *App) GetFollowers_Following(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("userID").(int)
+	if !ok {
+		helpers.WriteJson(w, http.StatusUnauthorized, map[string]any{
+			"status":  false,
+			"message": "could not authorize user",
+		})
+		return
+	}
+
+	search := r.URL.Query().Get("search")
+	log.Println(search)
+	users, err := users.Get_followers_following_chatList(app.DB, userID, search)
+	if err != nil && err != sql.ErrNoRows {
+		log.Println(err)
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not get users",
+		})
+		return
+	}
+
+	helpers.WriteJson(w, http.StatusOK, map[string]any{
+		"status": true,
+		"data":   users,
 	})
 }

@@ -2,6 +2,7 @@ package chats
 
 import (
 	"database/sql"
+	"social/database/users"
 	"social/internal/models"
 )
 
@@ -133,4 +134,93 @@ func AddMessages(db *sql.DB, content string, userID, groupID int) error {
 		VALUES (?,?,?)
 	`, content, userID, groupID)
 	return err
+}
+
+func CanSendMessage(db *sql.DB, userID, targetID int) (bool, error) {
+	var preferences string
+	err := db.QueryRow(`
+		SELECT chat FROM user_preferences WHERE user_id = ?
+	`, targetID).Scan(&preferences)
+
+	if err != nil {
+		return false, nil
+	}
+
+	if preferences == "following-followers" {
+		following, err := users.IsFollowing(db, userID, targetID)
+		if err != nil {
+			return false, nil
+		}
+
+		follower, err := users.IsFollowing(db, userID, targetID)
+		if err != nil {
+			return false, nil
+		}
+
+		if follower || following {
+			return true, nil
+		} else {
+			return false, nil
+		}
+	}
+	if preferences == "friends" {
+		friend, err := users.IsFriend(db, userID, targetID)
+		if err != nil {
+			return false, err
+		}
+
+		if friend {
+			return true, nil
+		} else {
+			return false, nil
+		}
+	}
+	if preferences == "any" {
+		return true, nil
+	}
+
+	if preferences == "none" {
+		return false, nil
+	}
+
+	if preferences == "following" {
+		isFollowing, err := users.IsFollowing(db, targetID, userID)
+		if err != nil {
+			return false, err
+		}
+
+		if isFollowing {
+			return true, nil
+		} else {
+			return false, nil
+		}
+	}
+
+	return false, nil
+}
+
+func IsPrivateChat(db *sql.DB, groupID, userID int) (bool, int, error) {
+	var isPrivate int
+
+	err := db.QueryRow(`
+		SELECT is_private_chat
+		FROM groups
+		WHERE id = ?
+	`, groupID).Scan(&isPrivate)
+
+	if err != nil {
+		return false,-1, err
+	}
+
+	var targetID int
+	er := db.QueryRow(`
+		SELECT user_id FROM groups_users 
+		WHERE group_id = ? AND user_id <> ? 
+	`, groupID, userID).Scan(&targetID)
+	
+	if err != nil {
+		return false, -1, er
+	}
+
+	return isPrivate == 1,targetID, nil
 }
