@@ -1,6 +1,8 @@
 import { ref } from 'vue';
 
 import { getUnreadNotificationCount } from '@/api/common/notifications';
+import { addNotification } from './notifications';
+import { messageSent } from './chatState';
 
 export const unreadNotificationCount = ref(0);
 
@@ -32,5 +34,9 @@ function isDisplayableNotification(data) {
 export function handleIncomingNotification(data) {
     if (isDisplayableNotification(data)) {
         incrementUnreadNotificationCount();
+    }
+    if (data.error) {
+        messageSent.value = false;
+        addNotification(data.message, 'error');
     }
 }

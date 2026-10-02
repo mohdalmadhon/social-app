@@ -145,7 +145,7 @@ func CanSendMessage(db *sql.DB, userID, targetID int) (bool, error) {
 	if err != nil {
 		return false, nil
 	}
-
+	
 	if preferences == "following-followers" {
 		following, err := users.IsFollowing(db, userID, targetID)
 		if err != nil {

@@ -58,7 +58,7 @@ func (app *App) readLoop(userID int, ws *websocket.Conn) {
 		case "postGroup":
 			app.handleMessage(userID, payload.Data, "postGroup")
 		case "post-message":
-			
+
 		default:
 			log.Println("unknown websocket type:", payload.Type)
 		}
@@ -157,6 +157,51 @@ func (app *App) handleMessage(userID int, data json.RawMessage, Type string) {
 				log.Println("private chat creation error:", err)
 				return
 			}
+		}
+	}
+
+	isPrivate, targetID, err := chats.IsPrivateChat(app.DB, groupID, userID)
+	if err != nil {
+		// write a message
+	}
+
+	if isPrivate {
+		canMessage, err := chats.CanSendMessage(app.DB, userID, targetID)
+		if err != nil {
+			// send a message
+			return
+		}
+
+		if !canMessage {
+			msg := map[string]any{
+				"type": "notification",
+				"data": map[string]any{
+					"error":    true,
+					"clientID": userID,
+					"message":  "could not send message because of user preference",
+				},
+			}
+
+			response, err := json.Marshal(msg)
+			if err != nil {
+				log.Println("marshal notification error:", err)
+				return
+			}
+
+			app.H.Mu.RLock()
+			conn, ok := app.H.Conn[userID]
+			app.H.Mu.RUnlock()
+
+			if !ok {
+				log.Println("user websocket connection not found:", userID)
+				return
+			}
+
+			if _, err := conn.Write(response); err != nil {
+				log.Println("websocket notification error:", err)
+			}
+
+			return
 		}
 	}
 

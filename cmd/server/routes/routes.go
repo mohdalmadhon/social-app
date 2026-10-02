@@ -104,6 +104,7 @@ func StartServer(db *sql.DB) *http.ServeMux {
 	mux.HandleFunc("GET /api/groups", app.AuthMiddleware(app.GetGroups))
 	mux.HandleFunc("POST /api/chats", app.AuthMiddleware(app.AddMessages))
 	mux.HandleFunc("GET /api/chats", app.AuthMiddleware(app.GetMessages))
+	mux.HandleFunc("GET /api/chats/ability", app.AuthMiddleware(app.CheckMessageAbility))
 
 	//group chats
 	mux.HandleFunc("GET /api/groups/invites/search", app.AuthMiddleware(app.SearchInvites))

@@ -9,6 +9,7 @@ const route = useRoute();
 const router = useRouter();
 
 const props = defineProps({
+    message: Boolean,
     addEdit: Boolean,
     firstName: String,
     lastName: String,
@@ -128,7 +129,7 @@ async function handleRemoveFollow() {
                         </a>
 
                         <template v-else>
-                            <button
+                            <button v-if="message"
                                 class="relationship-button message"
                                 @click="handleMessage"
                             >

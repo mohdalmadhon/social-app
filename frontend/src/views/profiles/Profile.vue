@@ -25,6 +25,7 @@ const activeTab = ref('about');
 const loading = ref(true);
 const showPrivateProfile = ref(false);
 const user = ref(null);
+const canMessage = ref(false); 
 
 async function getData() {
     const id = route.query.id;
@@ -34,6 +35,9 @@ async function getData() {
         showPrivateProfile.value = !user.value.show;
         const result = await getFriends("", id)
         user.value.Profile.friends = result.data;
+
+        canMessage.value = user.value.canMessage;
+        
     } catch (err) {
         addNotification('could not get user data', 'error')
         console.error(err);
@@ -73,6 +77,7 @@ onMounted(getData);
 
                 <template v-else-if="user">
                     <ProfileHeader :first-name="user.firstName"
+                        :message="canMessage"
                         :last-name="user.lastName" :username="user.username"
                         :bio="user.Profile.About?.bio" :avatar-path="`/uploads/${user.Profile.avatar}`"
                         :num-of-posts="user.Profile.numOfPosts" :num-of-following="user.Profile.numOfFollowing"

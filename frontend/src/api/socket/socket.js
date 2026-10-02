@@ -23,6 +23,15 @@ export function connectToWS() {
         switch (payload.type) {
             case 'notification':
                 console.log('Notification:', payload.data);
+
+                if (payload.data?.error) {
+                    window.dispatchEvent(
+                        new CustomEvent('message-send-error', {
+                            detail: payload.data
+                        })
+                    );
+                }
+
                 handleIncomingNotification(payload.data);
                 break;
 

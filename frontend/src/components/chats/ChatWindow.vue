@@ -397,11 +397,14 @@ async function send() {
         return;
     }
 
+    const clientID = crypto.randomUUID();
+
     const msg = new Message(content);
 
     msg.userID = props.userID;
     msg.groupID = props.groupID;
     msg.private = 1;
+    msg.clientID = clientID;
 
     sending.value = true;
 
@@ -412,6 +415,7 @@ async function send() {
         });
 
         messages.value.push({
+            clientID,
             content,
             sender: {
                 id: -1,
@@ -419,7 +423,10 @@ async function send() {
                 lastName: props.userLastName,
                 avatar: props.userAvatar
             },
-            groupID: props.groupID
+            groupID: props.groupID,
+            sending: true,
+            failed: false,
+            error: null
         });
 
         message.value = '';
@@ -483,11 +490,53 @@ watch(
     { immediate: true }
 );
 
+function handleMessageSendError(event) {
+    const error = event.detail;
+
+    const message = messages.value.find(
+        msg => msg.clientID === error.clientID
+    );
+
+    if (!message) {
+        return;
+    }
+
+    message.sending = false;
+    message.failed = true;
+    message.error = error.message;
+}
+
 onMounted(() => {
     window.addEventListener(
         'chat-message',
         receiveMessage
     );
+
+    window.addEventListener(
+        'message-send-error',
+        handleMessageSendError
+    );
+
+    canMessage.value = async () => {
+        try {
+            const resp = await fetch("/api/chats/ability", {
+                method: "GET",
+                credentials: 'include'
+            });
+            console.log(result);
+            
+            const result = await resp.json();
+            if (!resp.ok || !result.status) {
+                addNotification(result.message || ' could not get user data', 'error');
+                return false;
+            }
+
+            return result.canMessage;
+        } catch (err) {
+            addNotification(err || ' could not get user data', 'error');
+            return false;
+        }
+    }
 });
 
 onUnmounted(() => {
@@ -626,13 +675,19 @@ onUnmounted(() => {
                             </div>
                         </div>
 
-                        <div v-else class="message-body">
-                            <span v-if="msg.sender?.id !== -1" class="message-sender-name">
-                                {{ msg.sender?.firstName }}
-                                {{ msg.sender?.lastName }}
-                            </span>
+                        <div v-else class="message-content">
+                            <div class="message-body">
+                                <span v-if="msg.sender?.id !== -1" class="message-sender-name">
+                                    {{ msg.sender?.firstName }}
+                                    {{ msg.sender?.lastName }}
+                                </span>
 
-                            <p>{{ msg.content }}</p>
+                                <p>{{ msg.content }}</p>
+                            </div>
+
+                            <span v-if="msg.failed" class="message-error">
+                                {{ msg.error }}
+                            </span>
                         </div>
                     </div>
 
@@ -644,8 +699,8 @@ onUnmounted(() => {
 
             <form class="composer" @submit.prevent="send">
                 <input v-model="message" type="text" :placeholder="canMessage
-                        ? 'Type a message...'
-                        : 'You cannot text this user because of user preferences'
+                    ? 'Type a message...'
+                    : 'You cannot text this user because of user preferences'
                     " :disabled="loading || !canMessage" />
 
                 <button type="submit" :disabled="sending ||
@@ -674,6 +729,19 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.message-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.message-error {
+    margin-top: 4px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 8px;
+    color: var(--input-focus);
+}
+
 .chat-window {
     flex: 1;
     display: flex;

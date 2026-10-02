@@ -1,7 +1,6 @@
 import { checkSessionResponse } from "@/helpers/auth/auth";
 import { About, Users, Profile } from "@/models/users";
 import { router } from "@/router/router";
-import { sendWS } from "../socket/socket";
 
 export async function getProfileData(id, count) {
     const resp = await fetch(`/api/profile?id=${id}`, {
@@ -66,7 +65,8 @@ export async function getProfileData(id, count) {
 
     user.show = result.showProfile;
     user.isFollowing = result.followStatus;
-
+    user.canMessage = result.canMessage;
+    
     if (result.showProfile) {
         try {
             const followersResult = await getFollowers(id, count, 0);

@@ -62,6 +62,22 @@ func GetPrivateChatsList(db *sql.DB, userID, offset int) ([]models.PrivateChat, 
 			return nil, err
 		}
 
+		canMessage, err := CanSendMessage(db, userID, chat.UserID)
+		if err != nil {
+			return nil, err
+		}
+
+		if !canMessage {
+			hasPrivateChat, err := HasPrivateChat(db, userID, chat.UserID)
+			if err != nil {
+				return nil, err
+			}
+			
+			if hasPrivateChat != 1 {
+				continue
+			} 
+		}
+		
 		chats = append(chats, chat)
 	}
 
@@ -146,6 +162,22 @@ func SearchChatUsers(db *sql.DB, userID, offset int, search string) ([]models.Pr
 			return nil, err
 		}
 
+		canMessage, err := CanSendMessage(db, userID, chat.UserID)
+		if err != nil {
+			return nil, err
+		}
+
+		if !canMessage {
+			hasChat, err := HasPrivateChat(db, userID, chat.UserID)
+			if err != nil {
+				return nil, err
+			}
+
+			if hasChat != 1 {
+				continue
+			}
+		}
+
 		chats = append(chats, chat)
 	}
 
@@ -208,24 +240,24 @@ func MakePrivateChat(db *sql.DB, userID, targetID int) (int, error) {
 }
 
 func UserInGroup(db *sql.DB, userID, groupID int) (bool, error) {
-    var exists int
+	var exists int
 
-    err := db.QueryRow(`
+	err := db.QueryRow(`
         SELECT 1
         FROM groups_users
         WHERE user_id = ? AND group_id = ?
         LIMIT 1
     `, userID, groupID).Scan(&exists)
 
-    if err == sql.ErrNoRows {
-        return false, nil
-    }
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
 
-    if err != nil {
-        return false, err
-    }
+	if err != nil {
+		return false, err
+	}
 
-    return true, nil
+	return true, nil
 }
 
 func GetGroupMembersIds(db *sql.DB, groupID int) ([]int, error) {

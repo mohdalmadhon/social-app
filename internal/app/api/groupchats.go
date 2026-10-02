@@ -327,10 +327,10 @@ func (app *App) GetMessages(w http.ResponseWriter, r *http.Request) {
 	targetID, err := strconv.Atoi(r.URL.Query().Get("userID"))
 	if err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
-				"status":  false,
-				"message": "invalid user ID",
-			})
-			return
+			"status":  false,
+			"message": "invalid user ID",
+		})
+		return
 	}
 
 	log.Println("tagetID", targetID)
@@ -976,5 +976,39 @@ func (app *App) HandleGroupRequest(w http.ResponseWriter, r *http.Request) {
 
 	helpers.WriteJson(w, http.StatusOK, map[string]any{
 		"status": true,
+	})
+}
+
+func (app *App) CheckMessageAbility(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("userID").(int)
+	if !ok {
+		helpers.WriteJson(w, http.StatusUnauthorized, map[string]any{
+			"status":  false,
+			"message": "could not authorize user",
+		})
+		return
+	}
+
+	targetID, err := strconv.Atoi(r.URL.Query().Get("targetID"))
+	if err != nil {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": "invalid user ID",
+		})
+		return
+	}
+
+	canMessage, err := chats.CanSendMessage(app.DB, userID, targetID)
+	if err != nil {
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not get user data",
+		})
+		return
+	}
+
+	helpers.WriteJson(w, http.StatusOK, map[string]any{
+		"status":  true,
+		"canMessage": canMessage,
 	})
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"social/database/chats"
 	"social/database/notifications"
 	"social/database/profiles"
 	"social/internal/helpers"
@@ -98,11 +99,22 @@ func (app *App) GetUserProfile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		canMessage, err := chats.CanSendMessage(app.DB, userID, profileID)
+		if err != nil {
+			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+				"status":       false,
+				"showProfile":  false,
+				"followStatus": -1,
+				"message":      "could not get profile data",
+			})
+			return
+		}
 		helpers.WriteJson(w, http.StatusOK, map[string]any{
 			"status":       true,
 			"showProfile":  true,
 			"followStatus": isFollowing,
 			"data":         userData,
+			"canMessage": canMessage,
 		})
 		return
 	}
