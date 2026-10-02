@@ -66,6 +66,7 @@ export async function getProfileData(id, count) {
     user.show = result.showProfile;
     user.isFollowing = result.followStatus;
     user.canMessage = result.canMessage;
+    user.visibility = result.visibility;
     
     if (result.showProfile) {
         try {

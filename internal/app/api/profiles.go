@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"social/database/chats"
 	"social/database/notifications"
+	"social/database/preferences"
 	"social/database/profiles"
 	"social/internal/helpers"
 	"social/internal/models"
@@ -99,6 +100,18 @@ func (app *App) GetUserProfile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		visibility, err := preferences.ApplyProfileVisibility(app.DB, userID, profileID, &userData)
+		if err != nil {
+			log.Println(err)
+			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+				"status":       false,
+				"showProfile":  false,
+				"followStatus": -1,
+				"message":      "could not get profile data",
+			})
+			return
+		}
+
 		canMessage, err := chats.CanSendMessage(app.DB, userID, profileID)
 		if err != nil {
 			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
@@ -114,7 +127,8 @@ func (app *App) GetUserProfile(w http.ResponseWriter, r *http.Request) {
 			"showProfile":  true,
 			"followStatus": isFollowing,
 			"data":         userData,
-			"canMessage": canMessage,
+			"canMessage":   canMessage,
+			"visibility":   visibility,
 		})
 		return
 	}

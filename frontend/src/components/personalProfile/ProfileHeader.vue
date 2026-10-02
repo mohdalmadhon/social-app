@@ -1,11 +1,14 @@
-```vue
 <script setup>
 import { ref } from 'vue';
+
 import { requestFollow } from '@/api/users/profiles';
+
 import { useRoute, useRouter } from 'vue-router';
+
 import { addNotification } from '@/data/notifications';
 
 const route = useRoute();
+
 const router = useRouter();
 
 const props = defineProps({
@@ -19,7 +22,9 @@ const props = defineProps({
     numOfPosts: Number,
     numOfFollowing: Number,
     numOfFollowers: Number,
-    isFollowing: Number
+    isFollowing: Number,
+    email: String,
+    dob: String
 });
 
 const emit = defineEmits([
@@ -29,6 +34,25 @@ const emit = defineEmits([
 ]);
 
 const followingStatus = ref(props.isFollowing);
+
+function formatDOB(dob) {
+    if (!dob) {
+        return '';
+    }
+
+    const date = new Date(dob);
+
+    if (Number.isNaN(date.getTime())) {
+        return dob;
+    }
+
+    return date.toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'UTC'
+    });
+}
 
 function handleMessage() {
     const id = route.query.id;
@@ -48,8 +72,6 @@ function handleMessage() {
         }
     });
 }
-
-
 
 async function handleFollow() {
     const id = route.query.id;
@@ -109,7 +131,7 @@ async function handleRemoveFollow() {
 
             <div class="profile-details">
                 <div class="name-row">
-                    <div>
+                    <div class="identity">
                         <h1>
                             {{ props.firstName }} {{ props.lastName }}
                         </h1>
@@ -117,6 +139,31 @@ async function handleRemoveFollow() {
                         <p class="username">
                             {{ props.username || '' }}
                         </p>
+
+                        <div
+                            v-if="props.email || props.dob"
+                            class="contact-details"
+                        >
+                            <span
+                                v-if="props.email"
+                                class="contact-item"
+                            >
+                                <span class="contact-label">Email</span>
+                                <span class="contact-value">
+                                    {{ props.email }}
+                                </span>
+                            </span>
+
+                            <span
+                                v-if="props.dob && formatDOB(props.dob) != '1 January 1'"
+                                class="contact-item"
+                            >
+                                <span class="contact-label">DOB</span>
+                                <span class="contact-value">
+                                    {{ formatDOB(props.dob) }}
+                                </span>
+                            </span>
+                        </div>
                     </div>
 
                     <div class="profile-actions">
@@ -129,7 +176,8 @@ async function handleRemoveFollow() {
                         </a>
 
                         <template v-else>
-                            <button v-if="message"
+                            <button
+                                v-if="message"
                                 class="relationship-button message"
                                 @click="handleMessage"
                             >
@@ -197,7 +245,7 @@ async function handleRemoveFollow() {
 .cover {
     position: relative;
     height: 150px;
-    z-index: -1;
+    z-index: 0;
     overflow: hidden;
     background: var(--input-focus);
     border-bottom: 2px solid var(--main-color);
@@ -267,6 +315,8 @@ async function handleRemoveFollow() {
     font-family: "Liter", serif;
     font-size: 65px;
     box-shadow: 5px 5px var(--main-color);
+    position: relative;
+    z-index: 2;
 }
 
 .profile-details {
@@ -279,6 +329,10 @@ async function handleRemoveFollow() {
     align-items: flex-start;
     justify-content: space-between;
     gap: 20px;
+}
+
+.identity {
+    min-width: 0;
 }
 
 .profile-actions {
@@ -301,6 +355,34 @@ h1 {
     color: var(--font-color-sub);
     font-family: "JetBrains Mono", monospace;
     font-size: 10px;
+}
+
+.contact-details {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 18px;
+    margin-top: 9px;
+}
+
+.contact-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    color: var(--font-color-sub);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 9px;
+}
+
+.contact-label {
+    color: var(--main-color);
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.contact-value {
+    overflow-wrap: anywhere;
 }
 
 .edit-button,
@@ -373,6 +455,24 @@ h1 {
     font-size: 12px;
 }
 
+@media (max-width: 800px) {
+    .profile-information {
+        gap: 20px;
+        padding-left: 25px;
+        padding-right: 25px;
+    }
+
+    .name-row {
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .profile-actions {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+}
+
 @media (max-width: 650px) {
     .cover {
         height: 150px;
@@ -399,7 +499,7 @@ h1 {
     }
 
     .name-row {
-        align-items: center;
+        align-items: flex-start;
     }
 
     .profile-actions {
@@ -411,8 +511,30 @@ h1 {
         padding: 9px 12px;
     }
 
+    .contact-details {
+        gap: 7px 14px;
+    }
+
+    .contact-item {
+        font-size: 8px;
+    }
+
     .profile-stats {
         gap: 12px;
+    }
+}
+
+@media (max-width: 420px) {
+    .contact-details {
+        display: block;
+    }
+
+    .contact-item {
+        margin-bottom: 6px;
+    }
+
+    .profile-actions {
+        width: 100%;
     }
 }
 </style>

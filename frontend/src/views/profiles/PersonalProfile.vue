@@ -60,7 +60,7 @@ onMounted(() => {
 
                     <ProfileTabs type="personal" @change-tab="activeTab = $event" />
 
-                    <AboutTab v-if="activeTab === 'about'" :about="user.Profile.About" />
+                    <AboutTab v-if="activeTab === 'about'" :about="user.Profile.About" :email="user.email" :dob="user.DOB" />
 
                     <FollowersTab v-if="activeTab === 'followers'" type="followers" :target-id="user.ID"
                         :follower-list="user.Profile.followers" :own-profile="true" />

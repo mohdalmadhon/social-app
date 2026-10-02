@@ -1,17 +1,75 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import SideNavigation from '@/components/layout/SideNavigation.vue';
 import TopNavigation from '@/components/layout/TopNavigation.vue';
 import { addNotification } from '@/data/notifications';
 import { activePage } from '@/data/chatState';
 import { THEMES, getThemeCookie, setTheme } from '@/helpers/common/theme';
-import { deleteAccount, changePreferences } from '@/api/users/settings';
+import { deleteAccount, changePreferences, getPreferences } from '@/api/users/settings';
 
 activePage.value = 'settings';
 
 const TABS = [
     { value: 'general', label: 'General' },
     { value: 'preferences', label: 'Preferences' },
+    { value: 'privacy', label: 'Privacy' },
+];
+
+const VISIBILITY_OPTIONS = [
+    {
+        value: 'any',
+        label: 'Everyone',
+        description: 'Anyone who can view your profile can see it.',
+        icon: '∞',
+    },
+    {
+        value: 'none',
+        label: 'No one',
+        description: 'Only you can see it.',
+        icon: '⊘',
+    },
+];
+
+const ADDITIONAL_INFO_OPTIONS = [
+    {
+        value: 'friends',
+        label: 'Friends',
+        description: 'Only your friends can see your additional info.',
+        icon: '♥',
+    },
+    {
+        value: 'followers',
+        label: 'Followers',
+        description: 'Only people who follow you can see your additional info.',
+        icon: '⇄',
+    },
+    {
+        value: 'any',
+        label: 'Any',
+        description: 'Anyone who can view your profile can see your additional info.',
+        icon: '∞',
+    },
+];
+
+const PRIVACY_SECTIONS = [
+    {
+        type: 'email',
+        title: 'Email',
+        subtitle: 'Choose who can see your email on your profile.',
+        options: VISIBILITY_OPTIONS,
+    },
+    {
+        type: 'dob',
+        title: 'Date of birth',
+        subtitle: 'Choose who can see your date of birth on your profile.',
+        options: VISIBILITY_OPTIONS,
+    },
+    {
+        type: 'additional',
+        title: 'Additional info',
+        subtitle: 'Work, education, hobbies, interests, travel and social links.',
+        options: ADDITIONAL_INFO_OPTIONS,
+    },
 ];
 
 const CHAT_OPTIONS = [
@@ -58,6 +116,47 @@ const activeTab = ref('general');
 const selectedTheme = ref(getThemeCookie());
 const selectedChat = ref('following-followers');
 const savingChat = ref(false);
+
+const privacy = ref({
+    email: 'none',
+    dob: 'none',
+    additional: 'any',
+});
+const savingPrivacy = ref(false);
+
+onMounted(async () => {
+    try {
+        const prefs = await getPreferences();
+        selectedChat.value = prefs.chat;
+        privacy.value = {
+            email: prefs.email,
+            dob: prefs.dob,
+            additional: prefs.additionalInfo,
+        };
+    } catch (err) {
+        addNotification(err.message || 'Could not load preferences', 'error');
+    }
+});
+
+async function selectPrivacy(type, value) {
+    if (savingPrivacy.value || value === privacy.value[type]) {
+        return;
+    }
+
+    const previous = privacy.value[type];
+    privacy.value[type] = value;
+    savingPrivacy.value = true;
+
+    try {
+        await changePreferences(type, value);
+        addNotification('Privacy updated', 'success');
+    } catch (err) {
+        privacy.value[type] = previous;
+        addNotification(err.message || 'Could not update privacy', 'error');
+    } finally {
+        savingPrivacy.value = false;
+    }
+}
 
 const showDeleteConfirm = ref(false);
 const confirmText = ref('');
@@ -267,6 +366,43 @@ async function confirmDeleteAccount() {
                                     <span class="choice-icon">{{ option.icon }}</span>
                                     <span class="radio">
                                         <span v-if="selectedChat === option.value"></span>
+                                    </span>
+                                </span>
+                                <span class="choice-name">{{ option.label }}</span>
+                                <span class="choice-desc">{{ option.description }}</span>
+                            </button>
+                        </div>
+                    </section>
+                </template>
+
+                <template v-else-if="activeTab === 'privacy'">
+                    <section
+                        v-for="section in PRIVACY_SECTIONS"
+                        :key="section.type"
+                        class="settings-section"
+                    >
+                        <div class="section-head">
+                            <div>
+                                <h2>{{ section.title }}</h2>
+                                <p class="section-subtitle">{{ section.subtitle }}</p>
+                            </div>
+                            <span v-if="savingPrivacy" class="saving">Saving...</span>
+                        </div>
+
+                        <div class="choice-grid">
+                            <button
+                                v-for="option in section.options"
+                                :key="option.value"
+                                type="button"
+                                class="choice-card"
+                                :class="{ selected: privacy[section.type] === option.value }"
+                                :disabled="savingPrivacy"
+                                @click="selectPrivacy(section.type, option.value)"
+                            >
+                                <span class="choice-top">
+                                    <span class="choice-icon">{{ option.icon }}</span>
+                                    <span class="radio">
+                                        <span v-if="privacy[section.type] === option.value"></span>
                                     </span>
                                 </span>
                                 <span class="choice-name">{{ option.label }}</span>

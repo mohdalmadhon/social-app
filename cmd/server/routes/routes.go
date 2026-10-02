@@ -125,6 +125,7 @@ func StartServer(db *sql.DB) *http.ServeMux {
 	mux.HandleFunc("POST /api/groups/requests", app.AuthMiddleware(app.HandleGroupRequest))
 
 	//preferences
+	mux.HandleFunc("GET /api/user/preferences", app.AuthMiddleware(app.GetPreferences))
 	mux.HandleFunc("PATCH /api/user/preferences", app.AuthMiddleware(app.ChangePerferance))
 
 	//group posts comments

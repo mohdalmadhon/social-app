@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 
 const activeTab = ref('information');
 
@@ -7,7 +7,50 @@ const props = defineProps({
     about: {
         type: Object,
         required: true
+    },
+    email: {
+        type: String,
+        default: ''
+    },
+    dob: {
+        type: String,
+        default: ''
+    },
+    visibility: {
+        type: Object,
+        default: null
     }
+});
+
+const showEmail = computed(() => !!props.email && (!props.visibility || props.visibility.email));
+
+const showDob = computed(() => {
+    if (!props.dob || props.dob.startsWith('0001')) {
+        return false;
+    }
+    return !props.visibility || props.visibility.dob;
+});
+
+const formattedDob = computed(() => {
+    const date = new Date(props.dob);
+    if (isNaN(date.getTime())) {
+        return props.dob;
+    }
+    return date.toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        timeZone: 'UTC'
+    });
+});
+
+const additionalHidden = computed(() => !!props.visibility && !props.visibility.additionalInfo);
+
+const additionalAudience = computed(() => {
+    if (!props.visibility) {
+        return '';
+    }
+    return props.visibility.additionalInfoAudience === 'friends' ? 'friends' : 'followers';
 });
 
 const tabs = [
@@ -54,7 +97,30 @@ const tabs = [
 
                     <div class="info-list">
                         <div
-                            v-if="props.about.work"
+                            v-if="showEmail"
+                            class="info-item"
+                        >
+                            <span>Email</span>
+                            <p>{{ props.email }}</p>
+                        </div>
+
+                        <div
+                            v-if="showDob"
+                            class="info-item"
+                        >
+                            <span>Date of birth</span>
+                            <p>{{ formattedDob }}</p>
+                        </div>
+
+                        <p
+                            v-if="additionalHidden"
+                            class="empty"
+                        >
+                            Additional info is only visible to {{ additionalAudience }}.
+                        </p>
+
+                        <div
+                            v-if="!additionalHidden && props.about.work"
                             class="info-item"
                         >
                             <span>Work</span>
@@ -62,7 +128,7 @@ const tabs = [
                         </div>
 
                         <div
-                            v-if="props.about.education"
+                            v-if="!additionalHidden && props.about.education"
                             class="info-item"
                         >
                             <span>Education</span>
@@ -70,7 +136,7 @@ const tabs = [
                         </div>
 
                         <div
-                            v-if="props.about.hobbies"
+                            v-if="!additionalHidden && props.about.hobbies"
                             class="info-item"
                         >
                             <span>Hobbies</span>
@@ -78,7 +144,7 @@ const tabs = [
                         </div>
 
                         <div
-                            v-if="props.about.intrests"
+                            v-if="!additionalHidden && props.about.intrests"
                             class="info-item"
                         >
                             <span>Interests</span>
@@ -86,7 +152,7 @@ const tabs = [
                         </div>
 
                         <div
-                            v-if="props.about.travel"
+                            v-if="!additionalHidden && props.about.travel"
                             class="info-item"
                         >
                             <span>Travel</span>
@@ -95,6 +161,9 @@ const tabs = [
 
                         <p
                             v-if="
+                                !additionalHidden &&
+                                !showEmail &&
+                                !showDob &&
                                 !props.about.work &&
                                 !props.about.education &&
                                 !props.about.hobbies &&
@@ -118,6 +187,13 @@ const tabs = [
                     </div>
 
                     <div class="links-list">
+                        <p
+                            v-if="additionalHidden"
+                            class="empty"
+                        >
+                            Social links are only visible to {{ additionalAudience }}.
+                        </p>
+
                         <a
                             v-if="props.about.website"
                             :href="props.about.website"
@@ -164,6 +240,7 @@ const tabs = [
 
                         <p
                             v-if="
+                                !additionalHidden &&
                                 !props.about.website &&
                                 !props.about.linkedin &&
                                 !props.about.twitter &&
