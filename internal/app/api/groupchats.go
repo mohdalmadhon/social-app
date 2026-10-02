@@ -180,10 +180,35 @@ func (app *App) AddMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Println(req.UserID)
 	groupID := req.GroupID
 
 	if groupID <= 0 {
+		if req.UserID <= 0 || req.UserID == userID {
+			helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+				"status":  false,
+				"message": "invalid user",
+			})
+			return
+		}
+
+		canMessage, err := chats.CanSendMessage(app.DB, userID, req.UserID)
+		if err != nil {
+			log.Println(err)
+			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+				"status":  false,
+				"message": "could not verify message permission",
+			})
+			return
+		}
+
+		if !canMessage {
+			helpers.WriteJson(w, http.StatusForbidden, map[string]any{
+				"status":  false,
+				"message": "could not send message because of user preference",
+			})
+			return
+		}
+
 		existingGroupID, err := chats.HasPrivateChat(app.DB, userID, req.UserID)
 		if err != nil {
 			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
@@ -227,12 +252,41 @@ func (app *App) AddMessages(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if !exists || !userIN {
-			log.Println("here", exists, userIN)
 			helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 				"status":  false,
 				"message": "could not send message",
 			})
 			return
+		}
+
+		isPrivate, targetID, err := chats.IsPrivateChat(app.DB, groupID, userID)
+		if err != nil {
+			log.Println(err)
+			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+				"status":  false,
+				"message": "could not verify chat",
+			})
+			return
+		}
+
+		if isPrivate {
+			canMessage, err := chats.CanSendMessage(app.DB, userID, targetID)
+			if err != nil {
+				log.Println(err)
+				helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+					"status":  false,
+					"message": "could not verify message permission",
+				})
+				return
+			}
+
+			if !canMessage {
+				helpers.WriteJson(w, http.StatusForbidden, map[string]any{
+					"status":  false,
+					"message": "could not send message because of user preference",
+				})
+				return
+			}
 		}
 	}
 
@@ -324,20 +378,20 @@ func (app *App) GetMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	targetID, err := strconv.Atoi(r.URL.Query().Get("userID"))
-	if err != nil {
-		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+	isPrivate, targetID, err := chats.IsPrivateChat(app.DB, groupID, userID)
+	if err != nil && err != sql.ErrNoRows {
+		log.Println(err)
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 			"status":  false,
-			"message": "invalid user ID",
+			"message": "could not verify chat",
 		})
 		return
 	}
 
-	log.Println("tagetID", targetID)
-	if targetID != 0 {
+	if isPrivate && targetID > 0 {
 		canMessage, err := chats.CanSendMessage(app.DB, userID, targetID)
 		if err != nil {
-			log.Println(err, "here")
+			log.Println(err)
 			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 				"status":  false,
 				"message": "could not get group data",
@@ -991,6 +1045,14 @@ func (app *App) CheckMessageAbility(w http.ResponseWriter, r *http.Request) {
 
 	targetID, err := strconv.Atoi(r.URL.Query().Get("targetID"))
 	if err != nil {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": "invalid user ID",
+		})
+		return
+	}
+
+	if targetID <= 0 || targetID == userID {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
 			"message": "invalid user ID",

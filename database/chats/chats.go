@@ -137,33 +137,50 @@ func AddMessages(db *sql.DB, content string, userID, groupID int) error {
 }
 
 func CanSendMessage(db *sql.DB, userID, targetID int) (bool, error) {
-	var preferences string
-	err := db.QueryRow(`
-		SELECT chat FROM user_preferences WHERE user_id = ?
-	`, targetID).Scan(&preferences)
-
-	if err != nil {
+	if userID <= 0 || targetID <= 0 || userID == targetID {
 		return false, nil
 	}
-	
-	if preferences == "following-followers" {
-		following, err := users.IsFollowing(db, userID, targetID)
-		if err != nil {
-			return false, nil
-		}
 
-		follower, err := users.IsFollowing(db, userID, targetID)
-		if err != nil {
-			return false, nil
-		}
+	var preference string
 
-		if follower || following {
-			return true, nil
-		} else {
-			return false, nil
-		}
+	err := db.QueryRow(`
+		SELECT chat FROM user_preferences WHERE user_id = ?
+	`, targetID).Scan(&preference)
+
+	if err == sql.ErrNoRows {
+		return false, nil
 	}
-	if preferences == "friends" {
+
+	if err != nil {
+		return false, err
+	}
+
+	switch preference {
+	case "any":
+		return true, nil
+
+	case "none":
+		return false, nil
+
+	case "following":
+		return users.IsFollowing(db, targetID, userID)
+
+	case "friends":
+		return users.IsFriend(db, userID, targetID)
+
+	case "following-followers":
+		targetFollowsUser, err := users.IsFollowing(db, targetID, userID)
+		if err != nil {
+			return false, err
+		}
+
+		if targetFollowsUser {
+			return true, nil
+		}
+
+		return users.IsFollowing(db, userID, targetID)
+
+	case "friends-following":
 		friend, err := users.IsFriend(db, userID, targetID)
 		if err != nil {
 			return false, err
@@ -171,29 +188,9 @@ func CanSendMessage(db *sql.DB, userID, targetID int) (bool, error) {
 
 		if friend {
 			return true, nil
-		} else {
-			return false, nil
-		}
-	}
-	if preferences == "any" {
-		return true, nil
-	}
-
-	if preferences == "none" {
-		return false, nil
-	}
-
-	if preferences == "following" {
-		isFollowing, err := users.IsFollowing(db, targetID, userID)
-		if err != nil {
-			return false, err
 		}
 
-		if isFollowing {
-			return true, nil
-		} else {
-			return false, nil
-		}
+		return users.IsFollowing(db, targetID, userID)
 	}
 
 	return false, nil
@@ -209,18 +206,25 @@ func IsPrivateChat(db *sql.DB, groupID, userID int) (bool, int, error) {
 	`, groupID).Scan(&isPrivate)
 
 	if err != nil {
-		return false,-1, err
+		return false, -1, err
+	}
+
+	if isPrivate != 1 {
+		return false, -1, nil
 	}
 
 	var targetID int
-	er := db.QueryRow(`
-		SELECT user_id FROM groups_users 
-		WHERE group_id = ? AND user_id <> ? 
+
+	err = db.QueryRow(`
+		SELECT user_id
+		FROM groups_users
+		WHERE group_id = ? AND user_id <> ?
+		LIMIT 1
 	`, groupID, userID).Scan(&targetID)
-	
+
 	if err != nil {
-		return false, -1, er
+		return true, -1, err
 	}
 
-	return isPrivate == 1,targetID, nil
+	return true, targetID, nil
 }

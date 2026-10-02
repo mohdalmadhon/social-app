@@ -133,6 +133,23 @@ func (app *App) handleMessage(userID int, data json.RawMessage, Type string) {
 	groupID := msg.GroupID
 
 	if groupID <= 0 {
+		if msg.UserID <= 0 || msg.UserID == userID {
+			app.sendMessageError(userID, msg.ClientID, "invalid user")
+			return
+		}
+
+		canMessage, err := chats.CanSendMessage(app.DB, userID, msg.UserID)
+		if err != nil {
+			log.Println("message permission check error:", err)
+			app.sendMessageError(userID, msg.ClientID, "could not verify message permission")
+			return
+		}
+
+		if !canMessage {
+			app.sendMessageError(userID, msg.ClientID, "could not send message because of user preference")
+			return
+		}
+
 		existingGroupID, err := chats.HasPrivateChat(
 			app.DB,
 			userID,
@@ -141,6 +158,7 @@ func (app *App) handleMessage(userID int, data json.RawMessage, Type string) {
 
 		if err != nil {
 			log.Println("private chat lookup error:", err)
+			app.sendMessageError(userID, msg.ClientID, "could not verify chat")
 			return
 		}
 
@@ -155,53 +173,30 @@ func (app *App) handleMessage(userID int, data json.RawMessage, Type string) {
 
 			if err != nil {
 				log.Println("private chat creation error:", err)
+				app.sendMessageError(userID, msg.ClientID, "could not create chat")
 				return
 			}
 		}
-	}
-
-	isPrivate, targetID, err := chats.IsPrivateChat(app.DB, groupID, userID)
-	if err != nil {
-		// write a message
-	}
-
-	if isPrivate {
-		canMessage, err := chats.CanSendMessage(app.DB, userID, targetID)
+	} else {
+		isPrivate, targetID, err := chats.IsPrivateChat(app.DB, groupID, userID)
 		if err != nil {
-			// send a message
+			log.Println("chat lookup error:", err)
+			app.sendMessageError(userID, msg.ClientID, "could not verify chat")
 			return
 		}
 
-		if !canMessage {
-			msg := map[string]any{
-				"type": "notification",
-				"data": map[string]any{
-					"error":    true,
-					"clientID": userID,
-					"message":  "could not send message because of user preference",
-				},
-			}
-
-			response, err := json.Marshal(msg)
+		if isPrivate {
+			canMessage, err := chats.CanSendMessage(app.DB, userID, targetID)
 			if err != nil {
-				log.Println("marshal notification error:", err)
+				log.Println("message permission check error:", err)
+				app.sendMessageError(userID, msg.ClientID, "could not verify message permission")
 				return
 			}
 
-			app.H.Mu.RLock()
-			conn, ok := app.H.Conn[userID]
-			app.H.Mu.RUnlock()
-
-			if !ok {
-				log.Println("user websocket connection not found:", userID)
+			if !canMessage {
+				app.sendMessageError(userID, msg.ClientID, "could not send message because of user preference")
 				return
 			}
-
-			if _, err := conn.Write(response); err != nil {
-				log.Println("websocket notification error:", err)
-			}
-
-			return
 		}
 	}
 
@@ -212,6 +207,7 @@ func (app *App) handleMessage(userID int, data json.RawMessage, Type string) {
 		groupID,
 	); err != nil {
 		log.Println("add message error:", err)
+		app.sendMessageError(userID, msg.ClientID, "could not send message")
 		return
 	}
 
@@ -350,6 +346,7 @@ func (app *App) sendToUsers(
 	groupID int,
 	userID int,
 ) {
+	
 	log.Println(groupID)
 	ids, err := chats.GetGroupMembersIds(
 		app.DB,
@@ -402,4 +399,33 @@ func (app *App) unregister(userID int) {
 	defer app.H.Mu.Unlock()
 
 	delete(app.H.Conn, userID)
+}
+
+func (app *App) sendMessageError(userID int, clientID string, message string) {
+	response, err := json.Marshal(map[string]any{
+		"type": "notification",
+		"data": map[string]any{
+			"error":    true,
+			"clientID": clientID,
+			"message":  message,
+		},
+	})
+
+	if err != nil {
+		log.Println("marshal notification error:", err)
+		return
+	}
+
+	app.H.Mu.RLock()
+	conn, ok := app.H.Conn[userID]
+	app.H.Mu.RUnlock()
+
+	if !ok {
+		log.Println("user websocket connection not found:", userID)
+		return
+	}
+
+	if _, err := conn.Write(response); err != nil {
+		log.Println("websocket notification error:", err)
+	}
 }

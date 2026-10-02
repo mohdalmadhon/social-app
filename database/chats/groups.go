@@ -2,7 +2,6 @@ package chats
 
 import (
 	"database/sql"
-	"log"
 	"social/internal/models"
 )
 
@@ -62,35 +61,16 @@ func GetPrivateChatsList(db *sql.DB, userID, offset int) ([]models.PrivateChat, 
 			return nil, err
 		}
 
-		canMessage, err := CanSendMessage(db, userID, chat.UserID)
-		if err != nil {
-			return nil, err
-		}
-
-		if !canMessage {
-			hasPrivateChat, err := HasPrivateChat(db, userID, chat.UserID)
-			if err != nil {
-				return nil, err
-			}
-			
-			if hasPrivateChat != 1 {
-				continue
-			} 
-		}
-		
 		chats = append(chats, chat)
 	}
 
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	log.Println(len(chats))
-	return chats, nil
+	return chats, rows.Err()
 }
 
 func SearchChatUsers(db *sql.DB, userID, offset int, search string) ([]models.PrivateChat, error) {
-	var chats []models.PrivateChat
+	chats := make([]models.PrivateChat, 0)
+
+	pattern := "%" + search + "%"
 
 	rows, err := db.Query(`
 		SELECT
@@ -98,47 +78,59 @@ func SearchChatUsers(db *sql.DB, userID, offset int, search string) ([]models.Pr
 			u.first_name,
 			u.last_name,
 			p.avatar_path,
-			COALESCE(x.group_id, 0)
+			COALESCE(MAX(x.group_id), 0)
 		FROM (
-			SELECT gu2.user_id, g.id AS group_id, 1 AS priority
+			SELECT gu2.user_id AS user_id, g.id AS group_id
 			FROM groups g
-			JOIN groups_users gu1 ON g.id = gu1.group_id
-			JOIN groups_users gu2 ON g.id = gu2.group_id
-			WHERE g.is_private_chat = 1
+			JOIN groups_users gu1
+				ON gu1.group_id = g.id
 				AND gu1.user_id = ?
+			JOIN groups_users gu2
+				ON gu2.group_id = g.id
 				AND gu2.user_id != ?
+			WHERE g.is_private_chat = 1
 
 			UNION
 
-			SELECT uf1.target_id, NULL, 2
-			FROM user_followers uf1
-			JOIN user_followers uf2
-				ON uf1.target_id = uf2.follower_id
-				AND uf1.follower_id = uf2.target_id
-			WHERE uf1.follower_id = ?
-				AND uf1.status = 1
-				AND uf2.status = 1
+			SELECT follower_id AS user_id, NULL AS group_id
+			FROM user_followers
+			WHERE target_id = ?
+				AND status = 1
 
 			UNION
 
-			SELECT target_id, NULL, 3
+			SELECT target_id AS user_id, NULL AS group_id
 			FROM user_followers
 			WHERE follower_id = ?
 				AND status = 1
 		) x
 		JOIN user u ON u.id = x.user_id
 		JOIN profile p ON p.user_id = u.id
-		WHERE u.first_name LIKE ?
-			OR u.last_name LIKE ?
-		ORDER BY x.priority, u.first_name, u.last_name
+		WHERE u.id != ?
+			AND (
+				u.first_name LIKE ?
+				OR u.last_name LIKE ?
+				OR (u.first_name || ' ' || u.last_name) LIKE ?
+			)
+		GROUP BY
+			u.id,
+			u.first_name,
+			u.last_name,
+			p.avatar_path
+		ORDER BY
+			CASE WHEN MAX(x.group_id) IS NULL THEN 1 ELSE 0 END,
+			u.first_name,
+			u.last_name
 		LIMIT 15 OFFSET ?
 	`,
 		userID,
 		userID,
 		userID,
 		userID,
-		"%"+search+"%",
-		"%"+search+"%",
+		userID,
+		pattern,
+		pattern,
+		pattern,
 		offset,
 	)
 
@@ -160,22 +152,6 @@ func SearchChatUsers(db *sql.DB, userID, offset int, search string) ([]models.Pr
 
 		if err != nil {
 			return nil, err
-		}
-
-		canMessage, err := CanSendMessage(db, userID, chat.UserID)
-		if err != nil {
-			return nil, err
-		}
-
-		if !canMessage {
-			hasChat, err := HasPrivateChat(db, userID, chat.UserID)
-			if err != nil {
-				return nil, err
-			}
-
-			if hasChat != 1 {
-				continue
-			}
 		}
 
 		chats = append(chats, chat)

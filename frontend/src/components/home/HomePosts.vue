@@ -121,7 +121,7 @@ const locationParts = computed(() => {
     if (!props.location) {
         return null;
     }
-
+    
     const parts = props.location.split(':').map(p => p.trim());
 
     if (parts.length < 3) {

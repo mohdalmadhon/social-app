@@ -2,7 +2,8 @@
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { addNotification } from '@/data/notifications';
 import { sendWS } from '@/api/socket/socket';
-import { getMessages } from '@/api/chats/chats';
+import { getMessages, sendChatMedia } from '@/api/chats/chats';
+import { CHAT_MEDIA_ACCEPT, parseChatMedia, validateChatMedia } from '@/helpers/chatMedia';
 import { getGroupPost, insertPostReaction } from '@/api/posts/groups';
 import { activePage } from '@/data/chatState';
 import HomePosts from '@/components/home/HomePosts.vue';
@@ -39,6 +40,10 @@ const emit = defineEmits(['event-created']);
 
 const message = ref('');
 const messages = ref([]);
+const fileInput = ref(null);
+const pendingFile = ref(null);
+const pendingPreview = ref('');
+const lightboxSrc = ref('');
 const sending = ref(false);
 const loading = ref(false);
 const loadingMore = ref(false);
@@ -54,6 +59,56 @@ const showEventDialog = ref(false);
 let fetchTimer = null;
 let requestID = 0;
 let postRequestID = 0;
+
+function pickFile() {
+    if (fileInput.value) {
+        fileInput.value.click();
+    }
+}
+
+function clearPending() {
+    if (pendingPreview.value) {
+        URL.revokeObjectURL(pendingPreview.value);
+    }
+
+    pendingFile.value = null;
+    pendingPreview.value = '';
+
+    if (fileInput.value) {
+        fileInput.value.value = '';
+    }
+}
+
+function onFileChange(event) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+        return;
+    }
+
+    const error = validateChatMedia(file);
+
+    if (error) {
+        addNotification(error, 'error');
+        event.target.value = '';
+        return;
+    }
+
+    if (pendingPreview.value) {
+        URL.revokeObjectURL(pendingPreview.value);
+    }
+
+    pendingFile.value = file;
+    pendingPreview.value = URL.createObjectURL(file);
+}
+
+function openImage(path) {
+    lightboxSrc.value = `/uploads/${path}`;
+}
+
+function closeImage() {
+    lightboxSrc.value = '';
+}
 
 function parsePostContent(content) {
     if (typeof content !== 'string') {
@@ -233,6 +288,7 @@ function formatMessage(msg) {
             msg.GroupID ??
             msg.groupID,
         sender,
+        media: parseChatMedia(rawContent),
         isPost: false,
         post: null
     };
@@ -619,12 +675,13 @@ function receiveMessage(event) {
     });
 }
 
-function send() {
+async function send() {
     const content =
         message.value.trim();
+    const file = pendingFile.value;
 
     if (
-        !content ||
+        (!content && !file) ||
         sending.value ||
         !props.groupID
     ) {
@@ -634,38 +691,72 @@ function send() {
     sending.value = true;
 
     try {
-        sendWS({
-            type: 'privateMessage',
-            data: {
-                userID: props.userID,
+        if (file) {
+            const result = await sendChatMedia(file, {
+                userID: -1,
+                groupID: props.groupID
+            });
+
+            messages.value.push({
+                id: `local-${Date.now()}-media`,
+                content: result.content,
+                createdAt:
+                    new Date().toISOString(),
                 groupID: props.groupID,
+                sender: {
+                    id: -1,
+                    firstName:
+                        props.userFirstName,
+                    lastName:
+                        props.userLastName,
+                    avatar:
+                        props.userAvatar
+                },
+                media: parseChatMedia(result.content),
+                isPost: false,
+                post: null
+            });
+
+            clearPending();
+
+            scrollToBottom();
+        }
+
+        if (content) {
+            sendWS({
+                type: 'privateMessage',
+                data: {
+                    userID: props.userID,
+                    groupID: props.groupID,
+                    content,
+                    private: 1
+                }
+            });
+
+            messages.value.push({
+                id: `local-${Date.now()}`,
                 content,
-                private: 1
-            }
-        });
+                createdAt:
+                    new Date().toISOString(),
+                groupID: props.groupID,
+                sender: {
+                    id: -1,
+                    firstName:
+                        props.userFirstName,
+                    lastName:
+                        props.userLastName,
+                    avatar:
+                        props.userAvatar
+                },
+                media: null,
+                isPost: false,
+                post: null
+            });
 
-        messages.value.push({
-            id: `local-${Date.now()}`,
-            content,
-            createdAt:
-                new Date().toISOString(),
-            groupID: props.groupID,
-            sender: {
-                id: -1,
-                firstName:
-                    props.userFirstName,
-                lastName:
-                    props.userLastName,
-                avatar:
-                    props.userAvatar
-            },
-            isPost: false,
-            post: null
-        });
+            message.value = '';
 
-        message.value = '';
-
-        scrollToBottom();
+            scrollToBottom();
+        }
     } catch (err) {
         addNotification(
             err.message ||
@@ -855,7 +946,7 @@ onUnmounted(() => {
                         </span>
                     </div>
 
-                    <div class="message-body">
+                    <div class="message-body" :class="{ 'media-body': msg.media }">
                         <span v-if="
                             !msg.isPost && !isOwnMessage(msg)
                         " class="message-sender-name">
@@ -918,6 +1009,9 @@ onUnmounted(() => {
                             </button>
                         </template>
 
+                        <img v-else-if="msg.media" class="message-image" :src="`/uploads/${msg.media.path}`"
+                            alt="" @click="openImage(msg.media.path)" />
+
                         <p v-else>
                             {{ msg.content }}
                         </p>
@@ -932,9 +1026,26 @@ onUnmounted(() => {
             </template>
         </div>
 
+        <div v-if="pendingPreview" class="pending-media">
+            <div class="pending-media-item">
+                <img :src="pendingPreview" alt="" />
+
+                <button type="button" class="pending-media-remove" title="Remove image" @click="clearPending">
+                    ×
+                </button>
+            </div>
+        </div>
+
         <form class="composer" @submit.prevent="send">
+            <input ref="fileInput" type="file" :accept="CHAT_MEDIA_ACCEPT" hidden @change="onFileChange" />
+
             <button type="button" class="event-trigger" title="Create event" @click="openEventDialog">
                 + Event
+            </button>
+
+            <button type="button" class="event-trigger" title="Send image" :disabled="sending || loading"
+                @click="pickFile">
+                + Image
             </button>
 
             <input v-model="message" type="text" placeholder="Type a message..." :disabled="loading"
@@ -942,7 +1053,7 @@ onUnmounted(() => {
 
             <button type="submit" :disabled="sending ||
                 loading ||
-                !message.trim()
+                (!message.trim() && !pendingFile)
                 ">
                 {{
                     sending
@@ -951,6 +1062,10 @@ onUnmounted(() => {
                 }}
             </button>
         </form>
+
+        <div v-if="lightboxSrc" class="lightbox" @click="closeImage">
+            <img :src="lightboxSrc" alt="" />
+        </div>
 
         <GroupEventDialog :show="showEventDialog" :group-id="groupID" @close="closeEventDialog"
             @created="eventCreated" />
@@ -1479,6 +1594,84 @@ onUnmounted(() => {
     box-shadow: 2px 2px var(--main-color);
 }
 
+.event-trigger:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.message-image {
+    display: block;
+    max-width: 260px;
+    max-height: 300px;
+    width: auto;
+    height: auto;
+    border-radius: 6px;
+    object-fit: cover;
+    cursor: zoom-in;
+}
+
+.message-body.media-body {
+    padding: 5px;
+}
+
+.pending-media {
+    flex: 0 0 auto;
+    padding: 12px 20px 0;
+    border-top: 2px solid var(--page-background);
+}
+
+.pending-media-item {
+    position: relative;
+    display: inline-block;
+}
+
+.pending-media-item img {
+    display: block;
+    max-width: 120px;
+    max-height: 120px;
+    border: 2px solid var(--main-color);
+    border-radius: 6px;
+    object-fit: cover;
+}
+
+.pending-media-remove {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 2px solid var(--main-color);
+    border-radius: 50%;
+    background: var(--input-focus);
+    color: white;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(0, 0, 0, 0.8);
+    cursor: zoom-out;
+}
+
+.lightbox img {
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 6px;
+    object-fit: contain;
+}
+
 @media (max-width: 800px) {
     .chat-window {
         height: calc(100vh - 220px);
@@ -1540,6 +1733,10 @@ onUnmounted(() => {
     .event-trigger {
         order: 2;
         flex: 1 1 auto;
+    }
+
+    .message-image {
+        max-width: 100%;
     }
 
     .composer button[type="submit"] {

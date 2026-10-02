@@ -132,7 +132,15 @@ func (app *App) GetFollowers_Following(w http.ResponseWriter, r *http.Request) {
 	}
 
 	search := r.URL.Query().Get("search")
-	log.Println(search)
+	postID, err := strconv.Atoi(r.URL.Query().Get("postID"))
+	if err != nil {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": "invalid postID",
+		})
+		return
+	}
+
 	users, err := users.Get_followers_following_chatList(app.DB, userID, search)
 	if err != nil && err != sql.ErrNoRows {
 		log.Println(err)
@@ -142,6 +150,26 @@ func (app *App) GetFollowers_Following(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	users, err = func() ([]models.UserRegistration, error) {
+		var arr []models.UserRegistration
+
+		for _, u := range users {
+			can, err := posts.CanView(app.DB, userID, postID)
+			if err != nil {
+				helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+					"status":  false,
+					"message": "could not get post data",
+				})
+				return nil, err
+			}
+
+			if can {
+				arr = append(arr, u)
+			}
+		}
+		return arr, nil
+	}()
 
 	helpers.WriteJson(w, http.StatusOK, map[string]any{
 		"status": true,

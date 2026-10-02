@@ -15,6 +15,15 @@ const activeChat = ref(null);
 
 const targetUserId = computed(() => route.query.userId || null);
 
+function handleChatResolved(groupID) {
+    if (activeChat.value && !activeChat.value.GroupID) {
+        activeChat.value = {
+            ...activeChat.value,
+            GroupID: groupID
+        };
+    }
+}
+
 function handleSelectChat(chat) {
     activeChat.value = chat;
     activePage.value = 'chat:' + chat.UserID;
@@ -58,6 +67,7 @@ watch(
                     :userFirstName="activeChat?.FirstName"
                     :userLastName="activeChat?.LastName"
                     :userAvatar="activeChat?.Avatar"
+                    @chat-resolved="handleChatResolved"
                 />
             </main>
         </div>

@@ -1,5 +1,5 @@
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import { postReaction } from '@/api/posts/actions';
 import { searchShares } from '@/api/search/search';
@@ -52,9 +52,15 @@ const loadingUsers = ref(false);
 
 const shareUsers = ref([]);
 
+const selectedUserIds = ref([]);
+
+const sharing = ref(false);
+
 const searchQuery = ref('');
 
 const searchInput = ref(null);
+
+const hasSelection = computed(() => selectedUserIds.value.length > 0);
 
 let searchTimer = null;
 
@@ -137,13 +143,12 @@ async function loadUsers(query) {
 
     loadingUsers.value = true;
 
-    const result = await searchShares(query);
-    console.log(result);
+    const result = await searchShares(query, props.postId);
 
     if (currentRequest !== requestId) {
         return;
     }
-
+    console.log(result)
     loadingUsers.value = false;
 
     if (!result.status) {
@@ -160,10 +165,71 @@ async function loadUsers(query) {
     shareUsers.value = (result.data || []).slice(0, MAX_SHARE_USERS);
 }
 
+function isSelected(userId) {
+    return selectedUserIds.value.includes(userId);
+}
+
+function toggleUser(userId) {
+    if (sharing.value) {
+        return;
+    }
+
+    if (isSelected(userId)) {
+        selectedUserIds.value = selectedUserIds.value.filter((id) => id !== userId);
+
+        return;
+    }
+
+    selectedUserIds.value = [...selectedUserIds.value, userId];
+}
+
+async function submitShare() {
+    if (!hasSelection.value || sharing.value) {
+        return;
+    }
+
+    sharing.value = true;
+
+    try {
+        const response = await fetch('/api/chats/share', {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                userIds: selectedUserIds.value,
+                postID: props.postId
+            })
+        });
+
+        let result = null;
+
+        try {
+            result = await response.json();
+        } catch {
+            result = null;
+        }
+
+        if (!response.ok || (result && result.status === false)) {
+            throw new Error(result?.message || 'Could not share post');
+        }
+
+        addNotification('Post shared', 'success');
+
+        closeShare();
+    } catch (err) {
+        addNotification(err.message || 'Could not share post', 'error');
+    } finally {
+        sharing.value = false;
+    }
+}
+
 async function handleShare() {
     showShare.value = true;
     searchQuery.value = '';
     shareUsers.value = [];
+    selectedUserIds.value = [];
 
     await nextTick();
 
@@ -187,6 +253,7 @@ function closeShare() {
     requestId++;
     loadingUsers.value = false;
     showShare.value = false;
+    selectedUserIds.value = [];
 }
 
 function handleKeydown(event) {
@@ -280,11 +347,35 @@ onBeforeUnmount(() => {
                 <p v-else-if="!shareUsers.length" class="share-state">No users found</p>
 
                 <div v-else class="share-users">
-                    <div v-for="user in shareUsers" :key="user.id" class="share-user">
-                        <img class="share-avatar" :src="`/uploads/${user.avatar}`" :alt="`${user.firstName} ${user.lastName}`" />
+                    <button
+                        v-for="user in shareUsers"
+                        :key="user.id"
+                        type="button"
+                        class="share-user"
+                        :class="{ selected: isSelected(user.id) }"
+                        :aria-pressed="isSelected(user.id)"
+                        @click="toggleUser(user.ID)"
+                    >
+                        <span class="share-avatar-wrap">
+                            <img class="share-avatar" :src="`/uploads/${user.avatar}`" :alt="`${user.firstName} ${user.lastName}`" />
+
+                            <span v-if="isSelected(user.id)" class="share-check" aria-hidden="true">
+                                <svg viewBox="0 0 24 24">
+                                    <path d="M5 12.5l4.5 4.5L19 7.5" />
+                                </svg>
+                            </span>
+                        </span>
 
                         <span class="share-name">{{ user.firstName }} {{ user.lastName }}</span>
-                    </div>
+                    </button>
+                </div>
+
+                <div v-if="hasSelection" class="share-footer">
+                    <span class="share-count">{{ selectedUserIds.length }} selected</span>
+
+                    <button class="share-submit" type="button" :disabled="sharing" @click="submitShare">
+                        {{ sharing ? 'Sharing...' : 'Share' }}
+                    </button>
                 </div>
             </div>
         </div>
@@ -482,7 +573,33 @@ onBeforeUnmount(() => {
     flex-direction: column;
     align-items: center;
     gap: 8px;
+    padding: 6px 0;
+    border: 2px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
     scroll-snap-align: start;
+    transition:
+        background 0.15s,
+        border-color 0.15s;
+}
+
+.share-user:hover {
+    background: var(--page-background);
+}
+
+.share-user.selected {
+    border-color: var(--input-focus);
+    background: var(--page-background);
+}
+
+.share-avatar-wrap {
+    position: relative;
+    display: block;
+    width: 60px;
+    height: 60px;
 }
 
 .share-avatar {
@@ -494,6 +611,35 @@ onBeforeUnmount(() => {
     background: var(--page-background);
 }
 
+.share-user.selected .share-avatar {
+    border-color: var(--input-focus);
+}
+
+.share-check {
+    position: absolute;
+    right: -4px;
+    bottom: -4px;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--main-color);
+    border-radius: 50%;
+    background: var(--input-focus);
+    color: white;
+}
+
+.share-check svg {
+    width: 12px;
+    height: 12px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
 .share-name {
     width: 100%;
     text-align: center;
@@ -501,6 +647,46 @@ onBeforeUnmount(() => {
     font-weight: 600;
     line-height: 1.25;
     overflow-wrap: anywhere;
+}
+
+.share-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 6px;
+    padding-top: 14px;
+    border-top: 2px solid var(--page-background);
+}
+
+.share-count {
+    color: var(--font-color-sub);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+}
+
+.share-submit {
+    height: 40px;
+    padding: 0 22px;
+    border: 2px solid var(--main-color);
+    border-radius: 5px;
+    background: var(--input-focus);
+    box-shadow: 4px 4px var(--main-color);
+    color: white;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.share-submit:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.share-submit:active:not(:disabled) {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px var(--main-color);
 }
 
 @media (max-width: 650px) {

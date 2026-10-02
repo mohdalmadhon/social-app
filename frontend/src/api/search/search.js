@@ -47,8 +47,8 @@ export function searchPosts(query, offset = 0) {
     return search('posts', query, offset);
 }
 
-export async function searchShares(vlaue = '') {
-    const resp = await fetch(`/api/user/follow-followers?search=${vlaue}`, {
+export async function searchShares(vlaue = '', postID = -1) {
+    const resp = await fetch(`/api/user/follow-followers?search=${vlaue}&postID=${postID}`, {
         method: "GET",
         credentials: 'include'
     });
