@@ -404,7 +404,7 @@ func (app *App) ViewPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Println(postID, userID)
-	if err := posts.ViewPost(app.DB, postID, userID); err != nil {
+	if err := posts.ViewPost(app.DB, postID, userID); err != nil && err.Error() != "UNIQUE constraint failed: post_views.user_id, post_views.post_id" {
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 			"status":  false,
 			"message": "could not add post",
