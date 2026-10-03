@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"social/database/chats"
 	"social/database/groups"
+	"social/database/notifications"
 	"social/database/users"
 	"social/internal/helpers"
 	"social/internal/models"
@@ -451,6 +452,31 @@ func (app *App) MakeNewGroup(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	for _, id := range userIDs {
+		if id == userID {
+			continue
+		}
+
+		_, allowed, err := app.groupRelation(userID, id)
+
+		if err != nil {
+			log.Println(err)
+			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+				"status":  false,
+				"message": "failed to check data",
+			})
+			return
+		}
+
+		if !allowed {
+			helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+				"status":  false,
+				"message": "you can only add friends, followers or people you follow",
+			})
+			return
+		}
+	}
+
 	if group.UserID != 0 {
 		userIDs = append(userIDs, group.UserID)
 	}
@@ -494,39 +520,20 @@ func (app *App) MakeNewGroup(w http.ResponseWriter, r *http.Request) {
 
 	requests := []int{}
 
-	log.Println(userIDs)
 	for _, id := range ids {
 		if id == userID {
 			continue
 		}
-		isFriend, err := users.IsFriend(app.DB, userID, id)
+
+		result, err := app.addOrInvite(userID, id, g.ID, g.Title)
+
 		if err != nil {
-			log.Println(err, "here")
-			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
-				"status":  false,
-				"message": "failed to check data",
-			})
-			return
+			log.Println(err)
+			continue
 		}
 
-		if isFriend {
-			err = groups.AddMembers(app.DB, g.ID, userID)
-		} else {
-			err = groups.SendInvites(app.DB, id, g)
-			if err != nil {
-				log.Println(err, "err1")
-				continue
-			}
+		if result == memberRequested {
 			requests = append(requests, id)
-		}
-
-		if err != nil {
-			log.Println(err, "here2")
-			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
-				"status":  false,
-				"message": "failed to check data",
-			})
-			return
 		}
 	}
 
@@ -622,10 +629,38 @@ func (app *App) AcceptInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	hasInvite, err := notifications.HasGroupInvite(app.DB, userID, req.GroupID)
+
+	if err != nil {
+		log.Println(err)
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not check invite",
+		})
+		return
+	}
+
+	if !hasInvite {
+		helpers.WriteJson(w, http.StatusNotFound, map[string]any{
+			"status":  false,
+			"message": "invite not found",
+		})
+		return
+	}
+
 	if err := groups.ChangeStatus(app.DB, userID, req.Status, req.GroupID); err != nil {
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 			"status":  false,
 			"message": "could not update group status",
+		})
+		return
+	}
+
+	if err := notifications.DeleteGroupInvites(app.DB, userID, req.GroupID); err != nil {
+		log.Println(err)
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not delete invite",
 		})
 		return
 	}
@@ -831,6 +866,24 @@ func (app *App) GroupRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ownerID, err := groups.GetGroupOwner(app.DB, req.GroupID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+				"status":  false,
+				"message": "could not find group",
+			})
+			return
+		}
+
+		log.Println(err)
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not get group data",
+		})
+		return
+	}
+
 	if req.Code == 0 {
 		userIN, err := groups.UserIN(app.DB, req.GroupID, userID)
 		if err != nil {
@@ -844,7 +897,7 @@ func (app *App) GroupRequest(w http.ResponseWriter, r *http.Request) {
 		if userIN {
 			helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 				"status":  false,
-				"message": "you are already a member of this group",
+				"message": "you already requested, were invited, or are a member of this group",
 			})
 			return
 		}
@@ -863,6 +916,39 @@ func (app *App) GroupRequest(w http.ResponseWriter, r *http.Request) {
 			"message": "could not process group request",
 		})
 		return
+	}
+
+	if req.Code == -1 {
+		if err := notifications.DeleteGroupJoinRequests(app.DB, ownerID, req.GroupID, userID); err != nil {
+			log.Println(err)
+		}
+	} else {
+		g, err := groups.GetGroupData(app.DB, req.GroupID)
+		if err != nil {
+			log.Println(err)
+		}
+
+		actor := userID
+		gid := req.GroupID
+
+		delivered := app.notify(userID, models.NewNotification{
+			UserID:          ownerID,
+			Message:         fmt.Sprintf("%s requested to join the group \"%s\"", app.actorName(userID), g.Title),
+			GroupJoinUserID: &actor,
+			GroupID:         &gid,
+		})
+
+		if !delivered {
+			if err := groups.SendGroupRequest(app.DB, userID, req.GroupID, -1); err != nil {
+				log.Println("could not roll back join request:", err)
+			}
+
+			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+				"status":  false,
+				"message": "could not send join request",
+			})
+			return
+		}
 	}
 
 	helpers.WriteJson(w, http.StatusOK, map[string]any{
@@ -898,19 +984,19 @@ func (app *App) GetGroupRequests(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	member, err := groups.UserIN(app.DB, groupID, userID)
+	ownerID, err := groups.GetGroupOwner(app.DB, groupID)
 	if err != nil {
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 			"status":  false,
-			"message": "could not check group membership",
+			"message": "could not check group owner",
 		})
 		return
 	}
 
-	if !member {
+	if ownerID != userID {
 		helpers.WriteJson(w, http.StatusForbidden, map[string]any{
 			"status":  false,
-			"message": "you are not a member of this group",
+			"message": "only the group owner can view requests",
 		})
 		return
 	}
@@ -976,37 +1062,36 @@ func (app *App) HandleGroupRequest(w http.ResponseWriter, r *http.Request) {
 
 	ownerID, err := groups.GetGroupOwner(app.DB, req.GroupID)
 	if err != nil {
-		log.Panicln(err)
+		log.Println(err)
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 			"status":  false,
-			"message": "could not check group membership",
+			"message": "could not check group owner",
 		})
 		return
 	}
 
 	if ownerID != userID {
-		if err != nil {
-			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
-				"status":  false,
-				"message": "could not check group membership",
-			})
-			return
-		}
-	}
-
-	member, err := groups.UserIN(app.DB, req.GroupID, userID)
-	if err != nil {
-		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+		helpers.WriteJson(w, http.StatusForbidden, map[string]any{
 			"status":  false,
-			"message": "could not check group membership",
+			"message": "only the group owner can handle requests",
 		})
 		return
 	}
 
-	if !member {
-		helpers.WriteJson(w, http.StatusForbidden, map[string]any{
+	pending, err := groups.HasJoinRequest(app.DB, req.GroupID, req.UserID)
+	if err != nil {
+		log.Println(err)
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 			"status":  false,
-			"message": "you are not a member of this group",
+			"message": "could not check request",
+		})
+		return
+	}
+
+	if !pending {
+		helpers.WriteJson(w, http.StatusNotFound, map[string]any{
+			"status":  false,
+			"message": "request not found",
 		})
 		return
 	}
@@ -1026,6 +1111,10 @@ func (app *App) HandleGroupRequest(w http.ResponseWriter, r *http.Request) {
 			"message": "could not handle group request",
 		})
 		return
+	}
+
+	if err := notifications.DeleteGroupJoinRequests(app.DB, ownerID, req.GroupID, req.UserID); err != nil {
+		log.Println(err)
 	}
 
 	helpers.WriteJson(w, http.StatusOK, map[string]any{

@@ -1,3 +1,5 @@
+import { refreshUnreadNotificationCount } from '@/data/notificationCount';
+
 export async function createGroupEvent(event) {
     const response = await fetch('/api/group/events', {
         method: 'POST',
@@ -9,7 +11,8 @@ export async function createGroupEvent(event) {
             groupId: Number(event.groupId),
             title: event.title,
             description: event.description || '',
-            eventTime: event.eventTime
+            eventTime: event.eventTime,
+            tzOffset: new Date().getTimezoneOffset()
         })
     });
 
@@ -65,6 +68,8 @@ export async function respondGroupEvent(eventId, response) {
         throw new Error(result.message || 'Could not save response');
     }
 
+    refreshUnreadNotificationCount();
+
     return result.data;
 }
 
@@ -88,4 +93,20 @@ export async function fetchGroupEventVotes(eventId, response, offset = 0, limit 
     }
 
     return result.data || [];
+}
+
+
+export async function fetchGroupEvent(eventId) {
+    const response = await fetch(`/api/group/event?eventID=${Number(eventId)}`, {
+        method: 'GET',
+        credentials: 'include'
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.status) {
+        throw new Error(result.message || 'Could not load event');
+    }
+
+    return result.data;
 }

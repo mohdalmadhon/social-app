@@ -22,6 +22,12 @@ var ALLOWED_VISIBILITY_PREFERENCES = []string{
 	"none",
 }
 
+var ALLOWED_GROUP_INVITE_PREFERENCES = []string{
+	"friends",
+	"following",
+	"none",
+}
+
 var ALLOWED_ADDITIONAL_INFO_PREFERENCES = []string{
 	"any",
 	"followers",
@@ -76,6 +82,8 @@ func (app *App) ChangePerferance(w http.ResponseWriter, r *http.Request) {
 		allowed = ALLOWED_VISIBILITY_PREFERENCES
 	case "additional":
 		allowed = ALLOWED_ADDITIONAL_INFO_PREFERENCES
+	case "groupinvite":
+		allowed = ALLOWED_GROUP_INVITE_PREFERENCES
 	default:
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,

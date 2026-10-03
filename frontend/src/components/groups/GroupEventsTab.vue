@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 import GroupEventVotesDialog from './GroupEventVotesDialog.vue';
+import GroupEventDialog from './GroupEventDialog.vue';
 import { fetchGroupEvents, respondGroupEvent } from '@/api/groups/events';
 import { addNotification } from '@/data/notifications';
 import { throttle } from '@/helpers/throttle';
@@ -22,6 +23,7 @@ const eventsError = ref('');
 const respondingEvent = ref(null);
 const selectedEvent = ref(null);
 const showVotesDialog = ref(false);
+const showEventDialog = ref(false);
 
 let eventsRequestID = 0;
 
@@ -123,6 +125,19 @@ function addCreatedEvent(event) {
     eventsOffset.value += 1;
 }
 
+function openEventDialog() {
+    showEventDialog.value = true;
+}
+
+function closeEventDialog() {
+    showEventDialog.value = false;
+}
+
+function handleEventCreated(event) {
+    showEventDialog.value = false;
+    addCreatedEvent(event);
+}
+
 function reloadEvents() {
     loadGroupEvents(true);
 }
@@ -150,6 +165,12 @@ onUnmounted(() => {
 
 <template>
     <section class="tab-panel">
+        <div class="events-toolbar">
+            <button type="button" class="new-event-button" @click="openEventDialog">
+                + New event
+            </button>
+        </div>
+
         <div v-if="eventsError" class="empty-state error">{{ eventsError }}</div>
 
         <div v-else-if="!events.length && !loadingEvents" class="empty-state">
@@ -207,6 +228,9 @@ onUnmounted(() => {
             <div v-if="loadingEvents" class="loading-more">Loading events...</div>
         </div>
 
+        <GroupEventDialog :show="showEventDialog" :group-id="groupId" @close="closeEventDialog"
+            @created="handleEventCreated" />
+
         <GroupEventVotesDialog :show="showVotesDialog" :event-id="selectedEvent?.id ?? null"
             :event-title="selectedEvent?.title ?? ''" @close="closeVotes" />
     </section>
@@ -215,6 +239,33 @@ onUnmounted(() => {
 <style scoped>
 .tab-panel {
     width: 100%;
+}
+
+.events-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 16px;
+}
+
+.new-event-button {
+    padding: 10px 18px;
+
+    border: 2px solid var(--main-color);
+    border-radius: 6px;
+
+    background: var(--input-focus);
+    box-shadow: 4px 4px var(--main-color);
+    color: #fff;
+
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.new-event-button:active {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px var(--main-color);
 }
 
 .empty-state {

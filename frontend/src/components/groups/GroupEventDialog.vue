@@ -19,9 +19,17 @@ const title = ref('');
 const description = ref('');
 const eventTime = ref('');
 const submitting = ref(false);
+const minTime = ref('');
 const formError = ref('');
 
+function currentLocalTime() {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    return now.toISOString().slice(0, 16);
+}
+
 function resetEventForm() {
+    minTime.value = currentLocalTime();
     title.value = '';
     description.value = '';
     eventTime.value = '';
@@ -47,6 +55,11 @@ async function submitEvent() {
 
     if (!eventDate) {
         formError.value = 'Day and time are required';
+        return;
+    }
+
+    if (new Date(eventDate).getTime() <= Date.now()) {
+        formError.value = 'Event cannot be in the past';
         return;
     }
 
@@ -101,7 +114,7 @@ watch(
 
                     <label class="event-field">
                         <span>Day / Time</span>
-                        <input v-model="eventTime" type="datetime-local">
+                        <input v-model="eventTime" type="datetime-local" :min="minTime">
                     </label>
 
                     <p v-if="formError" class="event-form-error">{{ formError }}</p>

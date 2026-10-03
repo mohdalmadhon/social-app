@@ -76,6 +76,12 @@ func (app *App) GetNotification(w http.ResponseWriter, r *http.Request) {
 			nt.post_mention_user_id,
 			nt.event_invite_user_id,
 			nt.event_response_user_id,
+			nt.group_invite_user_id,
+			nt.group_join_user_id,
+			nt.group_id,
+			nt.event_id,
+			ge.title,
+			ge.event_time,
 			actor.id,
 			actor.first_name,
 			actor.last_name,
@@ -84,7 +90,9 @@ func (app *App) GetNotification(w http.ResponseWriter, r *http.Request) {
 			p.content,
 			p.image_path,
 			c.content,
-			c.votes
+			c.votes,
+			gr.name,
+			gr.avatar
 		FROM notifications n
 		LEFT JOIN notifications_types nt
 			ON nt.notifications_id = n.id
@@ -100,7 +108,9 @@ func (app *App) GetNotification(w http.ResponseWriter, r *http.Request) {
 				nt.comment_mention_user_id,
 				nt.post_mention_user_id,
 				nt.event_invite_user_id,
-				nt.event_response_user_id
+				nt.event_response_user_id,
+				nt.group_invite_user_id,
+				nt.group_join_user_id
 			)
 		LEFT JOIN profile actor_profile
 			ON actor_profile.user_id = actor.id
@@ -108,10 +118,12 @@ func (app *App) GetNotification(w http.ResponseWriter, r *http.Request) {
 			ON p.id = nt.post_id_tag
 		LEFT JOIN comments c
 			ON c.id = nt.comment_id_tag
+		LEFT JOIN groups gr
+			ON gr.id = nt.group_id
+		LEFT JOIN group_events ge
+			ON ge.id = nt.event_id
 		WHERE n.user_id = ?
 			AND nt.message_user_id IS NULL
-			AND nt.group_invite_user_id IS NULL
-			AND nt.group_join_user_id IS NULL
 			AND nt.group_accept_user_id IS NULL
 		ORDER BY n.created_at DESC
 		LIMIT 20 OFFSET ?
@@ -149,6 +161,12 @@ func (app *App) GetNotification(w http.ResponseWriter, r *http.Request) {
 			postMentionUserID         sql.NullInt64
 			eventInviteUserID         sql.NullInt64
 			eventResponseUserID       sql.NullInt64
+			groupInviteUserID         sql.NullInt64
+			groupJoinUserID           sql.NullInt64
+			groupID                   sql.NullInt64
+			eventID                   sql.NullInt64
+			eventTitle                sql.NullString
+			eventTime                 sql.NullString
 			actorID                   sql.NullInt64
 			actorFirstName            sql.NullString
 			actorLastName             sql.NullString
@@ -158,6 +176,8 @@ func (app *App) GetNotification(w http.ResponseWriter, r *http.Request) {
 			postImagePath             sql.NullString
 			commentContent            sql.NullString
 			commentVotes              sql.NullInt64
+			groupName                 sql.NullString
+			groupAvatar               sql.NullString
 		)
 
 		err := rows.Scan(
@@ -179,6 +199,12 @@ func (app *App) GetNotification(w http.ResponseWriter, r *http.Request) {
 			&postMentionUserID,
 			&eventInviteUserID,
 			&eventResponseUserID,
+			&groupInviteUserID,
+			&groupJoinUserID,
+			&groupID,
+			&eventID,
+			&eventTitle,
+			&eventTime,
 			&actorID,
 			&actorFirstName,
 			&actorLastName,
@@ -188,6 +214,8 @@ func (app *App) GetNotification(w http.ResponseWriter, r *http.Request) {
 			&postImagePath,
 			&commentContent,
 			&commentVotes,
+			&groupName,
+			&groupAvatar,
 		)
 
 		if err != nil {
@@ -252,6 +280,30 @@ func (app *App) GetNotification(w http.ResponseWriter, r *http.Request) {
 
 		if eventResponseUserID.Valid {
 			notification["event_response_user_id"] = eventResponseUserID.Int64
+		}
+
+		if groupInviteUserID.Valid {
+			notification["group_invite_user_id"] = groupInviteUserID.Int64
+		}
+
+		if groupJoinUserID.Valid {
+			notification["group_join_user_id"] = groupJoinUserID.Int64
+		}
+
+		if eventID.Valid {
+			notification["event"] = map[string]any{
+				"id":        eventID.Int64,
+				"title":     eventTitle.String,
+				"eventTime": eventTime.String,
+			}
+		}
+
+		if groupID.Valid {
+			notification["group"] = map[string]any{
+				"id":     groupID.Int64,
+				"name":   groupName.String,
+				"avatar": groupAvatar.String,
+			}
 		}
 
 		if actorID.Valid {

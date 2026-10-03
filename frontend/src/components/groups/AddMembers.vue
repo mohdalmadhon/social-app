@@ -118,7 +118,7 @@ function removePerson(id) {
             for="group-members"
             style="font-size: 8px;"
         >
-            You can only add people you are friends with
+            You can only add friends, followers or people you follow. Friends join instantly, others get a request
         </label>
 
         <div class="tag-row">

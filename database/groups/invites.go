@@ -2,66 +2,36 @@ package groups
 
 import (
 	"database/sql"
-	"encoding/json"
 	"log"
-	"social/database/chats"
-	"social/database/users"
-	"social/internal/models"
 )
 
-func SendInvites(db *sql.DB, targetID int, g models.Group) error {
-	u, err := users.GetUserSimpleData(db, g.UserID)
-	if err != nil {
-		return err
-	}
-	
-	_, err = db.Exec(`INSERT INTO groups_users (group_id, user_id, status) VALUES (?,?,0)`, g.ID, targetID)
-	if err != nil {
-		return err
-	}
-	
-	payload := map[string]any{
-		"type": "invite",
-		"group": map[string]any{
-			"id":     g.ID,
-			"name":   g.Title,
-			"avatar": g.Avatar,
-		},
-		"user": map[string]any{
-			"id":        u.ID,
-			"firstName": u.FirstName,
-			"lastName":  u.LastName,
-			"avatar":    u.Avatar,
-		},
-	}
+func AddPendingMember(db *sql.DB, groupID, userID, inviterID int) error {
+	_, err := db.Exec(`
+		INSERT INTO groups_users (group_id, user_id, status, invited_by)
+		VALUES (?, ?, 0, ?)
+	`, groupID, userID, inviterID)
 
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
+	return err
+}
 
-	gID, err := chats.HasPrivateChat(db, g.UserID, targetID)
-	if err != nil {
-		return err
-	}
+func RemoveMember(db *sql.DB, groupID, userID int) error {
+	_, err := db.Exec(`
+		DELETE FROM groups_users
+		WHERE group_id = ?
+			AND user_id = ?
+	`, groupID, userID)
 
-	if gID == -1 {
-		gID, err = chats.MakePrivateChat(db, g.UserID, targetID)
-		if err != nil {
-			return err
-		}
-	}
-
-	return chats.AddMessages(db, string(data), g.UserID, gID)
+	return err
 }
 
 func ChangeStatus(db *sql.DB, userID, status, groupID int) error {
-	log.Println(status)
 	if status == -1 {
 		_, err := db.Exec(`
 			DELETE FROM groups_users
 			WHERE group_id = ?
 			AND user_id = ?
+			AND status = 0
+			AND invited_by IS NOT NULL
 		`, groupID, userID)
 
 		return err
@@ -76,6 +46,8 @@ func ChangeStatus(db *sql.DB, userID, status, groupID int) error {
 		SET status = ?
 		WHERE user_id = ?
 		AND group_id = ?
+		AND status = 0
+		AND invited_by IS NOT NULL
 	`, status, userID, groupID)
 
 	log.Println(res)

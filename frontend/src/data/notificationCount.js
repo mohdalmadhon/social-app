@@ -31,7 +31,6 @@ export function clearUnreadNotificationCount() {
 function isDisplayableNotification(data) {
     return !data.message_user_id
         && !data.group_invite_user_id
-        && !data.group_join_user_id
         && !data.group_accept_user_id;
 }
 

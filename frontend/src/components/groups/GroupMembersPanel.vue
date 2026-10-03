@@ -365,8 +365,14 @@ async function confirmInvite() {
         }
 
         showConfirmDialog.value = false;
+        const parts = [];
+
+        if (result.requested) {
+            parts.push(`${result.requested} invited`);
+        }
+
         inviteSuccess.value =
-            result.message || 'Invite sent';
+            parts.join(', ') || result.message || 'Invite sent';
 
         setTimeout(() => {
             showInviteDialog.value = false;

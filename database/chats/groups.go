@@ -221,7 +221,7 @@ func UserInGroup(db *sql.DB, userID, groupID int) (bool, error) {
 	err := db.QueryRow(`
         SELECT 1
         FROM groups_users
-        WHERE user_id = ? AND group_id = ?
+        WHERE user_id = ? AND group_id = ? AND COALESCE(status, 1) = 1
         LIMIT 1
     `, userID, groupID).Scan(&exists)
 
@@ -239,7 +239,7 @@ func UserInGroup(db *sql.DB, userID, groupID int) (bool, error) {
 func GetGroupMembersIds(db *sql.DB, groupID int) ([]int, error) {
 	var ids []int
 	rows, err := db.Query(`
-		SELECT user_id FROM groups_users WHERE group_id = ?
+		SELECT user_id FROM groups_users WHERE group_id = ? AND COALESCE(status, 1) = 1
 	`, groupID)
 
 	if err != nil {

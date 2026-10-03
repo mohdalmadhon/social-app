@@ -28,6 +28,8 @@ type NewNotification struct {
 	GroupAcceptUserID         *int
 	EventInviteUserID         *int
 	EventResponseUserID       *int
+	GroupID                   *int
+	EventID                   *int
 }
 
 type IncomingMessage struct {

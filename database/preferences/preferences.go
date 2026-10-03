@@ -10,6 +10,7 @@ type Preferences struct {
 	Email          string `json:"email"`
 	DOB            string `json:"dob"`
 	AdditionalInfo string `json:"additionalInfo"`
+	GroupInvite    string `json:"groupInvite"`
 }
 
 var columns = map[string]string{
@@ -17,6 +18,7 @@ var columns = map[string]string{
 	"email":      "show_email",
 	"dob":        "show_dob",
 	"additional": "additional_info",
+	"groupinvite": "group_invite",
 }
 
 func ChangePreference(db *sql.DB, prefType, value string, userID int) error {
@@ -40,10 +42,10 @@ func GetPreferences(db *sql.DB, userID int) (Preferences, error) {
 	var p Preferences
 
 	err := db.QueryRow(`
-		SELECT chat, show_email, show_dob, additional_info
+		SELECT chat, show_email, show_dob, additional_info, group_invite
 		FROM user_preferences
 		WHERE user_id = ?
-	`, userID).Scan(&p.Chat, &p.Email, &p.DOB, &p.AdditionalInfo)
+	`, userID).Scan(&p.Chat, &p.Email, &p.DOB, &p.AdditionalInfo, &p.GroupInvite)
 
 	return p, err
 }

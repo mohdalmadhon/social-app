@@ -12,6 +12,7 @@ import SideNavigation from '@/components/layout/SideNavigation.vue';
 import TopNavigation from '@/components/layout/TopNavigation.vue';
 
 import { addNotification } from '@/data/notifications';
+import { openGroupPage } from '@/data/chatState';
 import { getGroupPosts as fetchGroupPosts } from '@/api/posts/groupComments';
 import { throttle } from '@/helpers/throttle';
 
@@ -173,6 +174,8 @@ function handleEventCreated(event) {
 }
 
 onMounted(async () => {
+    openGroupPage.value = groupID;
+
     window.addEventListener('scroll', handlePostsScroll, { passive: true });
 
     await getGroupData();
@@ -180,6 +183,10 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+    if (openGroupPage.value === groupID) {
+        openGroupPage.value = null;
+    }
+
     postsRequestID++;
 
     window.removeEventListener('scroll', handlePostsScroll);

@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"social/database/chats"
 	"social/database/groups"
 	"social/database/notifications"
 	"social/database/posts"
@@ -16,6 +17,16 @@ import (
 )
 
 var mentionPattern = regexp.MustCompile(`(?:^|[^\w@])@([A-Za-z0-9_.]{2,30})`)
+
+var chatMentionPattern = regexp.MustCompile(`(?:^|[^\w@])@([A-Za-z0-9_-]{3,12})`)
+
+func skipsSpamCheck(n models.NewNotification) bool {
+	if n.GroupInviteUserID != nil || n.EventInviteUserID != nil {
+		return true
+	}
+
+	return n.PostMentionUserID != nil && n.GroupID != nil && n.PostIDTag == nil
+}
 
 // notify stores a notification for n.UserID and pushes it over the websocket
 // if that user is online. It never notifies the actor about their own action.
@@ -37,12 +48,14 @@ func (app *App) notify(actorID int, n models.NewNotification) bool {
 		return false
 	}
 
-	spam, err := notifications.IsSpam(app.DB, actorID, n)
+	if !skipsSpamCheck(n) {
+		spam, err := notifications.IsSpam(app.DB, actorID, n)
 
-	if err != nil {
-		log.Println("failed to check notification spam:", err)
-	} else if spam {
-		return false
+		if err != nil {
+			log.Println("failed to check notification spam:", err)
+		} else if spam {
+			return false
+		}
 	}
 
 	id, err := notifications.InsertNotification(app.DB, n)
@@ -207,12 +220,72 @@ func (app *App) notifyEventInvite(actorID int, event models.GroupEvent) {
 
 	name := app.actorName(actorID)
 	actor := actorID
+	eventID := event.ID
+	groupID := event.GroupID
 
 	for _, id := range memberIDs {
 		app.notify(actorID, models.NewNotification{
 			UserID:            id,
 			Message:           fmt.Sprintf("%s invited you to the event \"%s\"", name, event.Title),
 			EventInviteUserID: &actor,
+			EventID:           &eventID,
+			GroupID:           &groupID,
+		})
+	}
+}
+
+// notifyChatMentions tells every group member @mentioned in a group chat
+// message that they were mentioned.
+func (app *App) notifyChatMentions(actorID, groupID int, content string) {
+	matches := chatMentionPattern.FindAllStringSubmatch(content, -1)
+
+	if len(matches) == 0 {
+		return
+	}
+
+	isPrivate, groupName, err := chats.GetChatMeta(app.DB, groupID)
+
+	if err != nil {
+		log.Println("could not get chat meta:", err)
+		return
+	}
+
+	if isPrivate {
+		return
+	}
+
+	name := app.actorName(actorID)
+	actor := actorID
+	gid := groupID
+
+	message := fmt.Sprintf("%s mentioned you in the group chat", name)
+
+	if groupName != "" {
+		message = fmt.Sprintf("%s mentioned you in the group chat \"%s\"", name, groupName)
+	}
+
+	seen := map[int]bool{actorID: true}
+
+	for _, match := range matches {
+		id := users.GetUserID(app.DB, strings.ToLower(match[1]))
+
+		if id <= 0 || seen[id] {
+			continue
+		}
+
+		seen[id] = true
+
+		member, err := chats.UserInGroup(app.DB, id, groupID)
+
+		if err != nil || !member {
+			continue
+		}
+
+		app.notify(actorID, models.NewNotification{
+			UserID:            id,
+			Message:           message,
+			PostMentionUserID: &actor,
+			GroupID:           &gid,
 		})
 	}
 }

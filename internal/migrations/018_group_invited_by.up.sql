@@ -1,0 +1,1 @@
+ALTER TABLE groups_users ADD COLUMN invited_by INTEGER REFERENCES user(id) ON DELETE SET NULL;

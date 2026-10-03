@@ -1,4 +1,4 @@
-import { activePage } from '@/data/chatState';
+import { activePage, openGroupPage } from '@/data/chatState';
 import { addNotification, postImageUrl, avatarUrl } from '@/data/notifications';
 import {
     handleIncomingNotification,
@@ -12,6 +12,7 @@ let reconnectTimer = null;
 const notificationDebounce = new Map();
 const toastDebounce = new Map();
 const TOAST_COOLDOWN = 10 * 1000;
+const MESSAGE_COOLDOWN = 5 * 1000;
 
 function isDuplicateToast(payload) {
     const key = `${payload.actor?.id || 0}:${payload.kind || ''}:${payload.post_id || 0}:${payload.message}`;
@@ -46,6 +47,12 @@ function notificationOptions(payload) {
         options.image = postImageUrl(payload.image_path);
     } else if (payload.kind === 'follow_request') {
         options.route = { path: '/notifications', query: { tab: 'requests' } };
+    } else if (payload.kind === 'post mention' && payload.group_id) {
+        options.route = { path: `/groups/${payload.group_id}`, query: { tab: 'chat' } };
+    } else if (payload.kind === 'event invite') {
+        options.route = { path: '/notifications', query: { tab: 'events' } };
+    } else if (payload.kind === 'group invite' || payload.kind === 'group join') {
+        options.route = { path: '/notifications', query: { tab: 'invites' } };
     } else {
         options.route = { path: '/notifications' };
     }
@@ -156,7 +163,17 @@ export function connectToWS() {
                 const groupChat =
                     activePage.value === 'group:' + groupID;
 
+                const onGroupPage =
+                    !payload.isPrivate &&
+                    Number(openGroupPage.value) === Number(groupID);
+
                 if (privateChat || groupChat) {
+                    window.dispatchEvent(
+                        new CustomEvent('chat-message', {
+                            detail: message
+                        })
+                    );
+                } else if (onGroupPage) {
                     window.dispatchEvent(
                         new CustomEvent('chat-message', {
                             detail: message
@@ -169,7 +186,7 @@ export function connectToWS() {
 
                     if (
                         !lastNotification ||
-                        now - lastNotification >= 30 * 60 * 1000
+                        now - lastNotification >= MESSAGE_COOLDOWN
                     ) {
                         const sender = message.Sender.firstName || 'user';
 

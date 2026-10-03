@@ -18,6 +18,7 @@ type NewGroupEvent struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	EventTime   string `json:"eventTime"`
+	TzOffset    *int   `json:"tzOffset"`
 }
 
 type GroupEventResponse struct {

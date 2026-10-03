@@ -182,6 +182,50 @@ func SearchInvites(db *sql.DB, userID, groupID int, searchValue string) ([]model
 		search,
 	}
 
+	query += `
+		AND u.id IN (
+			SELECT target_id
+			FROM user_followers
+			WHERE follower_id = ?
+				AND status = 1
+
+			UNION
+
+			SELECT follower_id
+			FROM user_followers
+			WHERE target_id = ?
+				AND status = 1
+		)
+	`
+
+	args = append(args, userID, userID)
+
+	query += `
+		AND CASE COALESCE(
+			(SELECT up.group_invite FROM user_preferences up WHERE up.user_id = u.id),
+			'following'
+		)
+			WHEN 'none' THEN 0
+			WHEN 'friends' THEN (
+				EXISTS (
+					SELECT 1 FROM user_followers a
+					WHERE a.follower_id = ? AND a.target_id = u.id AND a.status = 1
+				)
+				AND EXISTS (
+					SELECT 1 FROM user_followers b
+					WHERE b.follower_id = u.id AND b.target_id = ? AND b.status = 1
+				)
+			)
+			WHEN 'following' THEN EXISTS (
+				SELECT 1 FROM user_followers b
+				WHERE b.follower_id = u.id AND b.target_id = ? AND b.status = 1
+			)
+			ELSE 0
+		END
+	`
+
+	args = append(args, userID, userID, userID)
+
 	if groupID != -1 {
 		query += `
 			AND NOT EXISTS (
@@ -504,16 +548,53 @@ func GetGroupData(db *sql.DB, groupID int) (models.Group, error) {
 func SendGroupRequest(db *sql.DB, userID, groupID, code int) error {
 	if code == -1 {
 		_, err := db.Exec(`
-		DELETE FROM groups_users WHERE user_id = ? AND group_id = ?
+		DELETE FROM groups_users
+		WHERE user_id = ?
+			AND group_id = ?
+			AND status = 0
+			AND invited_by IS NULL
 	`, userID, groupID)
 		return err
 	}
 
 	_, err := db.Exec(`
-		INSERT INTO groups_users (group_id, user_id, status) VALUES (?,?,0)
+		INSERT INTO groups_users (group_id, user_id, status, invited_by) VALUES (?,?,0,NULL)
 	`, groupID, userID)
 
 	return err
+}
+
+func IsMember(db *sql.DB, groupID, userID int) (bool, error) {
+	var exists bool
+
+	err := db.QueryRow(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM groups_users
+			WHERE group_id = ?
+				AND user_id = ?
+				AND status = 1
+		)
+	`, groupID, userID).Scan(&exists)
+
+	return exists, err
+}
+
+func HasJoinRequest(db *sql.DB, groupID, userID int) (bool, error) {
+	var exists bool
+
+	err := db.QueryRow(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM groups_users
+			WHERE group_id = ?
+				AND user_id = ?
+				AND status = 0
+				AND invited_by IS NULL
+		)
+	`, groupID, userID).Scan(&exists)
+
+	return exists, err
 }
 
 func GetGroupRequests(db *sql.DB, groupID, offset int) ([]models.UserRegistration, error) {
@@ -530,6 +611,7 @@ func GetGroupRequests(db *sql.DB, groupID, offset int) ([]models.UserRegistratio
 		JOIN profile p ON p.user_id = u.id
 		WHERE gu.group_id = ?
 			AND gu.status = 0
+			AND gu.invited_by IS NULL
 		ORDER BY u.first_name, u.last_name
 		LIMIT 10 OFFSET ?
 	`, groupID, offset)
@@ -569,6 +651,7 @@ func HandleGroupRequest(db *sql.DB, groupID, userID, code int) error {
 			WHERE group_id = ?
 				AND user_id = ?
 				AND status = 0
+				AND invited_by IS NULL
 		`, groupID, userID)
 
 		return err
@@ -580,6 +663,7 @@ func HandleGroupRequest(db *sql.DB, groupID, userID, code int) error {
 			WHERE group_id = ?
 				AND user_id = ?
 				AND status = 0
+				AND invited_by IS NULL
 		`, groupID, userID)
 
 		return err

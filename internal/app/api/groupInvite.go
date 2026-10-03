@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"social/database/groups"
-	"social/database/users"
 	"social/internal/helpers"
 )
 
@@ -42,7 +41,7 @@ func (app *App) InviteMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userIN, err := groups.UserIN(app.DB, req.GroupID, userID)
+	userIN, err := groups.IsMember(app.DB, req.GroupID, userID)
 	if err != nil {
 		log.Println(err)
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
@@ -78,58 +77,34 @@ func (app *App) InviteMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	g.ID = req.GroupID
-	g.UserID = userID
-
-	sent := 0
+	requested := 0
 
 	for _, id := range req.UserIDs {
-		if id == userID {
-			continue
-		}
+		result, err := app.addOrInvite(userID, id, req.GroupID, g.Title)
 
-		alreadyIN, err := groups.UserIN(app.DB, req.GroupID, id)
 		if err != nil {
 			log.Println(err)
 			continue
 		}
 
-		if alreadyIN {
-			log.Println("already in")
-			continue
+		switch result {
+		case memberRequested:
+			requested++
 		}
-
-		isFriend, err := users.IsFriend(app.DB, userID, id)
-		if err != nil {
-			continue
-		}
-
-		if isFriend {
-			err = groups.AddMembers(app.DB, req.GroupID, id)
-			if err != nil {
-				continue
-			}
-		} else {
-			err = groups.SendInvites(app.DB, id, g)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
-		}
-		sent++
 	}
 
-	if sent == 0 {
+	if requested == 0 {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
-			"message": "no invites were sent",
+			"message": "you can only invite friends, followers or people you follow, and only if their settings allow it",
 		})
 		return
 	}
 
 	helpers.WriteJson(w, http.StatusOK, map[string]any{
 		"status":  true,
-		"message": "invite sent",
-		"sent":    sent,
+		"message":   "members updated",
+		"requested": requested,
+		"sent":      requested,
 	})
 }

@@ -57,9 +57,6 @@ func (app *App) readLoop(userID int, ws *websocket.Conn) {
 		case "notification":
 			log.Println("notification received")
 
-		case "privateMessage/invite":
-			app.handleInvite(userID, payload.Data)
-
 		case "postGroup":
 			app.handleMessage(userID, payload.Data, "postGroup")
 		case "post-message":
@@ -135,6 +132,10 @@ func (app *App) sendNotification(userID int, targetID int, data models.NewNotifi
 
 	if unread >= 0 {
 		msg["unread"] = unread
+	}
+
+	if data.GroupID != nil {
+		msg["group_id"] = *data.GroupID
 	}
 
 	if data.PostIDTag != nil {
@@ -275,6 +276,12 @@ func (app *App) handleMessage(userID int, data json.RawMessage, Type string) {
 			}
 		}
 	} else {
+		inGroup, err := chats.UserInGroup(app.DB, userID, groupID)
+		if err != nil || !inGroup {
+			app.sendMessageError(userID, msg.ClientID, "you are not a member of this chat")
+			return
+		}
+
 		isPrivate, targetID, err := chats.IsPrivateChat(app.DB, groupID, userID)
 		if err != nil {
 			log.Println("chat lookup error:", err)
@@ -326,115 +333,9 @@ func (app *App) handleMessage(userID int, data json.RawMessage, Type string) {
 	}
 
 	app.sendToUsers(message, groupID, userID)
-}
 
-func (app *App) handleInvite(userID int, data json.RawMessage) {
-	var invite models.GroupInvite
-
-	if err := json.Unmarshal(data, &invite); err != nil {
-		log.Println("invalid invite payload:", err)
-		return
-	}
-
-	if invite.GroupData.ID <= 0 {
-		log.Println("invalid group ID")
-		return
-	}
-
-	if len(invite.Users) == 0 {
-		log.Println("no users in invite")
-		return
-	}
-
-	sender, err := users.GetUserSimpleData(app.DB, userID)
-	if err != nil {
-		log.Println("get sender error:", err)
-		return
-	}
-
-	inviteContent := map[string]any{
-		"type": "invite",
-		"group": map[string]any{
-			"id":     invite.GroupData.ID,
-			"name":   invite.GroupData.Name,
-			"avatar": invite.GroupData.Avatar,
-		},
-		"user": map[string]any{
-			"id":        sender.ID,
-			"firstName": sender.FirstName,
-			"lastName":  sender.LastName,
-			"avatar":    sender.Avatar,
-		},
-	}
-
-	content, err := json.Marshal(inviteContent)
-	if err != nil {
-		log.Println("marshal invite error:", err)
-		return
-	}
-
-	for _, invitedUserID := range invite.Users {
-		if invitedUserID <= 0 || invitedUserID == userID {
-			continue
-		}
-		_, err = app.DB.Exec(`INSERT INTO groups_users (group_id, user_id, status) VALUES (?,?,0)`, invite.GroupData.ID, invitedUserID)
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-
-		privateChatID, err := chats.HasPrivateChat(
-			app.DB,
-			userID,
-			invitedUserID,
-		)
-
-		if err != nil {
-			log.Println("private chat lookup error:", err)
-			continue
-		}
-
-		if privateChatID == -1 {
-			privateChatID, err = chats.MakePrivateChat(
-				app.DB,
-				userID,
-				invitedUserID,
-			)
-
-			if err != nil {
-				log.Println("private chat creation error:", err)
-				continue
-			}
-		}
-
-		err = chats.AddMessages(
-			app.DB,
-			string(content),
-			userID,
-			privateChatID,
-		)
-
-		if err != nil {
-			log.Println("add invite message error:", err)
-			continue
-		}
-
-		message := models.Message{
-			Content: string(content),
-			Sender: models.UserRegistration{
-				ID:        sender.ID,
-				FirstName: sender.FirstName,
-				LastName:  sender.LastName,
-				Avatar:    sender.Avatar,
-			},
-			GroupID: privateChatID,
-		}
-
-		app.sendToUsers(
-			message,
-			privateChatID,
-			userID,
-		)
+	if msg.GroupID > 0 {
+		app.notifyChatMentions(userID, groupID, msg.Content)
 	}
 }
 
@@ -442,7 +343,9 @@ func (app *App) sendToUsers(
 	msg models.Message,
 	groupID int,
 	userID int,
+	forceSilent ...bool,
 ) {
+	silentOnly := len(forceSilent) > 0 && forceSilent[0]
 
 	log.Println(groupID)
 	ids, err := chats.GetGroupMembersIds(
@@ -493,12 +396,16 @@ func (app *App) sendToUsers(
 
 		payload := response
 
-		allowed, err := preferences.ShouldNotify(app.DB, id, userID, "message")
-
-		if err != nil {
-			log.Println("failed to check message notification preference:", err)
-		} else if !allowed {
+		if silentOnly {
 			payload = silentResponse
+		} else {
+			allowed, err := preferences.ShouldNotify(app.DB, id, userID, "message")
+
+			if err != nil {
+				log.Println("failed to check message notification preference:", err)
+			} else if !allowed {
+				payload = silentResponse
+			}
 		}
 
 		app.H.Mu.RLock()

@@ -3,6 +3,7 @@ package validation
 import (
 	"errors"
 	"strings"
+	"time"
 
 	"social/internal/models"
 )
@@ -30,6 +31,16 @@ func ValidateGroupEvent(event models.NewGroupEvent) error {
 		return errors.New("event day and time are required")
 	}
 
+	eventTime, err := parseEventTime(event.EventTime, event.TzOffset)
+
+	if err != nil {
+		return errors.New("invalid event day and time")
+	}
+
+	if !eventTime.After(time.Now()) {
+		return errors.New("event cannot be in the past")
+	}
+
 	return nil
 }
 
@@ -43,4 +54,28 @@ func ValidateGroupEventResponse(response models.GroupEventResponse) error {
 	}
 
 	return nil
+}
+
+func parseEventTime(value string, tzOffset *int) (time.Time, error) {
+	if t, err := time.Parse(time.RFC3339, value); err == nil {
+		return t, nil
+	}
+
+	layouts := []string{"2006-01-02T15:04", "2006-01-02T15:04:05", "2006-01-02 15:04"}
+
+	for _, layout := range layouts {
+		if tzOffset == nil {
+			if t, err := time.ParseInLocation(layout, value, time.Local); err == nil {
+				return t, nil
+			}
+
+			continue
+		}
+
+		if t, err := time.Parse(layout, value); err == nil {
+			return t.Add(time.Duration(*tzOffset) * time.Minute), nil
+		}
+	}
+
+	return time.Time{}, errors.New("invalid time")
 }

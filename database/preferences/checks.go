@@ -18,7 +18,7 @@ type Visibility struct {
 func ApplyProfileVisibility(db *sql.DB, viewerID, ownerID int, data *models.UserData) (Visibility, error) {
 	prefs, err := GetPreferences(db, ownerID)
 	if err == sql.ErrNoRows {
-		prefs = Preferences{Chat: "following-followers", Email: "none", DOB: "none", AdditionalInfo: "any"}
+		prefs = Preferences{Chat: "following-followers", Email: "none", DOB: "none", AdditionalInfo: "any", GroupInvite: "following"}
 	} else if err != nil {
 		return Visibility{}, err
 	}

@@ -15,6 +15,7 @@ func GetMessages(db *sql.DB, userID, groupID, offset int) ([]models.Message, err
 		FROM groups_users
 		WHERE group_id = ?
 			AND user_id = ?
+			AND COALESCE(status, 1) = 1
 	`, groupID, userID).Scan(&exists)
 
 	if err != nil {

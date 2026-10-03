@@ -134,11 +134,34 @@ const CHAT_OPTIONS = [
     },
 ];
 
+const GROUP_INVITE_OPTIONS = [
+    {
+        value: 'following',
+        label: 'Following',
+        description: 'Friends and people you follow can invite you to groups.',
+        icon: '→',
+    },
+    {
+        value: 'friends',
+        label: 'Friends',
+        description: 'Only your friends can invite you to groups.',
+        icon: '♥',
+    },
+    {
+        value: 'none',
+        label: 'None',
+        description: 'Nobody can invite you to groups.',
+        icon: '⊘',
+    },
+];
+
 const activeTab = ref('general');
 
 const selectedTheme = ref(getThemeCookie());
 const selectedChat = ref('following-followers');
 const savingChat = ref(false);
+const selectedGroupInvite = ref('following');
+const savingGroupInvite = ref(false);
 
 const privacy = ref({
     email: 'none',
@@ -180,6 +203,7 @@ onMounted(async () => {
     try {
         const prefs = await getPreferences();
         selectedChat.value = prefs.chat;
+        selectedGroupInvite.value = prefs.groupInvite || 'following';
         privacy.value = {
             email: prefs.email,
             dob: prefs.dob,
@@ -237,6 +261,26 @@ async function selectChat(value) {
         addNotification(err.message || 'Could not update preferences', 'error');
     } finally {
         savingChat.value = false;
+    }
+}
+
+async function selectGroupInvite(value) {
+    if (savingGroupInvite.value || value === selectedGroupInvite.value) {
+        return;
+    }
+
+    const previous = selectedGroupInvite.value;
+    selectedGroupInvite.value = value;
+    savingGroupInvite.value = true;
+
+    try {
+        await changePreferences('groupinvite', value);
+        addNotification('Group invite preference updated', 'success');
+    } catch (err) {
+        selectedGroupInvite.value = previous;
+        addNotification(err.message || 'Could not update preferences', 'error');
+    } finally {
+        savingGroupInvite.value = false;
     }
 }
 
@@ -418,6 +462,37 @@ async function confirmDeleteAccount() {
                                     <span class="choice-icon">{{ option.icon }}</span>
                                     <span class="radio">
                                         <span v-if="selectedChat === option.value"></span>
+                                    </span>
+                                </span>
+                                <span class="choice-name">{{ option.label }}</span>
+                                <span class="choice-desc">{{ option.description }}</span>
+                            </button>
+                        </div>
+                    </section>
+
+                    <section class="settings-section">
+                        <div class="section-head">
+                            <div>
+                                <h2>Group invites</h2>
+                                <p class="section-subtitle">Choose who can invite you to groups.</p>
+                            </div>
+                            <span v-if="savingGroupInvite" class="saving">Saving...</span>
+                        </div>
+
+                        <div class="choice-grid">
+                            <button
+                                v-for="option in GROUP_INVITE_OPTIONS"
+                                :key="option.value"
+                                type="button"
+                                class="choice-card"
+                                :class="{ selected: selectedGroupInvite === option.value }"
+                                :disabled="savingGroupInvite"
+                                @click="selectGroupInvite(option.value)"
+                            >
+                                <span class="choice-top">
+                                    <span class="choice-icon">{{ option.icon }}</span>
+                                    <span class="radio">
+                                        <span v-if="selectedGroupInvite === option.value"></span>
                                     </span>
                                 </span>
                                 <span class="choice-name">{{ option.label }}</span>

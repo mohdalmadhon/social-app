@@ -40,9 +40,11 @@ func InsertNotification(db *sql.DB, n models.NewNotification) (int, error) {
 			group_join_user_id,
 			group_accept_user_id,
 			event_invite_user_id,
-			event_response_user_id
+			event_response_user_id,
+			group_id,
+			event_id
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
 		notificationID,
 		n.MessageUserID,
@@ -62,6 +64,8 @@ func InsertNotification(db *sql.DB, n models.NewNotification) (int, error) {
 		n.GroupAcceptUserID,
 		n.EventInviteUserID,
 		n.EventResponseUserID,
+		n.GroupID,
+		n.EventID,
 	)
 
 	if err != nil {
@@ -156,8 +160,6 @@ func IsSpam(db *sql.DB, actorID int, n models.NewNotification) (bool, error) {
 
 const excludedTypesClause = `
 	nt.message_user_id IS NULL
-	AND nt.group_invite_user_id IS NULL
-	AND nt.group_join_user_id IS NULL
 	AND nt.group_accept_user_id IS NULL
 `
 
@@ -183,6 +185,109 @@ func MarkAllRead(db *sql.DB, userID int) error {
 		SET is_read = 1
 		WHERE user_id = ?
 	`, userID)
+
+	return err
+}
+
+func HasGroupInvite(db *sql.DB, userID, groupID int) (bool, error) {
+	var exists int
+
+	err := db.QueryRow(`
+		SELECT 1
+		FROM notifications n
+		JOIN notifications_types nt
+			ON nt.notifications_id = n.id
+		WHERE n.user_id = ?
+			AND nt.group_id = ?
+			AND nt.group_invite_user_id IS NOT NULL
+		LIMIT 1
+	`, userID, groupID).Scan(&exists)
+
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func DeleteGroupInvites(db *sql.DB, userID, groupID int) error {
+	rows, err := db.Query(`
+		SELECT n.id
+		FROM notifications n
+		JOIN notifications_types nt
+			ON nt.notifications_id = n.id
+		WHERE n.user_id = ?
+			AND nt.group_id = ?
+			AND nt.group_invite_user_id IS NOT NULL
+	`, userID, groupID)
+
+	if err != nil {
+		return err
+	}
+
+	var ids []int
+
+	for rows.Next() {
+		var id int
+
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+
+		ids = append(ids, id)
+	}
+
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+
+	rows.Close()
+
+	for _, id := range ids {
+		if _, err := db.Exec(`DELETE FROM notifications_types WHERE notifications_id = ?`, id); err != nil {
+			return err
+		}
+
+		if _, err := db.Exec(`DELETE FROM notifications WHERE id = ?`, id); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func DeleteGroupJoinRequests(db *sql.DB, ownerID, groupID, requesterID int) error {
+	_, err := db.Exec(`
+		DELETE FROM notifications
+		WHERE user_id = ?
+			AND id IN (
+				SELECT nt.notifications_id
+				FROM notifications_types nt
+				WHERE nt.group_id = ?
+					AND nt.group_join_user_id = ?
+			)
+	`, ownerID, groupID, requesterID)
+
+	return err
+}
+
+func DeleteEventInvites(db *sql.DB, userID, eventID int) error {
+	_, err := db.Exec(`
+		DELETE FROM notifications
+		WHERE user_id = ?
+			AND id IN (
+				SELECT nt.notifications_id
+				FROM notifications_types nt
+				WHERE nt.event_id = ?
+					AND nt.event_invite_user_id IS NOT NULL
+			)
+	`, userID, eventID)
 
 	return err
 }

@@ -1,9 +1,16 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
-import { getNotifications, acceptFollowRequest, markNotificationsRead } from '@/api/common/notifications';
+import {
+    getNotifications,
+    acceptFollowRequest,
+    markNotificationsRead,
+    respondToGroupInvite,
+    respondToJoinRequest
+} from '@/api/common/notifications';
 
+import { respondGroupEvent } from '@/api/groups/events';
 import { addNotification } from '@/data/notifications';
 import { clearUnreadNotificationCount } from '@/data/notificationCount';
 import SideNavigation from '@/components/layout/SideNavigation.vue';
@@ -20,13 +27,16 @@ const limit = 15;
 const selectedPostId = ref(null);
 const showPostDialog = ref(false);
 const route = useRoute();
+const router = useRouter();
 
 const tabs = [
     { key: 'all', label: 'All' },
     { key: 'posts', label: 'Posts' },
     { key: 'comments', label: 'Comments' },
+    { key: 'mentions', label: 'Mentions' },
     { key: 'follows', label: 'Follows' },
     { key: 'requests', label: 'Requests' },
+    { key: 'invites', label: 'Group invites' },
     { key: 'events', label: 'Events' }
 ];
 
@@ -41,7 +51,33 @@ watch(
     (tab) => setTab(normalizeTab(tab))
 );
 
+function isChatMention(notification) {
+    return (
+        !!notification.post_mention_user_id &&
+        !notification.post_id &&
+        !!notification.group?.id
+    );
+}
+
+function openChat(notification) {
+    const groupID = notification.group?.id;
+
+    if (!groupID) {
+        return;
+    }
+
+    router.push({ path: `/groups/${groupID}`, query: { tab: 'chat' } });
+}
+
 function getCategory(notification) {
+    if (isChatMention(notification)) {
+        return 'mentions';
+    }
+
+    if (notification.group_invite_user_id || notification.group_join_user_id) {
+        return 'invites';
+    }
+
     if (notification.follow_request_user_id) {
         return 'requests';
     }
@@ -89,8 +125,10 @@ const emptyMessages = {
     all: 'No notifications yet',
     posts: 'No post notifications',
     comments: 'No comment notifications',
+    mentions: 'No mentions',
     follows: 'No follow notifications',
     requests: 'No follow requests',
+    invites: 'No group invites',
     events: 'No event notifications'
 };
 
@@ -345,6 +383,115 @@ function getActorID(notification) {
     );
 }
 
+const respondingInvites = ref(new Set());
+
+function isGroupInvite(notification) {
+    return !!notification.group_invite_user_id;
+}
+
+async function answerInvite(notification, status) {
+    const groupID = notification.group?.id;
+
+    if (!groupID || respondingInvites.value.has(notification.id)) {
+        return;
+    }
+
+    respondingInvites.value.add(notification.id);
+
+    try {
+        await respondToGroupInvite(groupID, status);
+
+        notifications.value = notifications.value.filter(
+            item => !(isGroupInvite(item) && item.group?.id === groupID)
+        );
+
+        offset.value = Math.max(0, offset.value - 1);
+
+        addNotification(
+            status === 1 ? 'group invite accepted' : 'group invite rejected'
+        );
+    } catch (err) {
+        console.error(err);
+        addNotification(err.message || 'could not update invite');
+    } finally {
+        respondingInvites.value.delete(notification.id);
+    }
+}
+
+function isEventInvite(notification) {
+    return !!notification.event_invite_user_id && !!notification.event;
+}
+
+function formatEventDate(value) {
+    const date = new Date(value);
+
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
+
+async function answerEvent(notification, value) {
+    const eventID = notification.event?.id;
+
+    if (!eventID || respondingInvites.value.has(notification.id)) {
+        return;
+    }
+
+    respondingInvites.value.add(notification.id);
+
+    try {
+        await respondGroupEvent(eventID, value);
+
+        notifications.value = notifications.value.filter(
+            item => item.id !== notification.id
+        );
+
+        offset.value = Math.max(0, offset.value - 1);
+
+        addNotification(value === 1 ? 'you are going' : 'you are not going');
+    } catch (err) {
+        console.error(err);
+        addNotification(err.message || 'could not save response');
+    } finally {
+        respondingInvites.value.delete(notification.id);
+    }
+}
+
+function isGroupJoin(notification) {
+    return !!notification.group_join_user_id;
+}
+
+async function answerJoin(notification, code) {
+    const groupID = notification.group?.id;
+
+    if (!groupID || respondingInvites.value.has(notification.id)) {
+        return;
+    }
+
+    respondingInvites.value.add(notification.id);
+
+    try {
+        await respondToJoinRequest(
+            groupID,
+            notification.group_join_user_id,
+            code
+        );
+
+        notifications.value = notifications.value.filter(
+            item => item.id !== notification.id
+        );
+
+        offset.value = Math.max(0, offset.value - 1);
+
+        addNotification(
+            code === 1 ? 'join request accepted' : 'join request rejected'
+        );
+    } catch (err) {
+        console.error(err);
+        addNotification(err.message || 'could not update request');
+    } finally {
+        respondingInvites.value.delete(notification.id);
+    }
+}
+
 async function acceptRequest(notification) {
     try {
         const result = await acceptFollowRequest(
@@ -456,6 +603,18 @@ async function acceptRequest(notification) {
                             </p>
 
                             <div
+                                v-if="isChatMention(notification)"
+                                class="notification-actions"
+                            >
+                                <button
+                                    class="accept-button"
+                                    @click="openChat(notification)"
+                                >
+                                    Open chat
+                                </button>
+                            </div>
+
+                            <div
                                 v-if="isComment(notification) && notification.comment"
                                 class="comment-preview"
                                 @click="openPost(notification.post?.id)"
@@ -476,6 +635,101 @@ async function acceptRequest(notification) {
                                     @click="acceptRequest(notification)"
                                 >
                                     Accept
+                                </button>
+                            </div>
+
+                            <div
+                                v-if="(isGroupInvite(notification) || isGroupJoin(notification)) && notification.group"
+                                class="group-preview"
+                            >
+                                <div class="group-preview-avatar">
+                                    <img
+                                        v-if="notification.group.avatar"
+                                        :src="`/uploads/${notification.group.avatar}`"
+                                        alt=""
+                                    >
+
+                                    <span v-else>
+                                        {{ (notification.group.name || '?').charAt(0).toUpperCase() }}
+                                    </span>
+                                </div>
+
+                                <div class="group-preview-text">
+                                    <span>GROUP</span>
+                                    <p>{{ notification.group.name }}</p>
+                                </div>
+                            </div>
+
+                            <div
+                                v-if="isGroupInvite(notification)"
+                                class="notification-actions invite-actions"
+                            >
+                                <button
+                                    class="accept-button"
+                                    :disabled="respondingInvites.has(notification.id)"
+                                    @click="answerInvite(notification, 1)"
+                                >
+                                    Accept
+                                </button>
+
+                                <button
+                                    class="reject-button"
+                                    :disabled="respondingInvites.has(notification.id)"
+                                    @click="answerInvite(notification, -1)"
+                                >
+                                    Reject
+                                </button>
+                            </div>
+
+                            <div
+                                v-if="isEventInvite(notification)"
+                                class="group-preview"
+                            >
+                                <div class="group-preview-text">
+                                    <span>EVENT · {{ formatEventDate(notification.event.eventTime) }}</span>
+                                    <p>{{ notification.event.title }}</p>
+                                </div>
+                            </div>
+
+                            <div
+                                v-if="isEventInvite(notification)"
+                                class="notification-actions invite-actions"
+                            >
+                                <button
+                                    class="accept-button"
+                                    :disabled="respondingInvites.has(notification.id)"
+                                    @click="answerEvent(notification, 1)"
+                                >
+                                    Going
+                                </button>
+
+                                <button
+                                    class="reject-button"
+                                    :disabled="respondingInvites.has(notification.id)"
+                                    @click="answerEvent(notification, 0)"
+                                >
+                                    Not going
+                                </button>
+                            </div>
+
+                            <div
+                                v-if="isGroupJoin(notification)"
+                                class="notification-actions invite-actions"
+                            >
+                                <button
+                                    class="accept-button"
+                                    :disabled="respondingInvites.has(notification.id)"
+                                    @click="answerJoin(notification, 1)"
+                                >
+                                    Accept
+                                </button>
+
+                                <button
+                                    class="reject-button"
+                                    :disabled="respondingInvites.has(notification.id)"
+                                    @click="answerJoin(notification, -1)"
+                                >
+                                    Reject
                                 </button>
                             </div>
 
@@ -696,6 +950,79 @@ async function acceptRequest(notification) {
 .accept-button:active {
     transform: translate(2px, 2px);
     box-shadow: 1px 1px 0 #292929;
+}
+
+.invite-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.reject-button {
+    padding: 9px 18px;
+    border: 2px solid #292929;
+    border-radius: 5px;
+    background: #fff;
+    color: #292929;
+    cursor: pointer;
+    box-shadow: 3px 3px 0 #292929;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.reject-button:active {
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0 #292929;
+}
+
+.accept-button:disabled,
+.reject-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.group-preview {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 14px;
+    padding: 10px 14px;
+    border: 2px solid #292929;
+    border-radius: 5px;
+    background: #fafafa;
+}
+
+.group-preview-avatar {
+    display: flex;
+    flex: 0 0 40px;
+    width: 40px;
+    height: 40px;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border: 2px solid #292929;
+    border-radius: 8px;
+    background: #2f8ff0;
+    color: #fff;
+    font-weight: 700;
+}
+
+.group-preview-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.group-preview-text span {
+    color: #2f8ff0;
+    font-size: 8px;
+    letter-spacing: 1.5px;
+}
+
+.group-preview-text p {
+    margin: 4px 0 0;
+    color: #333;
+    font-size: 13px;
+    font-weight: 700;
 }
 
 .post-preview {

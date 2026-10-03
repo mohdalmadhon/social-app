@@ -8,6 +8,9 @@ import { getGroupPost, insertPostReaction } from '@/api/posts/groups';
 import { activePage } from '@/data/chatState';
 import HomePosts from '@/components/home/HomePosts.vue';
 import GroupEventDialog from '@/components/groups/GroupEventDialog.vue';
+import GroupEventVotesDialog from '@/components/groups/GroupEventVotesDialog.vue';
+import { fetchGroupEvent, respondGroupEvent } from '@/api/groups/events';
+import { searchGroupMentions } from '@/api/groups/mentions';
 
 const props = defineProps({
     groupID: {
@@ -55,6 +58,20 @@ const showPostDialog = ref(false);
 const loadingPost = ref(false);
 const reacting = ref(false);
 const showEventDialog = ref(false);
+const eventCards = ref({});
+const respondingEventID = ref(null);
+const votesEvent = ref(null);
+const loadingEventIDs = new Set();
+const messageInput = ref(null);
+const mentionOpen = ref(false);
+const mentionResults = ref([]);
+const mentionIndex = ref(0);
+const mentionLoading = ref(false);
+
+let mentionStart = -1;
+let mentionQuery = '';
+let mentionTimer = null;
+let mentionRequestID = 0;
 
 let fetchTimer = null;
 let requestID = 0;
@@ -218,6 +235,79 @@ function formatFullPost(data, fallbackGroupId) {
     };
 }
 
+function parseEventContent(content) {
+    if (typeof content !== 'string') {
+        return null;
+    }
+
+    try {
+        const parsed = JSON.parse(content);
+
+        if (parsed && typeof parsed === 'object' && parsed.type === 'event' && parsed.eventID) {
+            return parsed;
+        }
+    } catch (error) {
+        return null;
+    }
+
+    return null;
+}
+
+function formatEventTime(value) {
+    const date = new Date(value);
+
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
+
+function eventCard(msg) {
+    return eventCards.value[msg.eventID] || msg.eventData;
+}
+
+async function loadEventCard(eventID) {
+    if (loadingEventIDs.has(eventID) || eventCards.value[eventID]) {
+        return;
+    }
+
+    loadingEventIDs.add(eventID);
+
+    try {
+        const event = await fetchGroupEvent(eventID);
+        eventCards.value = { ...eventCards.value, [eventID]: event };
+    } catch (err) {
+        console.error(err);
+    } finally {
+        loadingEventIDs.delete(eventID);
+    }
+}
+
+async function answerEventCard(msg, value) {
+    if (respondingEventID.value === msg.eventID) {
+        return;
+    }
+
+    respondingEventID.value = msg.eventID;
+
+    try {
+        const updated = await respondGroupEvent(msg.eventID, value);
+        eventCards.value = { ...eventCards.value, [msg.eventID]: updated };
+    } catch (err) {
+        addNotification(err.message || 'Could not save response', 'error');
+    } finally {
+        respondingEventID.value = null;
+    }
+}
+
+function openVotes(msg) {
+    votesEvent.value = {
+        id: msg.eventID,
+        title: eventCard(msg)?.title || ''
+    };
+}
+
+function closeVotes() {
+    votesEvent.value = null;
+}
+
 function formatMessage(msg) {
     const rawContent =
         msg.Content ??
@@ -225,6 +315,7 @@ function formatMessage(msg) {
         '';
 
     const postData = parsePostContent(rawContent);
+    const eventData = parseEventContent(rawContent);
 
     const sender = {
         id:
@@ -275,6 +366,26 @@ function formatMessage(msg) {
             },
             isPost: true,
             post
+        };
+    }
+
+    if (eventData) {
+        return {
+            id: msg.ID ?? msg.id,
+            content: rawContent,
+            createdAt:
+                msg.CreatedAt ??
+                msg.createdAt,
+            groupID:
+                msg.GroupID ??
+                msg.groupID,
+            sender,
+            media: null,
+            isPost: false,
+            isEvent: true,
+            eventID: Number(eventData.eventID),
+            eventData,
+            post: null
         };
     }
 
@@ -754,6 +865,7 @@ async function send() {
             });
 
             message.value = '';
+            closeMentions();
 
             scrollToBottom();
         }
@@ -766,6 +878,187 @@ async function send() {
     } finally {
         sending.value = false;
     }
+}
+
+const mentionTokenPattern = /(^|\s)@([A-Za-z0-9_-]{0,12})$/;
+const mentionSplitPattern = /(^|[^\w@])(@[A-Za-z0-9_-]{3,12})/g;
+
+function messageParts(content) {
+    const text = String(content ?? '');
+    const parts = [];
+
+    let last = 0;
+
+    for (const match of text.matchAll(mentionSplitPattern)) {
+        const start = match.index + match[1].length;
+
+        if (start > last) {
+            parts.push({ text: text.slice(last, start), mention: false });
+        }
+
+        parts.push({ text: match[2], mention: true });
+
+        last = start + match[2].length;
+    }
+
+    if (last < text.length) {
+        parts.push({ text: text.slice(last), mention: false });
+    }
+
+    return parts;
+}
+
+function closeMentions() {
+    if (mentionTimer) {
+        clearTimeout(mentionTimer);
+        mentionTimer = null;
+    }
+
+    mentionRequestID++;
+    mentionOpen.value = false;
+    mentionResults.value = [];
+    mentionIndex.value = 0;
+    mentionLoading.value = false;
+    mentionStart = -1;
+    mentionQuery = '';
+}
+
+async function loadMentions() {
+    mentionTimer = null;
+
+    const currentRequestID = ++mentionRequestID;
+
+    mentionLoading.value = true;
+
+    try {
+        const members = await searchGroupMentions(
+            props.groupID,
+            mentionQuery
+        );
+
+        if (currentRequestID !== mentionRequestID) {
+            return;
+        }
+
+        mentionResults.value = members;
+        mentionIndex.value = 0;
+    } catch (err) {
+        if (currentRequestID !== mentionRequestID) {
+            return;
+        }
+
+        mentionResults.value = [];
+    } finally {
+        if (currentRequestID === mentionRequestID) {
+            mentionLoading.value = false;
+        }
+    }
+}
+
+function updateMentionState() {
+    const input = messageInput.value;
+
+    if (!input) {
+        return;
+    }
+
+    const caret = input.selectionStart ?? message.value.length;
+    const before = message.value.slice(0, caret);
+    const match = mentionTokenPattern.exec(before);
+
+    if (!match) {
+        if (mentionOpen.value) {
+            closeMentions();
+        }
+
+        return;
+    }
+
+    mentionStart = caret - match[2].length - 1;
+
+    const query = match[2];
+
+    if (mentionOpen.value && query === mentionQuery) {
+        return;
+    }
+
+    mentionQuery = query;
+    mentionOpen.value = true;
+
+    if (mentionTimer) {
+        clearTimeout(mentionTimer);
+    }
+
+    mentionTimer = setTimeout(loadMentions, 120);
+}
+
+function onMessageKeyup(event) {
+    if (
+        ['ArrowUp', 'ArrowDown', 'Enter', 'Tab', 'Escape'].includes(event.key)
+    ) {
+        return;
+    }
+
+    updateMentionState();
+}
+
+function selectMention(member) {
+    const input = messageInput.value;
+
+    if (!member || mentionStart < 0) {
+        closeMentions();
+        return;
+    }
+
+    const caret = input?.selectionStart ?? message.value.length;
+    const insert = `@${member.username} `;
+
+    message.value =
+        message.value.slice(0, mentionStart) +
+        insert +
+        message.value.slice(caret);
+
+    const position = mentionStart + insert.length;
+
+    closeMentions();
+
+    nextTick(() => {
+        if (!input) {
+            return;
+        }
+
+        input.focus();
+        input.setSelectionRange(position, position);
+    });
+}
+
+function toggleMentionPicker() {
+    const input = messageInput.value;
+
+    if (!input || loading.value) {
+        return;
+    }
+
+    if (mentionOpen.value) {
+        closeMentions();
+        input.focus();
+        return;
+    }
+
+    const caret = input.selectionStart ?? message.value.length;
+    const before = message.value.slice(0, caret);
+    const needsSpace = before.length > 0 && !/\s$/.test(before);
+    const insert = (needsSpace ? ' ' : '') + '@';
+
+    message.value = before + insert + message.value.slice(caret);
+
+    const position = caret + insert.length;
+
+    nextTick(() => {
+        input.focus();
+        input.setSelectionRange(position, position);
+        updateMentionState();
+    });
 }
 
 function openEventDialog() {
@@ -782,6 +1075,34 @@ function eventCreated(event) {
 }
 
 function handleKeydown(event) {
+    if (mentionOpen.value) {
+        const total = mentionResults.value.length;
+
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            closeMentions();
+            return;
+        }
+
+        if (total && event.key === 'ArrowDown') {
+            event.preventDefault();
+            mentionIndex.value = (mentionIndex.value + 1) % total;
+            return;
+        }
+
+        if (total && event.key === 'ArrowUp') {
+            event.preventDefault();
+            mentionIndex.value = (mentionIndex.value - 1 + total) % total;
+            return;
+        }
+
+        if (total && (event.key === 'Enter' || event.key === 'Tab')) {
+            event.preventDefault();
+            selectMention(mentionResults.value[mentionIndex.value]);
+            return;
+        }
+    }
+
     if (
         event.key === 'Enter' &&
         !event.shiftKey
@@ -827,6 +1148,20 @@ watch(
 );
 
 watch(
+    () => messages.value.length,
+    () => {
+        for (const msg of messages.value) {
+            if (msg.isEvent) {
+                loadEventCard(msg.eventID);
+            }
+        }
+    },
+    {
+        immediate: true
+    }
+);
+
+watch(
     messagesContainer,
     (newEl, oldEl) => {
         if (oldEl) {
@@ -859,6 +1194,10 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+    if (activePage.value === 'group:' + props.groupID) {
+        activePage.value = null;
+    }
+
     window.removeEventListener(
         'chat-message',
         receiveMessage
@@ -875,6 +1214,8 @@ onUnmounted(() => {
         clearTimeout(fetchTimer);
         fetchTimer = null;
     }
+
+    closeMentions();
 
     requestID++;
     postRequestID++;
@@ -922,12 +1263,12 @@ onUnmounted(() => {
             </div>
 
             <template v-else>
-                <div v-for="(msg, index) in messages" :key="msg.id ?? index" class="message" :class="msg.isPost
+                <div v-for="(msg, index) in messages" :key="msg.id ?? index" class="message" :class="(msg.isPost || msg.isEvent)
                     ? 'post-centered'
                     : (isOwnMessage(msg) ? 'sent' : 'received')
                     ">
                     <div v-if="
-                        !msg.isPost && !isOwnMessage(msg)
+                        !msg.isPost && !msg.isEvent && !isOwnMessage(msg)
                     " class="message-avatar">
                         <img v-if="
                             msg.sender?.avatar
@@ -948,7 +1289,7 @@ onUnmounted(() => {
 
                     <div class="message-body" :class="{ 'media-body': msg.media }">
                         <span v-if="
-                            !msg.isPost && !isOwnMessage(msg)
+                            !msg.isPost && !msg.isEvent && !isOwnMessage(msg)
                         " class="message-sender-name">
                             {{
                                 msg.sender?.firstName
@@ -1009,11 +1350,49 @@ onUnmounted(() => {
                             </button>
                         </template>
 
+                        <div v-else-if="msg.isEvent" class="event-message">
+                            <span class="event-message-badge">EVENT</span>
+
+                            <h4>{{ eventCard(msg)?.title }}</h4>
+
+                            <span class="event-message-time">
+                                {{ formatEventTime(eventCard(msg)?.eventTime) }}
+                            </span>
+
+                            <p v-if="eventCard(msg)?.description" class="event-message-description">
+                                {{ eventCard(msg).description }}
+                            </p>
+
+                            <div v-if="eventCard(msg)?.goingCount !== undefined" class="event-message-counts">
+                                <span>{{ eventCard(msg).goingCount }} going</span>
+                                <span>{{ eventCard(msg).notGoingCount }} not going</span>
+                            </div>
+
+                            <div class="event-message-actions">
+                                <button type="button" :class="{ active: eventCard(msg)?.userResponse === 1 }"
+                                    :disabled="respondingEventID === msg.eventID" @click="answerEventCard(msg, 1)">
+                                    Going
+                                </button>
+
+                                <button type="button" :class="{ active: eventCard(msg)?.userResponse === 0 }"
+                                    :disabled="respondingEventID === msg.eventID" @click="answerEventCard(msg, 0)">
+                                    Not going
+                                </button>
+
+                                <button type="button" class="ghost" @click="openVotes(msg)">
+                                    See votes
+                                </button>
+                            </div>
+                        </div>
+
                         <img v-else-if="msg.media" class="message-image" :src="`/uploads/${msg.media.path}`"
                             alt="" @click="openImage(msg.media.path)" />
 
                         <p v-else>
-                            {{ msg.content }}
+                            <template v-for="(part, partIndex) in messageParts(msg.content)" :key="partIndex">
+                                <span v-if="part.mention" class="mention">{{ part.text }}</span>
+                                <template v-else>{{ part.text }}</template>
+                            </template>
                         </p>
                     </div>
                 </div>
@@ -1048,8 +1427,32 @@ onUnmounted(() => {
                 + Image
             </button>
 
-            <input v-model="message" type="text" placeholder="Type a message..." :disabled="loading"
-                @keydown="handleKeydown" />
+            <button type="button" class="event-trigger" title="Mention a member" :disabled="loading"
+                @mousedown.prevent @click="toggleMentionPicker">
+                @ Mention
+            </button>
+
+            <ul v-if="mentionOpen" class="mention-picker">
+                <li v-for="(member, memberIndex) in mentionResults" :key="member.id"
+                    :class="{ active: memberIndex === mentionIndex }" @mousedown.prevent="selectMention(member)"
+                    @mousemove="mentionIndex = memberIndex">
+                    <span class="mention-avatar">
+                        <img v-if="member.avatar" :src="`/uploads/${member.avatar}`" alt="" />
+                        <span v-else>{{ (member.firstName || '?').charAt(0) }}</span>
+                    </span>
+
+                    <span class="mention-name">{{ member.firstName }} {{ member.lastName }}</span>
+                    <span class="mention-username">@{{ member.username }}</span>
+                </li>
+
+                <li v-if="!mentionResults.length" class="mention-empty">
+                    {{ mentionLoading ? 'Searching...' : 'No members found' }}
+                </li>
+            </ul>
+
+            <input ref="messageInput" v-model="message" type="text" placeholder="Type a message..."
+                :disabled="loading" autocomplete="off" @keydown="handleKeydown" @input="updateMentionState"
+                @keyup="onMessageKeyup" @click="updateMentionState" @blur="closeMentions" />
 
             <button type="submit" :disabled="sending ||
                 loading ||
@@ -1109,6 +1512,9 @@ onUnmounted(() => {
             </div>
         </div>
     </section>
+
+    <GroupEventVotesDialog :show="!!votesEvent" :event-id="votesEvent?.id ?? null"
+        :event-title="votesEvent?.title ?? ''" @close="closeVotes" />
 </template>
 
 <style scoped>
@@ -1512,6 +1918,7 @@ onUnmounted(() => {
 }
 
 .composer {
+    position: relative;
     flex: 0 0 auto;
     display: flex;
     gap: 10px;
@@ -1572,6 +1979,89 @@ onUnmounted(() => {
     color: var(--font-color-sub);
     font-family: "JetBrains Mono", monospace;
     font-size: 10px;
+}
+
+.mention-picker {
+    position: absolute;
+    left: 20px;
+    right: 20px;
+    bottom: 100%;
+    z-index: 20;
+    max-height: 240px;
+    margin: 0 0 6px;
+    padding: 4px;
+    overflow-y: auto;
+    list-style: none;
+    border: 2px solid var(--main-color);
+    border-radius: 6px;
+    background: var(--bg-color);
+    box-shadow: 4px 4px var(--main-color);
+    box-sizing: border-box;
+}
+
+.mention-picker li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px;
+    border-radius: 4px;
+    color: var(--font-color);
+    cursor: pointer;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+}
+
+.mention-picker li.active {
+    background: var(--main-color);
+    color: var(--bg-color);
+}
+
+.mention-picker li.mention-empty {
+    color: var(--font-color-sub);
+    cursor: default;
+}
+
+.mention-avatar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    overflow: hidden;
+    border: 2px solid var(--main-color);
+    border-radius: 50%;
+    background: var(--input-focus);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.mention-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.mention-name {
+    min-width: 0;
+    overflow: hidden;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mention-username {
+    margin-left: auto;
+    opacity: 0.7;
+}
+
+.mention {
+    padding: 0 3px;
+    border-radius: 3px;
+    background: rgba(47, 143, 240, 0.28);
+    font-weight: 700;
 }
 
 .event-trigger {
@@ -1752,5 +2242,74 @@ onUnmounted(() => {
         top: 4px;
         right: 4px;
     }
+}
+
+.event-message {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: min(360px, 100%);
+    padding: 14px;
+    border: 2px solid var(--main-color);
+    border-radius: 8px;
+    background: var(--bg-color);
+    text-align: left;
+}
+
+.event-message h4 {
+    margin: 0;
+    font-size: 16px;
+}
+
+.event-message-badge {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--main-color);
+}
+
+.event-message-time,
+.event-message-counts {
+    display: flex;
+    gap: 12px;
+    font-size: 13px;
+    opacity: 0.8;
+}
+
+.event-message-description {
+    margin: 0;
+    font-size: 14px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.event-message-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.event-message-actions button {
+    padding: 6px 12px;
+    border: 2px solid var(--main-color);
+    border-radius: 6px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}
+
+.event-message-actions button.active {
+    background: var(--main-color);
+    color: var(--bg-color);
+}
+
+.event-message-actions button.ghost {
+    border-color: transparent;
+    text-decoration: underline;
+}
+
+.event-message-actions button:disabled {
+    opacity: 0.6;
+    cursor: default;
 }
 </style>
