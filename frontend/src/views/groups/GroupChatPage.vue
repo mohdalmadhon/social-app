@@ -15,7 +15,7 @@ import { addNotification } from '@/data/notifications';
 import { getGroupPosts as fetchGroupPosts } from '@/api/posts/groupComments';
 import { throttle } from '@/helpers/throttle';
 
-import { onMounted, onUnmounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 
 const group = ref({});
@@ -35,7 +35,20 @@ const currentUserId = ref(null);
 const events = ref([]);
 const eventsTab = ref(null);
 
-const activeTab = ref('group');
+const validTabs = ['group', 'events', 'chat'];
+
+function tabFromRoute() {
+    return validTabs.includes(route.query.tab) ? route.query.tab : 'group';
+}
+
+const activeTab = ref(tabFromRoute());
+
+watch(
+    () => route.query.tab,
+    () => {
+        activeTab.value = tabFromRoute();
+    }
+);
 const showMembers = ref(false);
 const showPostDialog = ref(false);
 

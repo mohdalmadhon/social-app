@@ -16,6 +16,10 @@ export async function refreshUnreadNotificationCount() {
     }
 }
 
+export function setUnreadNotificationCount(count) {
+    unreadNotificationCount.value = Math.max(0, Number(count) || 0);
+}
+
 export function incrementUnreadNotificationCount() {
     unreadNotificationCount.value += 1;
 }

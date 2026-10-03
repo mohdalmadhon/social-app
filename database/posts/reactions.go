@@ -5,10 +5,9 @@ import (
 	"social/internal/models"
 )
 
-func InsertReaction(db *sql.DB, reaction models.Reaction) error {
+func InsertReaction(db *sql.DB, reaction models.Reaction) (error, bool) {
 
 	var currentValue int
-
 	err := db.QueryRow(`
 		SELECT value
 		FROM post_reactions
@@ -16,16 +15,16 @@ func InsertReaction(db *sql.DB, reaction models.Reaction) error {
 	`, reaction.UserID, reaction.PostID).Scan(&currentValue)
 
 	if err != nil && err != sql.ErrNoRows {
-		return err
+		return err, false
 	}
-	
+
 	if reaction.Value == currentValue {
 		_, err := db.Exec(`
 			DELETE FROM post_reactions
 			WHERE post_id = ? AND user_id = ?
 		`, reaction.PostID, reaction.UserID)
 
-		return err
+		return err, true
 	}
 
 	if err == sql.ErrNoRows {
@@ -34,7 +33,7 @@ func InsertReaction(db *sql.DB, reaction models.Reaction) error {
 			VALUES (?, ?, ?)
 		`, reaction.PostID, reaction.UserID, reaction.Value)
 
-		return err
+		return err, false
 	}
 
 	_, err = db.Exec(`
@@ -43,5 +42,5 @@ func InsertReaction(db *sql.DB, reaction models.Reaction) error {
 		WHERE user_id = ? AND post_id = ?
 	`, reaction.Value, reaction.UserID, reaction.PostID)
 
-	return err
+	return err, false
 }

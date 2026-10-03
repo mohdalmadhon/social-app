@@ -1,5 +1,6 @@
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 
 import { getNotifications, acceptFollowRequest, markNotificationsRead } from '@/api/common/notifications';
 
@@ -18,23 +19,115 @@ const offset = ref(0);
 const limit = 15;
 const selectedPostId = ref(null);
 const showPostDialog = ref(false);
-const activeTab = ref('all');
+const route = useRoute();
 
-const requestNotifications = computed(() =>
-    notifications.value.filter(isFollowRequest)
+const tabs = [
+    { key: 'all', label: 'All' },
+    { key: 'posts', label: 'Posts' },
+    { key: 'comments', label: 'Comments' },
+    { key: 'follows', label: 'Follows' },
+    { key: 'requests', label: 'Requests' },
+    { key: 'events', label: 'Events' }
+];
+
+function normalizeTab(tab) {
+    return tabs.some(item => item.key === tab) ? tab : 'all';
+}
+
+const activeTab = ref(normalizeTab(route.query.tab));
+
+watch(
+    () => route.query.tab,
+    (tab) => setTab(normalizeTab(tab))
 );
 
-const generalNotifications = computed(() =>
-    notifications.value.filter(notification => !isFollowRequest(notification))
-);
+function getCategory(notification) {
+    if (notification.follow_request_user_id) {
+        return 'requests';
+    }
+
+    if (notification.follow_user_id || notification.follow_request_accept_user_id) {
+        return 'follows';
+    }
+
+    if (
+        notification.comment_reply_user_id ||
+        notification.comment_like_user_id ||
+        notification.comment_mention_user_id
+    ) {
+        return 'comments';
+    }
+
+    if (notification.event_invite_user_id || notification.event_response_user_id) {
+        return 'events';
+    }
+
+    return 'posts';
+}
+
+const tabCounts = computed(() => {
+    const counts = { all: notifications.value.length };
+
+    for (const notification of notifications.value) {
+        const category = getCategory(notification);
+
+        counts[category] = (counts[category] || 0) + 1;
+    }
+
+    return counts;
+});
 
 const visibleNotifications = computed(() =>
-    activeTab.value === 'requests'
-        ? requestNotifications.value
-        : generalNotifications.value
+    activeTab.value === 'all'
+        ? notifications.value
+        : notifications.value.filter(
+            notification => getCategory(notification) === activeTab.value
+        )
 );
 
+const emptyMessages = {
+    all: 'No notifications yet',
+    posts: 'No post notifications',
+    comments: 'No comment notifications',
+    follows: 'No follow notifications',
+    requests: 'No follow requests',
+    events: 'No event notifications'
+};
+
+let liveRefreshing = false;
+
+async function handleLiveNotification() {
+    if (liveRefreshing) {
+        return;
+    }
+
+    liveRefreshing = true;
+
+    try {
+        const result = await getNotifications(0, limit);
+
+        const latest = Array.isArray(result.notifications)
+            ? result.notifications
+            : [];
+
+        const knownIDs = new Set(notifications.value.map(item => item.id));
+        const fresh = latest.filter(item => !knownIDs.has(item.id));
+
+        if (fresh.length) {
+            notifications.value.unshift(...fresh);
+            offset.value += fresh.length;
+        }
+
+        markAsRead();
+    } catch (err) {
+        console.error(err);
+    } finally {
+        liveRefreshing = false;
+    }
+}
+
 onMounted(async () => {
+    window.addEventListener('notification-received', handleLiveNotification);
     await loadNotifications();
     window.addEventListener('scroll', handleScroll);
     markAsRead();
@@ -43,6 +136,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
     window.removeEventListener('scroll', handleScroll);
+    window.removeEventListener('notification-received', handleLiveNotification);
 });
 
 async function markAsRead() {
@@ -289,21 +383,17 @@ async function acceptRequest(notification) {
 
                 <div class="notification-tabs">
                     <button
+                        v-for="tab in tabs"
+                        :key="tab.key"
                         type="button"
                         class="tab-button"
-                        :class="{ active: activeTab === 'all' }"
-                        @click="setTab('all')"
+                        :class="{ active: activeTab === tab.key }"
+                        @click="setTab(tab.key)"
                     >
-                        All
-                    </button>
-
-                    <button
-                        type="button"
-                        class="tab-button"
-                        :class="{ active: activeTab === 'requests' }"
-                        @click="setTab('requests')"
-                    >
-                        Follow requests
+                        {{ tab.label }}
+                        <span v-if="tabCounts[tab.key]" class="tab-count">
+                            {{ tabCounts[tab.key] }}
+                        </span>
                     </button>
                 </div>
 
@@ -323,7 +413,7 @@ async function acceptRequest(notification) {
                         v-else-if="visibleNotifications.length === 0"
                         class="empty-state"
                     >
-                        {{ activeTab === 'requests' ? 'No follow requests' : 'No notifications yet' }}
+                        {{ emptyMessages[activeTab] }}
                     </div>
 
                     <div
@@ -471,8 +561,18 @@ async function acceptRequest(notification) {
 
 .notification-tabs {
     display: flex;
+    flex-wrap: wrap;
     gap: 12px;
     margin-bottom: 20px;
+}
+
+.tab-count {
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 9px;
+    background: #2f8ff0;
+    color: #fff;
+    font-size: 9px;
 }
 
 .tab-button {

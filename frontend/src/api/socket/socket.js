@@ -1,9 +1,87 @@
 import { activePage } from '@/data/chatState';
-import { addNotification } from '@/data/notifications';
-import { handleIncomingNotification } from '@/data/notificationCount';
+import { addNotification, postImageUrl, avatarUrl } from '@/data/notifications';
+import {
+    handleIncomingNotification,
+    incrementUnreadNotificationCount,
+    refreshUnreadNotificationCount,
+    setUnreadNotificationCount
+} from '@/data/notificationCount';
 
 let ws = null;
+let reconnectTimer = null;
 const notificationDebounce = new Map();
+const toastDebounce = new Map();
+const TOAST_COOLDOWN = 10 * 1000;
+
+function isDuplicateToast(payload) {
+    const key = `${payload.actor?.id || 0}:${payload.kind || ''}:${payload.post_id || 0}:${payload.message}`;
+    const now = Date.now();
+    const last = toastDebounce.get(key);
+
+    toastDebounce.set(key, now);
+
+    for (const [storedKey, time] of toastDebounce) {
+        if (now - time > TOAST_COOLDOWN) {
+            toastDebounce.delete(storedKey);
+        }
+    }
+
+    return !!last && now - last < TOAST_COOLDOWN;
+}
+
+function initialOf(firstName) {
+    return (firstName || '').trim().charAt(0).toUpperCase();
+}
+
+// avatar + where a click on the toast should lead, for everything that is
+// not a chat message (post related -> dialog, follow -> notifications page)
+function notificationOptions(payload) {
+    const options = {
+        avatar: avatarUrl(payload.actor?.avatarPath),
+        initial: initialOf(payload.actor?.firstName)
+    };
+
+    if (payload.post_id) {
+        options.postId = payload.post_id;
+        options.image = postImageUrl(payload.image_path);
+    } else if (payload.kind === 'follow_request') {
+        options.route = { path: '/notifications', query: { tab: 'requests' } };
+    } else {
+        options.route = { path: '/notifications' };
+    }
+
+    return options;
+}
+
+// chat messages: private chat -> /chats, group chat -> the group's chat tab
+function messageOptions(payload) {
+    const message = payload.data;
+    const sender = message.Sender || {};
+
+    const options = {
+        avatar: avatarUrl(sender.avatar),
+        initial: initialOf(sender.firstName)
+    };
+
+    if (payload.isPrivate) {
+        options.route = {
+            path: '/chats',
+            query: {
+                userId: sender.ID,
+                firstName: sender.firstName || '',
+                lastName: sender.lastName || '',
+                avatar: sender.avatar || ''
+            }
+        };
+    } else {
+        options.route = {
+            path: `/groups/${message.GroupID}`,
+            query: { tab: 'chat' }
+        };
+    }
+
+    return options;
+}
 
 export function connectToWS() {
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -14,8 +92,12 @@ export function connectToWS() {
 
     ws = new WebSocket(`${protocol}//${window.location.host}/api/ws`);
 
+    let opened = false;
+
     ws.onopen = () => {
+        opened = true;
         console.log('websocket connected');
+        refreshUnreadNotificationCount();
     };
 
     ws.onmessage = (event) => {
@@ -23,6 +105,35 @@ export function connectToWS() {
         switch (payload.type) {
             case 'notification':
                 console.log('Notification:', payload.data);
+
+                if (payload.error == true) {
+                    addNotification("could not send notification " || payload.message, 'error')
+                    return
+                }
+
+                if (payload.message) {
+                    if (typeof payload.unread === 'number') {
+                        setUnreadNotificationCount(payload.unread);
+                    } else {
+                        incrementUnreadNotificationCount();
+                    }
+
+                    window.dispatchEvent(
+                        new CustomEvent('notification-received', {
+                            detail: payload
+                        })
+                    );
+
+                    if (!isDuplicateToast(payload)) {
+                        addNotification(
+                            payload.message,
+                            'success',
+                            notificationOptions(payload)
+                        );
+                    }
+
+                    return;
+                }
 
                 if (payload.data?.error) {
                     window.dispatchEvent(
@@ -60,9 +171,14 @@ export function connectToWS() {
                         !lastNotification ||
                         now - lastNotification >= 30 * 60 * 1000
                     ) {
+                        const sender = message.Sender.firstName || 'user';
+
                         addNotification(
-                            `New message from ${message.Sender.firstName || 'user'}`,
-                            'message'
+                            !payload.isPrivate && payload.groupName
+                                ? `New message from ${sender} in ${payload.groupName}`
+                                : `New message from ${sender}`,
+                            'message',
+                            messageOptions(payload)
                         );
 
                         notificationDebounce.set(groupID, now);
@@ -77,6 +193,13 @@ export function connectToWS() {
     ws.onclose = () => {
         console.log('websocket disconnected');
         ws = null;
+
+        if (opened && !reconnectTimer) {
+            reconnectTimer = setTimeout(() => {
+                reconnectTimer = null;
+                connectToWS();
+            }, 3000);
+        }
     };
 
     ws.onerror = (error) => {

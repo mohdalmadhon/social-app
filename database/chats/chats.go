@@ -228,3 +228,20 @@ func IsPrivateChat(db *sql.DB, groupID, userID int) (bool, int, error) {
 
 	return true, targetID, nil
 }
+
+func GetChatMeta(db *sql.DB, groupID int) (bool, string, error) {
+	var isPrivate int
+	var name sql.NullString
+
+	err := db.QueryRow(`
+		SELECT is_private_chat, name
+		FROM groups
+		WHERE id = ?
+	`, groupID).Scan(&isPrivate, &name)
+
+	if err != nil {
+		return false, "", err
+	}
+
+	return isPrivate == 1, name.String, nil
+}

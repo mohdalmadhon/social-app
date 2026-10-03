@@ -3,10 +3,10 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"social/database/groups"
-	"social/database/notifications"
 	"social/database/users"
 	"social/internal/helpers"
 	"social/internal/models"
@@ -157,41 +157,23 @@ func (app *App) AddGroupPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// group posts live in group_posts, not posts, so PostIDTag (a FK to
+	// posts.id) must not be set here: it would point at an unrelated post.
+	groupTagName := app.actorName(userID)
+	groupTagged := map[int]bool{userID: true}
+
 	for _, taggedUserID := range taggedPeople {
-		if taggedUserID == userID {
+		if groupTagged[taggedUserID] {
 			continue
 		}
 
-		notification := models.NewNotification{
+		groupTagged[taggedUserID] = true
+
+		app.notify(userID, models.NewNotification{
 			UserID:            taggedUserID,
-			Message:           "You were tagged in a post",
-			PostIDTag:         &postID,
+			Message:           fmt.Sprintf("%s tagged you in a group post", groupTagName),
 			PostMentionUserID: &userID,
-		}
-
-		if err := notifications.InsertNotification(app.DB, notification); err != nil {
-			log.Println("failed to create tag notification:", err)
-			continue
-		}
-
-		notificationData, err := json.Marshal(notification)
-
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-
-		wsMessage, err := json.Marshal(models.WSPayload{
-			Type: "notification",
-			Data: notificationData,
 		})
-
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-
-		println(string(wsMessage))
 	}
 
 	user, err := users.GetUserSimpleData(app.DB, userID)

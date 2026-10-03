@@ -99,6 +99,8 @@ func (app *App) AddGroupEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	app.notifyEventInvite(userID, created)
+
 	helpers.WriteJson(w, http.StatusCreated, map[string]any{
 		"status":  true,
 		"message": "event created",
@@ -280,6 +282,8 @@ func (app *App) RespondGroupEvent(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	app.notifyEventResponse(userID, event)
 
 	helpers.WriteJson(w, http.StatusOK, map[string]any{
 		"status":  true,

@@ -2,11 +2,10 @@ package api
 
 import (
 	"database/sql"
-	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"social/database/chats"
-	"social/database/notifications"
 	"social/database/preferences"
 	"social/database/profiles"
 	"social/internal/helpers"
@@ -213,38 +212,20 @@ func (app *App) RequestFollow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var notification models.NewNotification
+	followerName := app.actorName(followerID)
 
 	if requestCode == 1 {
-		notification = models.NewNotification{
+		app.notify(followerID, models.NewNotification{
 			UserID:       targetID,
-			Message:      "You have a new follower",
+			Message:      fmt.Sprintf("%s started following you", followerName),
 			FollowUserID: &followerID,
-		}
-	} else {
-		notification = models.NewNotification{
-			UserID:              targetID,
-			Message:             "You have a new follow request",
-			FollowRequestUserID: &followerID,
-		}
-	}
-
-	if err := notifications.InsertNotification(app.DB, notification); err != nil {
-		log.Println("failed to create notification:", err)
-	}
-
-	notificationData, err := json.Marshal(notification)
-
-	if err == nil {
-		wsMessage, err := json.Marshal(models.WSPayload{
-			Type: "notification",
-			Data: notificationData,
 		})
-
-		if err == nil {
-			println(wsMessage)
-			// app.SendToUser(targetID, wsMessage)
-		}
+	} else {
+		app.notify(followerID, models.NewNotification{
+			UserID:              targetID,
+			Message:             fmt.Sprintf("%s sent you a follow request", followerName),
+			FollowRequestUserID: &followerID,
+		})
 	}
 
 	helpers.WriteJson(w, http.StatusOK, map[string]any{
@@ -487,29 +468,11 @@ func (app *App) AcceptFollowRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	notification := models.NewNotification{
+	app.notify(userID, models.NewNotification{
 		UserID:                    requesterID,
-		Message:                   "Your follow request was accepted",
+		Message:                   fmt.Sprintf("%s accepted your follow request", app.actorName(userID)),
 		FollowRequestAcceptUserID: &userID,
-	}
-
-	if err := notifications.InsertNotification(app.DB, notification); err != nil {
-		log.Println("failed to create notification:", err)
-	}
-
-	notificationData, err := json.Marshal(notification)
-
-	if err == nil {
-		wsMessage, err := json.Marshal(models.WSPayload{
-			Type: "notification",
-			Data: notificationData,
-		})
-
-		if err == nil {
-			println(wsMessage)
-			// app.SendToUser(requesterID, wsMessage)
-		}
-	}
+	})
 
 	helpers.WriteJson(w, http.StatusOK, map[string]any{
 		"status":  true,

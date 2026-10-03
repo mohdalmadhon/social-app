@@ -19,7 +19,7 @@ func (app *App) handleNotification(data json.RawMessage) {
 		return
 	}
 
-	if err := notifications.InsertNotification(app.DB, notification); err != nil {
+	if _, err := notifications.InsertNotification(app.DB, notification); err != nil {
 		log.Println("failed to insert notification:", err)
 		return
 	}

@@ -315,3 +315,34 @@ func GetGroupEventVoters(db *sql.DB, eventID, response, limit, offset int) ([]mo
 
 	return voters, nil
 }
+
+// GetActiveMemberIDs returns the ids of the users who are accepted members of
+// a group (pending / declined invites are left out).
+func GetActiveMemberIDs(db *sql.DB, groupID int) ([]int, error) {
+	rows, err := db.Query(`
+		SELECT user_id
+		FROM groups_users
+		WHERE group_id = ?
+		AND status = 1
+	`, groupID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	var ids []int
+
+	for rows.Next() {
+		var id int
+
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+
+		ids = append(ids, id)
+	}
+
+	return ids, rows.Err()
+}

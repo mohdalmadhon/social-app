@@ -1,5 +1,27 @@
 <script setup>
-import { notifications, removeNotification } from '@/data/notifications';
+import {
+    notifications,
+    removeNotification,
+    postDialog,
+    openPostDialog,
+    closePostDialog
+} from '@/data/notifications';
+import NotificationPostDialog from '@/components/notifications/NotificationPostDialog.vue';
+import { useRouter } from 'vue-router';
+
+const router = useRouter();
+
+function openToast(notification) {
+    if (notification.postId) {
+        openPostDialog(notification.postId);
+    } else if (notification.route) {
+        router.push(notification.route);
+    } else {
+        return;
+    }
+
+    removeNotification(notification.id);
+}
 </script>
     
 <template>
@@ -8,18 +30,45 @@ import { notifications, removeNotification } from '@/data/notifications';
             v-for="notification in notifications"
             :key="notification.id"
             class="notification"
-            :class="notification.type"
+            :class="[notification.type, { clickable: notification.postId || notification.route }]"
+            @click="openToast(notification)"
         >
-            <span>{{ notification.message }}</span>
+            <div
+                v-if="notification.avatar || notification.initial"
+                class="notification-avatar"
+            >
+                <img
+                    v-if="notification.avatar"
+                    :src="notification.avatar"
+                    alt=""
+                >
+
+                <span v-else>{{ notification.initial }}</span>
+            </div>
+
+            <span class="notification-text">{{ notification.message }}</span>
+
+            <img
+                v-if="notification.image"
+                :src="notification.image"
+                alt=""
+                class="notification-image"
+            >
 
             <button
                 type="button"
-                @click="removeNotification(notification.id)"
+                @click.stop="removeNotification(notification.id)"
             >
                 ×
             </button>
         </div>
     </div>
+
+    <NotificationPostDialog
+        :show="postDialog.show"
+        :post-id="postDialog.postId"
+        @close="closePostDialog"
+    />
 </template>
 
 <style scoped>
@@ -54,6 +103,46 @@ import { notifications, removeNotification } from '@/data/notifications';
 
     font-family: "JetBrains Mono", monospace;
     font-size: 10px;
+}
+
+.notification.clickable {
+    cursor: pointer;
+}
+
+.notification-avatar {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    overflow: hidden;
+    border: 2px solid var(--main-color);
+    border-radius: 50%;
+    background: var(--input-focus);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.notification-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.notification-image {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    object-fit: cover;
+    border: 2px solid var(--main-color);
+    border-radius: 4px;
+}
+
+.notification-text {
+    flex: 1;
+    min-width: 0;
 }
 
 .notification.success {

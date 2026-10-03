@@ -3,11 +3,11 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
 
-	"social/database/notifications"
 	"social/database/posts"
 	"social/internal/helpers"
 	"social/internal/models"
@@ -123,42 +123,33 @@ func (app *App) AddPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	actorName := app.actorName(userID)
+	notified := map[int]bool{userID: true}
+
 	for _, taggedUserID := range taggedPeople {
-		if taggedUserID == userID {
+		if notified[taggedUserID] {
 			continue
 		}
 
-		notification := models.NewNotification{
+		notified[taggedUserID] = true
+
+		app.notify(userID, models.NewNotification{
 			UserID:            taggedUserID,
-			Message:           "You were tagged in a post",
+			Message:           fmt.Sprintf("%s tagged you in a post", actorName),
 			PostIDTag:         &postID,
 			PostMentionUserID: &userID,
-		}
-
-		if err := notifications.InsertNotification(app.DB, notification); err != nil {
-			log.Println("failed to create tag notification:", err)
-			continue
-		}
-
-		notificationData, err := json.Marshal(notification)
-
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-
-		wsMessage, err := json.Marshal(models.WSPayload{
-			Type: "notification",
-			Data: notificationData,
 		})
+	}
 
-		if err != nil {
-			log.Println(err)
-			continue
-		}
+	for _, mentionedID := range app.mentionedUserIDs(post.Content, notified) {
+		notified[mentionedID] = true
 
-		// app.SendToUser(taggedUserID, wsMessage)
-		println(wsMessage)
+		app.notify(userID, models.NewNotification{
+			UserID:            mentionedID,
+			Message:           fmt.Sprintf("%s mentioned you in a post", actorName),
+			PostIDTag:         &postID,
+			PostMentionUserID: &userID,
+		})
 	}
 
 	helpers.WriteJson(w, http.StatusCreated, map[string]any{
@@ -239,12 +230,45 @@ func (app *App) PostReaction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rect.UserID = userID
-	if err := posts.InsertReaction(app.DB, rect); err != nil {
+	err, deletion := posts.InsertReaction(app.DB, rect)
+	if err != nil {
+
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 			"status":  false,
 			"message": "could not insert reaction",
 		})
 		return
+	}
+
+	if deletion {
+		helpers.WriteJson(w, http.StatusOK, map[string]any{
+			"status":  true,
+			"message": "reaction inserted!",
+		})
+		return
+	}
+	// send notification (best effort: the reaction itself is already saved)
+
+	targetID, err := posts.GetPostOwnerID(app.DB, rect.PostID)
+	if err != nil {
+		log.Println("could not find post owner:", err)
+	} else {
+		notification := models.NewNotification{
+			UserID:    targetID,
+			PostIDTag: &rect.PostID,
+		}
+
+		name := app.actorName(userID)
+
+		if rect.Value == 1 {
+			notification.PostLikeUserID = &userID
+			notification.Message = fmt.Sprintf("%s liked your post", name)
+		} else {
+			notification.PostDislikeUserID = &userID
+			notification.Message = fmt.Sprintf("%s disliked your post", name)
+		}
+
+		app.notify(userID, notification)
 	}
 
 	helpers.WriteJson(w, http.StatusOK, map[string]any{
@@ -255,7 +279,7 @@ func (app *App) PostReaction(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) GetUserPosts(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value("userID").(int)
-	
+
 	if !ok {
 		helpers.WriteJson(w, http.StatusUnauthorized, map[string]any{
 			"status":  false,
@@ -417,5 +441,3 @@ func (app *App) ViewPost(w http.ResponseWriter, r *http.Request) {
 		"message": "all good",
 	})
 }
-
-

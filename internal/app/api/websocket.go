@@ -2,11 +2,15 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"social/database/chats"
+	"social/database/posts"
 	"social/database/users"
+	"social/internal/helpers"
 	"social/internal/models"
+	"strings"
 
 	"golang.org/x/net/websocket"
 )
@@ -61,6 +65,98 @@ func (app *App) readLoop(userID int, ws *websocket.Conn) {
 
 		default:
 			log.Println("unknown websocket type:", payload.Type)
+		}
+	}
+}
+
+func (app *App) sendNotification(userID int, targetID int, data models.NewNotification, notificationID int, unread int) {
+	userData, err := users.GetUserSimpleData(app.DB, userID)
+
+	if err != nil {
+		errMsg := map[string]any{
+			"type":    "notification",
+			"error":   true,
+			"message": "could not send notification",
+		}
+
+		payload, err := json.Marshal(errMsg)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+
+		app.H.Mu.Lock()
+		conn := app.H.Conn[userID]
+		app.H.Mu.Unlock()
+
+		if conn != nil {
+			if _, err := conn.Write(payload); err != nil {
+				log.Println(err)
+			}
+		}
+
+		return
+	}
+
+	msgWord := helpers.GetNotificationType(data)
+
+	name := userData.UserName
+
+	if name == "" {
+		name = strings.TrimSpace(userData.FirstName + " " + userData.LastName)
+	}
+
+	message := data.Message
+
+	if message == "" {
+		message = fmt.Sprintf("new %s from %s", msgWord, name)
+	}
+
+	kind := msgWord
+
+	if data.FollowRequestUserID != nil {
+		kind = "follow_request"
+	}
+
+	msg := map[string]any{
+		"type":    "notification",
+		"error":   false,
+		"message": message,
+		"id":      notificationID,
+		"kind":    kind,
+		"actor": map[string]any{
+			"id":         userData.ID,
+			"firstName":  userData.FirstName,
+			"lastName":   userData.LastName,
+			"avatarPath": userData.Avatar,
+		},
+	}
+
+	if unread >= 0 {
+		msg["unread"] = unread
+	}
+
+	if data.PostIDTag != nil {
+		msg["post_id"] = *data.PostIDTag
+
+		if imagePath, err := posts.GetPostImage(app.DB, *data.PostIDTag); err == nil && imagePath != "" {
+			msg["image_path"] = imagePath
+		}
+	}
+
+	msgPayload, err := json.Marshal(msg)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	app.H.Mu.Lock()
+	conn := app.H.Conn[targetID]
+	app.H.Mu.Unlock()
+
+	if conn != nil {
+		if _, err := conn.Write(msgPayload); err != nil {
+			log.Println(err)
 		}
 	}
 }
@@ -346,7 +442,7 @@ func (app *App) sendToUsers(
 	groupID int,
 	userID int,
 ) {
-	
+
 	log.Println(groupID)
 	ids, err := chats.GetGroupMembersIds(
 		app.DB,
@@ -358,9 +454,18 @@ func (app *App) sendToUsers(
 		return
 	}
 
+	isPrivate, groupName, err := chats.GetChatMeta(app.DB, groupID)
+
+	if err != nil {
+		log.Println("get chat meta error:", err)
+		return
+	}
+
 	response, err := json.Marshal(map[string]any{
-		"type": "message",
-		"data": msg,
+		"type":      "message",
+		"data":      msg,
+		"isPrivate": isPrivate,
+		"groupName": groupName,
 	})
 
 	if err != nil {
