@@ -57,3 +57,22 @@ func GetNotificationType(notification models.NewNotification) string {
 
 	return ""
 }
+
+func GetNotificationPreferenceType(notification models.NewNotification) string {
+	switch {
+	case notification.FollowUserID != nil:
+		return "follow"
+	case notification.PostLikeUserID != nil, notification.PostDislikeUserID != nil:
+		return "post_reaction"
+	case notification.CommentReplyUserID != nil:
+		return "comment"
+	case notification.CommentLikeUserID != nil:
+		return "comment_like"
+	case notification.CommentMentionUserID != nil, notification.PostMentionUserID != nil:
+		return "mention"
+	case notification.EventInviteUserID != nil, notification.EventResponseUserID != nil:
+		return "event"
+	}
+
+	return ""
+}

@@ -162,7 +162,7 @@ export function connectToWS() {
                             detail: message
                         })
                     );
-                } else {
+                } else if (!payload.silent) {
                     const now = Date.now();
                     const lastNotification =
                         notificationDebounce.get(groupID);

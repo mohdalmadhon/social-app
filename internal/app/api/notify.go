@@ -9,7 +9,9 @@ import (
 	"social/database/groups"
 	"social/database/notifications"
 	"social/database/posts"
+	"social/database/preferences"
 	"social/database/users"
+	"social/internal/helpers"
 	"social/internal/models"
 )
 
@@ -19,6 +21,19 @@ var mentionPattern = regexp.MustCompile(`(?:^|[^\w@])@([A-Za-z0-9_.]{2,30})`)
 // if that user is online. It never notifies the actor about their own action.
 func (app *App) notify(actorID int, n models.NewNotification) bool {
 	if n.UserID <= 0 || n.UserID == actorID {
+		return false
+	}
+
+	allowed, err := preferences.ShouldNotify(
+		app.DB,
+		n.UserID,
+		actorID,
+		helpers.GetNotificationPreferenceType(n),
+	)
+
+	if err != nil {
+		log.Println("failed to check notification preference:", err)
+	} else if !allowed {
 		return false
 	}
 

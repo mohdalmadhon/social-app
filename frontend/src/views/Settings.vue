@@ -5,7 +5,13 @@ import TopNavigation from '@/components/layout/TopNavigation.vue';
 import { addNotification } from '@/data/notifications';
 import { activePage } from '@/data/chatState';
 import { THEMES, getThemeCookie, setTheme } from '@/helpers/common/theme';
-import { deleteAccount, changePreferences, getPreferences } from '@/api/users/settings';
+import {
+    deleteAccount,
+    changePreferences,
+    getPreferences,
+    getNotificationPreferences,
+    changeNotificationPreference
+} from '@/api/users/settings';
 
 activePage.value = 'settings';
 
@@ -13,6 +19,23 @@ const TABS = [
     { value: 'general', label: 'General' },
     { value: 'preferences', label: 'Preferences' },
     { value: 'privacy', label: 'Privacy' },
+    { value: 'notifications', label: 'Notifications' },
+];
+
+const NOTIFICATION_MODES = [
+    { value: 'any', label: 'Everyone' },
+    { value: 'friends', label: 'Friends only' },
+    { value: 'none', label: 'Off' },
+];
+
+const NOTIFICATION_TYPES = [
+    { type: 'follow', title: 'New followers', subtitle: 'When someone starts following you.' },
+    { type: 'post_reaction', title: 'Post likes and dislikes', subtitle: 'When someone reacts to your post.' },
+    { type: 'comment', title: 'Comments and replies', subtitle: 'When someone comments on your post or replies to your comment.' },
+    { type: 'comment_like', title: 'Comment likes', subtitle: 'When someone likes your comment.' },
+    { type: 'mention', title: 'Mentions and tags', subtitle: 'When someone mentions or tags you in a post or comment.' },
+    { type: 'event', title: 'Group events', subtitle: 'When you are invited to an event or someone responds to yours.' },
+    { type: 'message', title: 'Chat messages', subtitle: 'Pop-up alerts for new messages while you are on another page.' },
 ];
 
 const VISIBILITY_OPTIONS = [
@@ -124,7 +147,36 @@ const privacy = ref({
 });
 const savingPrivacy = ref(false);
 
+const notificationPrefs = ref({});
+const savingNotification = ref(false);
+
+async function selectNotificationMode(type, mode) {
+    if (savingNotification.value || mode === notificationPrefs.value[type]) {
+        return;
+    }
+
+    const previous = notificationPrefs.value[type];
+    notificationPrefs.value[type] = mode;
+    savingNotification.value = true;
+
+    try {
+        await changeNotificationPreference(type, mode);
+        addNotification('Notification preference updated', 'success');
+    } catch (err) {
+        notificationPrefs.value[type] = previous;
+        addNotification(err.message || 'Could not update notification preference', 'error');
+    } finally {
+        savingNotification.value = false;
+    }
+}
+
 onMounted(async () => {
+    try {
+        notificationPrefs.value = await getNotificationPreferences();
+    } catch (err) {
+        addNotification(err.message || 'Could not load notification preferences', 'error');
+    }
+
     try {
         const prefs = await getPreferences();
         selectedChat.value = prefs.chat;
@@ -408,6 +460,47 @@ async function confirmDeleteAccount() {
                                 <span class="choice-name">{{ option.label }}</span>
                                 <span class="choice-desc">{{ option.description }}</span>
                             </button>
+                        </div>
+                    </section>
+                </template>
+
+                <template v-else-if="activeTab === 'notifications'">
+                    <section class="settings-section">
+                        <div class="section-head">
+                            <div>
+                                <h2>Notifications</h2>
+                                <p class="section-subtitle">
+                                    Choose which notifications you receive and from whom.
+                                </p>
+                            </div>
+                            <span v-if="savingNotification" class="saving">Saving...</span>
+                        </div>
+
+                        <div class="notification-pref-list">
+                            <div
+                                v-for="item in NOTIFICATION_TYPES"
+                                :key="item.type"
+                                class="notification-pref"
+                            >
+                                <div class="text-group">
+                                    <p class="option-title">{{ item.title }}</p>
+                                    <p class="option-subtitle">{{ item.subtitle }}</p>
+                                </div>
+
+                                <div class="mode-group">
+                                    <button
+                                        v-for="mode in NOTIFICATION_MODES"
+                                        :key="mode.value"
+                                        type="button"
+                                        class="mode-btn"
+                                        :class="{ selected: notificationPrefs[item.type] === mode.value }"
+                                        :disabled="savingNotification"
+                                        @click="selectNotificationMode(item.type, mode.value)"
+                                    >
+                                        {{ mode.label }}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </section>
                 </template>
@@ -920,6 +1013,59 @@ async function confirmDeleteAccount() {
     color: var(--font-color);
     font-weight: 600;
     font-size: 13px;
+}
+
+.notification-pref-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.notification-pref {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 16px;
+    border: 2px solid var(--main-color);
+    border-radius: 8px;
+    background: var(--bg-color);
+}
+
+.mode-group {
+    display: flex;
+    flex-shrink: 0;
+    gap: 6px;
+}
+
+.mode-btn {
+    padding: 7px 12px;
+    border: 2px solid var(--main-color);
+    border-radius: 5px;
+    background: var(--bg-color);
+    color: var(--font-color);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 9px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.mode-btn.selected {
+    background: var(--input-focus);
+    color: #fff;
+    box-shadow: 2px 2px var(--main-color);
+}
+
+.mode-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.75;
+}
+
+@media (max-width: 650px) {
+    .notification-pref {
+        flex-direction: column;
+        align-items: flex-start;
+    }
 }
 
 @media (max-width: 800px) {

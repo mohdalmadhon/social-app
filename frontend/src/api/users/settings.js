@@ -38,6 +38,36 @@ export async function changePreferences(type, preferences) {
     return result;
 }
 
+export async function getNotificationPreferences() {
+    const resp = await fetch("/api/user/notification-preferences", {
+        method: "GET",
+        credentials: 'include'
+    })
+
+    const result = await resp.json();
+
+    if (!resp.ok) {
+        throw new Error(result.message || 'could not get notification preferences')
+    }
+
+    return result.data;
+}
+
+export async function changeNotificationPreference(type, mode) {
+    const resp = await fetch(`/api/user/notification-preferences?type=${type}&value=${mode}`, {
+        method: "PATCH",
+        credentials: 'include'
+    })
+
+    const result = await resp.json();
+
+    if (!resp.ok) {
+        throw new Error(result.message || 'could not update')
+    }
+
+    return result;
+}
+
 export async function getPreferences() {
     const resp = await fetch("/api/user/preferences", {
         method: "GET",

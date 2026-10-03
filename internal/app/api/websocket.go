@@ -7,6 +7,7 @@ import (
 	"log"
 	"social/database/chats"
 	"social/database/posts"
+	"social/database/preferences"
 	"social/database/users"
 	"social/internal/helpers"
 	"social/internal/models"
@@ -461,12 +462,24 @@ func (app *App) sendToUsers(
 		return
 	}
 
-	response, err := json.Marshal(map[string]any{
-		"type":      "message",
-		"data":      msg,
-		"isPrivate": isPrivate,
-		"groupName": groupName,
-	})
+	buildResponse := func(silent bool) ([]byte, error) {
+		return json.Marshal(map[string]any{
+			"type":      "message",
+			"data":      msg,
+			"isPrivate": isPrivate,
+			"groupName": groupName,
+			"silent":    silent,
+		})
+	}
+
+	response, err := buildResponse(false)
+
+	if err != nil {
+		log.Println("marshal websocket response error:", err)
+		return
+	}
+
+	silentResponse, err := buildResponse(true)
 
 	if err != nil {
 		log.Println("marshal websocket response error:", err)
@@ -478,6 +491,16 @@ func (app *App) sendToUsers(
 			continue
 		}
 
+		payload := response
+
+		allowed, err := preferences.ShouldNotify(app.DB, id, userID, "message")
+
+		if err != nil {
+			log.Println("failed to check message notification preference:", err)
+		} else if !allowed {
+			payload = silentResponse
+		}
+
 		app.H.Mu.RLock()
 		client, ok := app.H.Conn[id]
 		app.H.Mu.RUnlock()
@@ -486,7 +509,7 @@ func (app *App) sendToUsers(
 			continue
 		}
 
-		if _, err := client.Write(response); err != nil {
+		if _, err := client.Write(payload); err != nil {
 			log.Println("websocket write error:", err)
 		}
 	}

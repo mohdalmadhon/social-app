@@ -127,6 +127,8 @@ func StartServer(db *sql.DB) *http.ServeMux {
 	//preferences
 	mux.HandleFunc("GET /api/user/preferences", app.AuthMiddleware(app.GetPreferences))
 	mux.HandleFunc("PATCH /api/user/preferences", app.AuthMiddleware(app.ChangePerferance))
+	mux.HandleFunc("GET /api/user/notification-preferences", app.AuthMiddleware(app.GetNotificationPreferences))
+	mux.HandleFunc("PATCH /api/user/notification-preferences", app.AuthMiddleware(app.ChangeNotificationPreference))
 
 	//group posts comments
 	mux.HandleFunc("POST /api/group/post/comment", app.AuthMiddleware(app.AddGroupComment))

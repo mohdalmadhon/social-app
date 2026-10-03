@@ -106,3 +106,65 @@ func (app *App) ChangePerferance(w http.ResponseWriter, r *http.Request) {
 		"message": "preference updated",
 	})
 }
+
+func (app *App) GetNotificationPreferences(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("userID").(int)
+	if !ok {
+		helpers.WriteJson(w, http.StatusUnauthorized, map[string]any{
+			"status":  false,
+			"message": "could not authorize user",
+		})
+		return
+	}
+
+	prefs, err := preferences.GetNotificationPreferences(app.DB, userID)
+	if err != nil {
+		log.Println(err)
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not get notification preferences",
+		})
+		return
+	}
+
+	helpers.WriteJson(w, http.StatusOK, map[string]any{
+		"status": true,
+		"data":   prefs,
+	})
+}
+
+func (app *App) ChangeNotificationPreference(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("userID").(int)
+	if !ok {
+		helpers.WriteJson(w, http.StatusUnauthorized, map[string]any{
+			"status":  false,
+			"message": "could not authorize user",
+		})
+		return
+	}
+
+	notificationType := r.URL.Query().Get("type")
+	mode := r.URL.Query().Get("value")
+
+	if !preferences.IsNotificationType(notificationType) || !preferences.IsNotificationMode(mode) {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": "invalid data",
+		})
+		return
+	}
+
+	if err := preferences.SetNotificationPreference(app.DB, userID, notificationType, mode); err != nil {
+		log.Println(err)
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not change data",
+		})
+		return
+	}
+
+	helpers.WriteJson(w, http.StatusOK, map[string]any{
+		"status":  true,
+		"message": "notification preference updated",
+	})
+}
