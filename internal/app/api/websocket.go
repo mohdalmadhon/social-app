@@ -59,7 +59,7 @@ func (app *App) readLoop(userID int, ws *websocket.Conn) {
 
 		case "postGroup":
 			app.handleMessage(userID, payload.Data, "postGroup")
-		case "post-message":
+		case "share-profile":
 
 		default:
 			log.Println("unknown websocket type:", payload.Type)
@@ -339,12 +339,7 @@ func (app *App) handleMessage(userID int, data json.RawMessage, Type string) {
 	}
 }
 
-func (app *App) sendToUsers(
-	msg models.Message,
-	groupID int,
-	userID int,
-	forceSilent ...bool,
-) {
+func (app *App) sendToUsers(msg models.Message, groupID int, userID int, forceSilent ...bool,) {
 	silentOnly := len(forceSilent) > 0 && forceSilent[0]
 
 	log.Println(groupID)
@@ -464,3 +459,7 @@ func (app *App) sendMessageError(userID int, clientID string, message string) {
 		log.Println("websocket notification error:", err)
 	}
 }
+
+
+
+

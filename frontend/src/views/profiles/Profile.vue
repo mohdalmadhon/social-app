@@ -79,6 +79,7 @@ onMounted(getData);
 
                 <template v-else-if="user">
                     <ProfileHeader
+                        :user-id="user.ID"
                         :first-name="user.firstName"
                         :last-name="user.lastName"
                         :username="user.username"

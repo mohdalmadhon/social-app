@@ -10,6 +10,7 @@ import (
 
 	"social/database/groups"
 	"social/database/posts"
+	"social/database/profiles"
 	"social/database/users"
 	"social/internal/helpers"
 	"social/internal/models"
@@ -175,4 +176,32 @@ func (app *App) GetFollowers_Following(w http.ResponseWriter, r *http.Request) {
 		"status": true,
 		"data":   users,
 	})
+}
+
+func (app *App) SearchShares(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("userID").(int)
+	if !ok {
+		helpers.WriteJson(w, http.StatusUnauthorized, map[string]any{
+			"status":  false,
+			"message": "could not authorize user",
+		})
+		return
+	}
+
+	search := r.URL.Query().Get("search")
+	users, err := profiles.SearchShareProfile(app.DB, userID, search)
+	if err != nil {
+		log.Println("share search error:", err)
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not get users",
+		})
+		return
+	}
+
+	helpers.WriteJson(w, http.StatusOK, map[string]any{
+		"status": true,
+		"data":   users,
+	})
+
 }

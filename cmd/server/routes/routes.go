@@ -100,6 +100,7 @@ func StartServer(db *sql.DB) *http.ServeMux {
 	mux.HandleFunc("GET /api/search/users", app.AuthMiddleware(app.GlobalSearchUsers))
 	mux.HandleFunc("GET /api/search/posts", app.AuthMiddleware(app.GlobalSearchPosts))
 	mux.HandleFunc("GET /api/user/follow-followers", app.AuthMiddleware(app.GetFollowers_Following))
+	mux.HandleFunc("GET /api/share/profile", app.AuthMiddleware(app.SearchShares))
 
 	// chats
 	mux.HandleFunc("GET /api/groups", app.AuthMiddleware(app.GetGroups))
@@ -108,6 +109,7 @@ func StartServer(db *sql.DB) *http.ServeMux {
 	mux.HandleFunc("GET /api/chats/ability", app.AuthMiddleware(app.CheckMessageAbility))
 	mux.HandleFunc("POST /api/chats/media", app.AuthMiddleware(app.SendChatMedia))
 	mux.HandleFunc("POST /api/chats/share", app.AuthMiddleware(app.SharePost))
+	mux.HandleFunc("POST /api/chats/share/profile", app.AuthMiddleware(app.ShareProfile))
 	
 	//group chats
 	mux.HandleFunc("GET /api/groups/invites/search", app.AuthMiddleware(app.SearchInvites))

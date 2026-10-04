@@ -201,6 +201,43 @@ function parseSharedPost(content) {
     }
 }
 
+function parseSharedProfile(content) {
+    if (typeof content !== 'string' || !content.startsWith('{')) {
+        return null;
+    }
+
+    try {
+        const data = JSON.parse(content);
+
+        if (
+            data?.type !== 'profile' ||
+            !Number.isInteger(Number(data?.profileID)) ||
+            Number(data.profileID) <= 0
+        ) {
+            return null;
+        }
+
+        return {
+            id: Number(data.profileID),
+            firstName: data.firstName || '',
+            lastName: data.lastName || '',
+            username: data.username || '',
+            avatar: data.avatar || ''
+        };
+    } catch {
+        return null;
+    }
+}
+
+function openSharedProfile(profile) {
+    router.push({
+        path: '/user',
+        query: {
+            id: profile.id
+        }
+    });
+}
+
 async function getSharedPost(postID) {
     if (postCache.has(postID)) {
         return postCache.get(postID);
@@ -458,14 +495,18 @@ async function formatMessage(msg) {
 
     const invite = parseInvite(content);
 
-    const sharedPostInfo = invite
+    const sharedProfile = invite
+        ? null
+        : parseSharedProfile(content);
+
+    const sharedPostInfo = invite || sharedProfile
         ? {
             post: null,
             postError: null
         }
         : await parsePostMessage(content);
 
-    const media = invite || sharedPostInfo.post
+    const media = invite || sharedProfile || sharedPostInfo.post
         ? null
         : parseChatMedia(content);
 
@@ -483,6 +524,8 @@ async function formatMessage(msg) {
         post: sharedPostInfo.post,
 
         postError: sharedPostInfo.postError,
+
+        profile: sharedProfile,
 
         createdAt: msg.CreatedAt ?? msg.createdAt,
 
@@ -1194,6 +1237,10 @@ onUnmounted(() => {
 
                             msg.post
                                 ? 'post-message'
+                                : '',
+
+                            msg.profile
+                                ? 'profile-message'
                                 : ''
                         ]"
                     >
@@ -1323,6 +1370,60 @@ onUnmounted(() => {
                                 </span>
 
                             </div>
+
+                        </div>
+
+                        <div
+                            v-else-if="msg.profile"
+                            class="shared-profile-wrapper"
+                        >
+
+                            <div class="shared-post-label">
+                                Shared profile
+                            </div>
+
+                            <button
+                                type="button"
+                                class="shared-profile-card"
+                                @click="openSharedProfile(msg.profile)"
+                            >
+
+                                <span class="shared-profile-avatar">
+
+                                    <img
+                                        v-if="msg.profile.avatar"
+                                        :src="`/uploads/${msg.profile.avatar}`"
+                                        alt=""
+                                    />
+
+                                    <span v-else>
+                                        {{ msg.profile.firstName?.[0] }}
+                                        {{ msg.profile.lastName?.[0] }}
+                                    </span>
+
+                                </span>
+
+                                <span class="shared-profile-info">
+
+                                    <span class="shared-profile-name">
+                                        {{ msg.profile.firstName }}
+                                        {{ msg.profile.lastName }}
+                                    </span>
+
+                                    <span
+                                        v-if="msg.profile.username"
+                                        class="shared-profile-username"
+                                    >
+                                        {{ msg.profile.username }}
+                                    </span>
+
+                                </span>
+
+                                <span class="shared-profile-action">
+                                    View profile
+                                </span>
+
+                            </button>
 
                         </div>
 
@@ -2033,6 +2134,103 @@ onUnmounted(() => {
 
 .post-message {
     max-width: 70%;
+}
+
+.profile-message {
+    max-width: 70%;
+}
+
+.shared-profile-wrapper {
+    width: min(360px, 100%);
+    box-sizing: border-box;
+}
+
+.message.sent .shared-profile-wrapper {
+    margin-left: auto;
+}
+
+.message.received .shared-profile-wrapper {
+    margin-right: auto;
+}
+
+.shared-profile-card {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-sizing: border-box;
+    padding: 12px;
+    border: 2px solid var(--main-color);
+    border-radius: 10px;
+    background: var(--bg-color);
+    box-shadow: 3px 3px var(--main-color);
+    color: var(--font-color);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.shared-profile-card:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: 4px 4px var(--main-color);
+}
+
+.shared-profile-card:active {
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px var(--main-color);
+}
+
+.shared-profile-avatar {
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border: 2px solid var(--main-color);
+    border-radius: 50%;
+    background: var(--main-color);
+    color: white;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.shared-profile-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.shared-profile-info {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.shared-profile-name {
+    overflow-wrap: anywhere;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.shared-profile-username {
+    overflow-wrap: anywhere;
+    color: var(--font-color-sub);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 9px;
+}
+
+.shared-profile-action {
+    flex-shrink: 0;
+    color: var(--main-color);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 9px;
+    font-weight: 700;
 }
 
 .post-message .shared-post-wrapper {

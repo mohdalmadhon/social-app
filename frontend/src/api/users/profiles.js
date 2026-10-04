@@ -207,3 +207,36 @@ export async function searchFollowing(searchValue = "", targetId) {
     const result = await resp.json();
     return result;
 }
+
+export async function shareProfile(profileID, userIds = []) {
+    const resp = await fetch('/api/chats/share/profile', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            userIds,
+            profileID: Number(profileID)
+        })
+    });
+
+    if (!checkSessionResponse(resp)) {
+        router.replace('/login');
+        return null;
+    }
+
+    let result = null;
+
+    try {
+        result = await resp.json();
+    } catch {
+        result = null;
+    }
+
+    if (!resp.ok || (result && result.status === false)) {
+        throw new Error(result?.message || 'Could not share profile');
+    }
+
+    return result;
+}

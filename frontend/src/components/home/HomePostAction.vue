@@ -349,17 +349,17 @@ onBeforeUnmount(() => {
                 <div v-else class="share-users">
                     <button
                         v-for="user in shareUsers"
-                        :key="user.id"
+                        :key="user.ID"
                         type="button"
                         class="share-user"
-                        :class="{ selected: isSelected(user.id) }"
-                        :aria-pressed="isSelected(user.id)"
+                        :class="{ selected: isSelected(user.ID) }"
+                        :aria-pressed="isSelected(user.ID)"
                         @click="toggleUser(user.ID)"
                     >
                         <span class="share-avatar-wrap">
                             <img class="share-avatar" :src="`/uploads/${user.avatar}`" :alt="`${user.firstName} ${user.lastName}`" />
 
-                            <span v-if="isSelected(user.id)" class="share-check" aria-hidden="true">
+                            <span v-if="isSelected(user.ID)" class="share-check" aria-hidden="true">
                                 <svg viewBox="0 0 24 24">
                                     <path d="M5 12.5l4.5 4.5L19 7.5" />
                                 </svg>

@@ -53,7 +53,7 @@ onMounted(() => {
                 </div>
 
                 <template v-else-if="user">
-                    <ProfileHeader :first-name="user.firstName" :last-name="user.lastName" :username="user.username"
+                    <ProfileHeader :user-id="user.ID" :first-name="user.firstName" :last-name="user.lastName" :username="user.username"
                         :add-edit="true" :bio="user.Profile.About?.bio" :avatar-path="`/uploads/${user.Profile.avatar}`"
                         :num-of-posts="user.Profile.numOfPosts" :num-of-following="user.Profile.numOfFollowing"
                         :num-of-followers="user.Profile.numOfFollowers" />

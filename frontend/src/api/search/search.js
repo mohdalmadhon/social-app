@@ -60,3 +60,18 @@ export async function searchShares(vlaue = '', postID = -1) {
 
     return result;
 }
+
+export async function searchShareProfile(search = '') {
+    const resp = await fetch(`/api/share/profile?search=${encodeURIComponent(search)}`, {
+        method: "GET",
+        credentials: 'include'
+    });
+
+    const result = await resp.json();
+
+    if (!resp.ok) {
+        throw new Error(result.message || 'could not get users');
+    }
+
+    return result;
+}
