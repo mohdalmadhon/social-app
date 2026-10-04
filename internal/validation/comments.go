@@ -5,8 +5,8 @@ import (
 	"social/internal/models"
 )
 
-func ValidateComment(comment models.Comment) error {
-	if len(comment.Content) <= 0 {
+func ValidateComment(comment models.Comment, hasImage bool) error {
+	if len(comment.Content) <= 0 && !hasImage {
 		return errors.New("comment cannot be empty")
 	}
 

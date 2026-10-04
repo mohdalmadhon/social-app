@@ -5,12 +5,12 @@ import (
 	"social/internal/models"
 )
 
-func ValidateGroupComment(comment models.GroupComment) error {
+func ValidateGroupComment(comment models.GroupComment, hasImage bool) error {
 	if comment.GroupPostID <= 0 {
 		return errors.New("invalid group post")
 	}
 
-	if len(comment.Content) <= 0 {
+	if len(comment.Content) <= 0 && !hasImage {
 		return errors.New("comment cannot be empty")
 	}
 

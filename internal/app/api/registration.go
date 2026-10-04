@@ -76,7 +76,7 @@ func (app *App) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	verifyToken := r.FormValue("VerifyToken")
-
+	
 	if !app.OTP.CheckToken(verifyToken, userData.Email) {
 		helpers.WriteJson(w, http.StatusForbidden, map[string]any{
 			"status":  false,

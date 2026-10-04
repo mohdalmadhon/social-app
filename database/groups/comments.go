@@ -64,9 +64,9 @@ func GroupCommentPostID(db *sql.DB, commentID int) (int, error) {
 
 func InsertGroupComment(db *sql.DB, comment models.GroupComment) (models.GroupComment, error) {
 	result, err := db.Exec(`
-		INSERT INTO group_comments (user_id, post_id, content, reply_to)
-		VALUES (?, ?, ?, ?)
-	`, comment.User.ID, comment.GroupPostID, comment.Content, comment.ReplyTo)
+		INSERT INTO group_comments (user_id, post_id, content, reply_to, image_path)
+		VALUES (?, ?, ?, ?, NULLIF(?, ''))
+	`, comment.User.ID, comment.GroupPostID, comment.Content, comment.ReplyTo, comment.ImagePath)
 
 	if err != nil {
 		return comment, err
@@ -130,6 +130,7 @@ func GetGroupComments(db *sql.DB, postID, replyTo, limit, offset int, orderBy st
 			COALESCE(p.avatar_path, ''),
 			c.id,
 			c.content,
+			COALESCE(c.image_path, ''),
 			c.post_id,
 			c.created_at,
 			c.reply_to,
@@ -183,6 +184,7 @@ func GetGroupComments(db *sql.DB, postID, replyTo, limit, offset int, orderBy st
 			&comment.User.Avatar,
 			&comment.ID,
 			&comment.Content,
+			&comment.ImagePath,
 			&comment.GroupPostID,
 			&comment.CreatedAt,
 			&comment.ReplyTo,
@@ -220,7 +222,43 @@ func CountGroupComments(db *sql.DB, postID int) (int, error) {
 	return count, nil
 }
 
-func DeleteGroupComment(db *sql.DB, commentID, userID int) error {
+func DeleteGroupComment(db *sql.DB, commentID, userID int) ([]string, error) {
+	imageRows, err := db.Query(`
+		WITH RECURSIVE tree(id) AS (
+			SELECT id FROM group_comments WHERE id = ? AND user_id = ?
+			UNION ALL
+			SELECT c.id FROM group_comments c JOIN tree t ON c.reply_to = t.id
+		)
+		SELECT image_path FROM group_comments
+		WHERE id IN (SELECT id FROM tree)
+		AND image_path IS NOT NULL
+		AND image_path != ''
+	`, commentID, userID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var imagePaths []string
+
+	for imageRows.Next() {
+		var imagePath string
+
+		if err := imageRows.Scan(&imagePath); err != nil {
+			imageRows.Close()
+			return nil, err
+		}
+
+		imagePaths = append(imagePaths, imagePath)
+	}
+
+	if err := imageRows.Err(); err != nil {
+		imageRows.Close()
+		return nil, err
+	}
+
+	imageRows.Close()
+
 	result, err := db.Exec(`
 		DELETE FROM group_comments
 		WHERE id = ?
@@ -228,20 +266,20 @@ func DeleteGroupComment(db *sql.DB, commentID, userID int) error {
 	`, commentID, userID)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	rows, err := result.RowsAffected()
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if rows == 0 {
-		return sql.ErrNoRows
+		return nil, sql.ErrNoRows
 	}
 
-	return nil
+	return imagePaths, nil
 }
 
 func VoteGroupComment(db *sql.DB, commentID, userID, vote int) error {

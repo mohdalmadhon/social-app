@@ -2,7 +2,7 @@ package api
 
 import (
 	"database/sql"
-	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -23,19 +23,9 @@ func (app *App) AddComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var comment models.Comment
+	input, err := readCommentInput(w, r)
 
-	if err := json.NewDecoder(r.Body).Decode(&comment); err != nil {
-		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
-			"status":  false,
-			"message": "invalid comment",
-		})
-		return
-	}
-
-	comment.User.ID = userID
-
-	if err := validation.ValidateComment(comment); err != nil {
+	if err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
 			"message": err.Error(),
@@ -43,9 +33,42 @@ func (app *App) AddComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	comment, err := posts.InsertComment(app.DB, comment)
+	defer input.Close()
+
+	comment := models.Comment{
+		Content: input.Content,
+		PostID:  input.PostID,
+		RepltTo: input.ReplyTo,
+	}
+
+	comment.User.ID = userID
+
+	if err := validation.ValidateComment(comment, input.HasImage()); err != nil {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	if input.HasImage() {
+		comment.ImagePath, err = input.SaveImage()
+
+		if err != nil {
+			writeCommentMediaError(w, err)
+			return
+		}
+	}
+
+	imagePath := comment.ImagePath
+
+	comment, err = posts.InsertComment(app.DB, comment)
 
 	if err != nil {
+		if comment.ID == 0 {
+			helpers.RemoveCommentMedia(imagePath)
+		}
+
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 			"status":  false,
 			"message": "failed to insert comment",
@@ -85,7 +108,7 @@ func (app *App) DeleteComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = posts.DeleteComment(
+	imagePaths, err := posts.DeleteComment(
 		app.DB,
 		commentID,
 		userID,
@@ -107,6 +130,10 @@ func (app *App) DeleteComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	for _, imagePath := range imagePaths {
+		helpers.RemoveCommentMedia(imagePath)
+	}
+
 	helpers.WriteJson(w, http.StatusOK, map[string]any{
 		"status":  true,
 		"message": "comment deleted!",
@@ -114,7 +141,7 @@ func (app *App) DeleteComment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) GetComments(w http.ResponseWriter, r *http.Request) {
-	_, ok := r.Context().Value("userID").(int)
+	userID, ok := r.Context().Value("userID").(int)
 
 	if !ok {
 		helpers.WriteJson(w, http.StatusUnauthorized, map[string]any{
@@ -158,10 +185,12 @@ func (app *App) GetComments(w http.ResponseWriter, r *http.Request) {
 		replyTo,
 		50,
 		0,
+		userID,
 		"latest",
 	)
 
 	if err != nil {
+		log.Println(err)
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 			"status":  false,
 			"message": "failed to get comments",

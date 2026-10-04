@@ -479,3 +479,50 @@ func (app *App) AcceptFollowRequest(w http.ResponseWriter, r *http.Request) {
 		"message": "follow request accepted",
 	})
 }
+
+func (app *App) RejectFollowRequest(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("userID").(int)
+
+	if !ok {
+		helpers.WriteJson(w, http.StatusUnauthorized, map[string]any{
+			"status":  false,
+			"message": "could not authorize user",
+		})
+		return
+	}
+
+	requesterID, err := strconv.Atoi(r.URL.Query().Get("targetid"))
+
+	if err != nil || requesterID == userID {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": "invalid target ID",
+		})
+		return
+	}
+
+	err = profiles.RejectFollowRequest(app.DB, requesterID, userID)
+
+	if err == sql.ErrNoRows {
+		helpers.WriteJson(w, http.StatusNotFound, map[string]any{
+			"status":  false,
+			"message": "follow request not found",
+		})
+		return
+	}
+
+	if err != nil {
+		log.Println(err)
+
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not reject follow request",
+		})
+		return
+	}
+
+	helpers.WriteJson(w, http.StatusOK, map[string]any{
+		"status":  true,
+		"message": "follow request rejected",
+	})
+}

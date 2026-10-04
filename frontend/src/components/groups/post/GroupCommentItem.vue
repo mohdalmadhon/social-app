@@ -1,4 +1,6 @@
 <script setup>
+import { commentImageSrc } from '@/helpers/commentMedia';
+
 defineProps({
     comment: {
         type: Object,
@@ -63,7 +65,10 @@ const emit = defineEmits([
                     </button>
                 </div>
 
-                <div class="comment-bubble">{{ comment.content }}</div>
+                <div v-if="comment.content" class="comment-bubble">{{ comment.content }}</div>
+
+                <img v-if="comment.imagePath" :src="commentImageSrc(comment.imagePath)" class="comment-image"
+                    alt="Comment image" loading="lazy">
 
                 <div class="comment-actions">
                     <span>{{ formattedDate }}</span>
@@ -150,6 +155,17 @@ const emit = defineEmits([
 .dots-button:hover {
     background: var(--cd-surface);
     color: var(--cd-text);
+}
+
+.comment-image {
+    display: block;
+    max-width: 100%;
+    max-height: 260px;
+    margin-top: 8px;
+    border: 2px solid var(--cd-border);
+    border-radius: 10px;
+    object-fit: contain;
+    background: var(--cd-surface);
 }
 
 .comment-bubble {

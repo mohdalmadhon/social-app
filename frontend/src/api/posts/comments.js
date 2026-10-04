@@ -1,3 +1,5 @@
+import { buildCommentRequest } from '@/helpers/commentMedia';
+
 export async function getComments(postId, replyTo = null) {
     const params = new URLSearchParams();
 
@@ -23,28 +25,19 @@ export async function getComments(postId, replyTo = null) {
         );
     }
 
+    console.log(data.comments)
     return data.comments || [];
 }
 
 export async function addComment(
     postId,
     content,
-    replyTo = null
+    replyTo = null,
+    image = null
 ) {
     const response = await fetch(
         '/api/post/comment',
-        {
-            method: 'POST',
-            credentials: 'include',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                postId,
-                content,
-                replyTo
-            })
-        }
+        buildCommentRequest(postId, content, replyTo, image)
     );
 
     const data = await response.json();

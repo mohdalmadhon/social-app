@@ -2,7 +2,6 @@ package api
 
 import (
 	"database/sql"
-	"encoding/json"
 	"log"
 	"net/http"
 	"strconv"
@@ -24,19 +23,27 @@ func (app *App) AddGroupComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var comment models.GroupComment
+	input, err := readCommentInput(w, r)
 
-	if err := json.NewDecoder(r.Body).Decode(&comment); err != nil {
+	if err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
-			"message": "invalid comment",
+			"message": err.Error(),
 		})
 		return
 	}
 
+	defer input.Close()
+
+	comment := models.GroupComment{
+		Content:     input.Content,
+		GroupPostID: input.PostID,
+		ReplyTo:     input.ReplyTo,
+	}
+
 	comment.User.ID = userID
 
-	if err := validation.ValidateGroupComment(comment); err != nil {
+	if err := validation.ValidateGroupComment(comment, input.HasImage()); err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
 			"message": err.Error(),
@@ -86,10 +93,25 @@ func (app *App) AddGroupComment(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if input.HasImage() {
+		comment.ImagePath, err = input.SaveImage()
+
+		if err != nil {
+			writeCommentMediaError(w, err)
+			return
+		}
+	}
+
+	imagePath := comment.ImagePath
+
 	comment, err = groups.InsertGroupComment(app.DB, comment)
 
 	if err != nil {
 		log.Println(err)
+
+		if comment.ID == 0 {
+			helpers.RemoveCommentMedia(imagePath)
+		}
 
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 			"status":  false,
@@ -217,7 +239,7 @@ func (app *App) DeleteGroupComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = groups.DeleteGroupComment(
+	imagePaths, err := groups.DeleteGroupComment(
 		app.DB,
 		commentID,
 		userID,
@@ -239,6 +261,10 @@ func (app *App) DeleteGroupComment(w http.ResponseWriter, r *http.Request) {
 			"message": "failed to delete comment",
 		})
 		return
+	}
+
+	for _, imagePath := range imagePaths {
+		helpers.RemoveCommentMedia(imagePath)
 	}
 
 	helpers.WriteJson(w, http.StatusOK, map[string]any{

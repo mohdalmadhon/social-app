@@ -1,3 +1,5 @@
+import { buildCommentRequest } from '@/helpers/commentMedia';
+
 export async function getGroupComments(postId, replyTo = null) {
     const params = new URLSearchParams();
 
@@ -32,22 +34,12 @@ export async function getGroupComments(postId, replyTo = null) {
 export async function addGroupComment(
     postId,
     content,
-    replyTo = null
+    replyTo = null,
+    image = null
 ) {
     const response = await fetch(
         '/api/group/post/comment',
-        {
-            method: 'POST',
-            credentials: 'include',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                postId,
-                content,
-                replyTo
-            })
-        }
+        buildCommentRequest(postId, content, replyTo, image)
     );
 
     const data = await response.json();

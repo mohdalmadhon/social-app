@@ -54,6 +54,18 @@ export async function acceptFollowRequest(userID) {
     return await response.json();
 }
 
+export async function rejectFollowRequest(userID) {
+    const response = await fetch(
+        `/api/follow/reject?targetid=${userID}`,
+        {
+            method: 'POST',
+            credentials: 'include'
+        }
+    );
+
+    return await response.json();
+}
+
 export async function respondToJoinRequest(groupID, userID, code) {
     const response = await fetch('/api/groups/requests', {
         method: 'POST',

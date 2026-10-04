@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -17,6 +18,7 @@ const AVATAR_PATH = "uploads/avatars"
 const POSTS_PATH = "uploads/posts"
 const AVATARS_GROUPS_PATH = "uploads/groups/avatars"
 const CHATS_PATH = "uploads/chats"
+const COMMENTS_PATH = "uploads/comments"
 const MaxChatMediaSize = 8 << 20
 
 var ErrChatMediaTooLarge = errors.New("file is too large")
@@ -73,6 +75,27 @@ func SaveUploads(file multipart.File, header *multipart.FileHeader, Type string)
 }
 
 func SaveChatMedia(file multipart.File, header *multipart.FileHeader) (string, string, error) {
+	return saveMedia(file, header, CHATS_PATH, "chats/")
+}
+
+func SaveCommentMedia(file multipart.File, header *multipart.FileHeader) (string, error) {
+	path, _, err := saveMedia(file, header, COMMENTS_PATH, "comments/")
+	return path, err
+}
+
+func RemoveCommentMedia(path string) {
+	if !strings.HasPrefix(path, "comments/") {
+		return
+	}
+
+	filePath := filepath.Join(COMMENTS_PATH, filepath.Base(path))
+
+	if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
+		log.Println("could not remove comment media:", err)
+	}
+}
+
+func saveMedia(file multipart.File, header *multipart.FileHeader, dir, prefix string) (string, string, error) {
 	if header.Size > MaxChatMediaSize {
 		return "", "", ErrChatMediaTooLarge
 	}
@@ -95,12 +118,12 @@ func SaveChatMedia(file multipart.File, header *multipart.FileHeader) (string, s
 		return "", "", err
 	}
 
-	if err := os.MkdirAll(CHATS_PATH, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0755); err != nil {
 		return "", "", err
 	}
 
 	filename := uuid.New().String() + extension
-	filePath := filepath.Join(CHATS_PATH, filename)
+	filePath := filepath.Join(dir, filename)
 
 	dst, err := os.Create(filePath)
 	if err != nil {
@@ -128,5 +151,5 @@ func SaveChatMedia(file multipart.File, header *multipart.FileHeader) (string, s
 		kind = "gif"
 	}
 
-	return "chats/" + filename, kind, nil
+	return prefix + filename, kind, nil
 }

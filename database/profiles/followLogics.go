@@ -359,3 +359,47 @@ func AcceptFollowRequest(db *sql.DB, requesterID int, targetID int) error {
 
 	return tx.Commit()
 }
+
+func RejectFollowRequest(db *sql.DB, requesterID int, targetID int) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	result, err := tx.Exec(`
+		DELETE FROM user_followers
+		WHERE follower_id = ?
+		AND target_id = ?
+		AND status = 0
+	`, requesterID, targetID)
+
+	if err != nil {
+		return err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+
+	_, err = tx.Exec(`
+		DELETE FROM notifications
+		WHERE user_id = ?
+		AND id IN (
+			SELECT notifications_id
+			FROM notifications_types
+			WHERE follow_request_user_id = ?
+		)
+	`, targetID, requesterID)
+
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}

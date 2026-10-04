@@ -7,9 +7,9 @@ import (
 
 func InsertComment(db *sql.DB, comment models.Comment) (models.Comment, error) {
 	result, err := db.Exec(`
-		INSERT INTO comments (user_id, post_id, content, reply_to)
-		VALUES (?, ?, ?, ?)
-	`, comment.User.ID, comment.PostID, comment.Content, comment.RepltTo)
+		INSERT INTO comments (user_id, post_id, content, reply_to, image_path)
+		VALUES (?, ?, ?, ?, NULLIF(?, ''))
+	`, comment.User.ID, comment.PostID, comment.Content, comment.RepltTo, comment.ImagePath)
 
 	if err != nil {
 		return comment, err
@@ -48,7 +48,7 @@ func InsertComment(db *sql.DB, comment models.Comment) (models.Comment, error) {
 	return comment, nil
 }
 
-func GetComments(db *sql.DB, postID, replyTo, limit, offset int, orderBy string) ([]models.Comment, error) {
+func GetComments(db *sql.DB, postID, replyTo, limit, offset, userID int, orderBy string) ([]models.Comment, error) {
 	queryOrderBy := "c.created_at DESC"
 
 	if orderBy == "popular" {
@@ -66,10 +66,19 @@ func GetComments(db *sql.DB, postID, replyTo, limit, offset int, orderBy string)
 				u.last_name,
 				c.id,
 				c.content,
+				COALESCE(c.image_path, ''),
 				c.post_id,
 				c.created_at,
 				c.reply_to,
 				c.votes,
+				COALESCE(
+					(
+						SELECT count
+						FROM comment_votes
+						WHERE user_id = ? AND comment_id = c.id
+					),
+					0
+				),
 				(
 					SELECT COUNT(*)
 					FROM comments r
@@ -82,7 +91,7 @@ func GetComments(db *sql.DB, postID, replyTo, limit, offset int, orderBy string)
 			ORDER BY `+queryOrderBy+`
 			LIMIT ?
 			OFFSET ?
-		`, postID, limit, offset)
+		`, userID, postID, limit, offset)
 	} else {
 		rows, err = db.Query(`
 			SELECT
@@ -91,10 +100,19 @@ func GetComments(db *sql.DB, postID, replyTo, limit, offset int, orderBy string)
 				u.last_name,
 				c.id,
 				c.content,
+				COALESCE(c.image_path, ''),
 				c.post_id,
 				c.created_at,
 				c.reply_to,
 				c.votes,
+				COALESCE(
+					(
+						SELECT count
+						FROM comments_votes
+						WHERE user_id = ? AND comment_id = c.id
+					),
+					0
+				),
 				(
 					SELECT COUNT(*)
 					FROM comments r
@@ -107,7 +125,7 @@ func GetComments(db *sql.DB, postID, replyTo, limit, offset int, orderBy string)
 			ORDER BY `+queryOrderBy+`
 			LIMIT ?
 			OFFSET ?
-		`, postID, replyTo, limit, offset)
+		`, userID, postID, replyTo, limit, offset)
 	}
 
 	if err != nil {
@@ -127,18 +145,25 @@ func GetComments(db *sql.DB, postID, replyTo, limit, offset int, orderBy string)
 			&comment.User.LastName,
 			&comment.ID,
 			&comment.Content,
+			&comment.ImagePath,
 			&comment.PostID,
 			&comment.CreatedAt,
 			&comment.RepltTo,
 			&comment.Votes,
+			&comment.IsLiked,
 			&comment.Replies,
 		)
 
 		if err != nil {
 			return nil, err
 		}
-		
-		err = db.QueryRow(`select avatar_path from profile where user_id = ?`, comment.User.ID).Scan(&comment.User.Avatar)
+
+		err = db.QueryRow(`
+			SELECT avatar_path
+			FROM profile
+			WHERE user_id = ?
+		`, comment.User.ID).Scan(&comment.User.Avatar)
+
 		if err != nil {
 			return nil, err
 		}
@@ -153,7 +178,43 @@ func GetComments(db *sql.DB, postID, replyTo, limit, offset int, orderBy string)
 	return comments, nil
 }
 
-func DeleteComment(db *sql.DB, commentID, userID int) error {
+func DeleteComment(db *sql.DB, commentID, userID int) ([]string, error) {
+	imageRows, err := db.Query(`
+		WITH RECURSIVE tree(id) AS (
+			SELECT id FROM comments WHERE id = ? AND user_id = ?
+			UNION ALL
+			SELECT c.id FROM comments c JOIN tree t ON c.reply_to = t.id
+		)
+		SELECT image_path FROM comments
+		WHERE id IN (SELECT id FROM tree)
+		AND image_path IS NOT NULL
+		AND image_path != ''
+	`, commentID, userID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var imagePaths []string
+
+	for imageRows.Next() {
+		var imagePath string
+
+		if err := imageRows.Scan(&imagePath); err != nil {
+			imageRows.Close()
+			return nil, err
+		}
+
+		imagePaths = append(imagePaths, imagePath)
+	}
+
+	if err := imageRows.Err(); err != nil {
+		imageRows.Close()
+		return nil, err
+	}
+
+	imageRows.Close()
+
 	result, err := db.Exec(`
 		DELETE FROM comments
 		WHERE id = ?
@@ -161,19 +222,19 @@ func DeleteComment(db *sql.DB, commentID, userID int) error {
 	`, commentID, userID)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	rows, err := result.RowsAffected()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if rows == 0 {
-		return sql.ErrNoRows
+		return nil, sql.ErrNoRows
 	}
 
-	return nil
+	return imagePaths, nil
 }
 
 func VoteComment(db *sql.DB, commentID, userID, vote int) error {

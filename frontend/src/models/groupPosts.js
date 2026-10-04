@@ -7,7 +7,8 @@ export class GroupComment {
         votes,
         createdAt,
         user,
-        replies = 0
+        replies = 0,
+        imagePath = ''
     ) {
         this.ID = id;
         this.content = content;
@@ -17,6 +18,7 @@ export class GroupComment {
         this.createdAt = createdAt;
         this.user = user;
         this.replies = replies;
+        this.imagePath = imagePath;
         this.loadedReplies = null;
         this.showReplies = false;
         this.pending = false;
@@ -32,6 +34,7 @@ export function createGroupComment(data) {
         data.votes ?? 0,
         data.createdAt,
         data.user,
-        data.replies ?? 0
+        data.replies ?? 0,
+        data.imagePath ?? ''
     );
 }

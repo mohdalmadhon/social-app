@@ -48,12 +48,14 @@ type Post struct {
 type Comment struct {
 	ID        int              `json:"id"`
 	Content   string           `json:"content"`
+	ImagePath string           `json:"imagePath"`
 	User      UserRegistration `json:"user"`
 	PostID    int              `json:"postId"`
 	RepltTo   *int             `json:"replyTo"`
 	Votes     int              `json:"votes"`
 	CreatedAt string           `json:"createdAt"`
 	Replies   int              `json:"replies"`
+	IsLiked   int
 }
 
 type Reaction struct {

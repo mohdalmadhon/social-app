@@ -3,6 +3,7 @@ package models
 type GroupComment struct {
 	ID          int              `json:"id"`
 	Content     string           `json:"content"`
+	ImagePath   string           `json:"imagePath"`
 	User        UserRegistration `json:"user"`
 	GroupPostID int              `json:"postId"`
 	ReplyTo     *int             `json:"replyTo"`

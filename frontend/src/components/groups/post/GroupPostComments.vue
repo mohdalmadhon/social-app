@@ -8,6 +8,7 @@ import {
 } from '@/api/posts/groupComments';
 import { GroupComment, createGroupComment } from '@/models/groupPosts';
 import { router } from '@/router/router';
+import { useCommentMedia, commentImageSrc, COMMENT_MEDIA_ACCEPT } from '@/helpers/commentMedia';
 import GroupCommentItem from './GroupCommentItem.vue';
 
 const props = defineProps({
@@ -34,6 +35,18 @@ const loadingReplies = ref({});
 const replyErrors = ref({});
 const menuComment = ref(null);
 const commentInput = ref(null);
+const {
+    file: mediaFile,
+    previewUrl: mediaPreview,
+    error: mediaError,
+    fileInput,
+    clearMedia,
+    openPicker,
+    onSelect,
+    takeMedia,
+    restoreMedia,
+    revokeMedia
+} = useCommentMedia();
 const resolvedUserId = ref(null);
 
 const displayName = computed(() => `${props.firstName} ${props.lastName}`.trim());
@@ -81,7 +94,7 @@ async function loadComments() {
     }
 }
 
-function createTemporaryComment(content, replyTo = null) {
+function createTemporaryComment(content, replyTo = null, imagePath = '') {
     const comment = new GroupComment(
         `temporary-${Date.now()}`, content, props.postId, replyTo, 0,
         new Date().toISOString(),
@@ -89,35 +102,38 @@ function createTemporaryComment(content, replyTo = null) {
         0
     );
     comment.pending = true;
+    comment.imagePath = imagePath;
     return comment;
 }
 
-async function submitTopLevel(content) {
+async function submitTopLevel(content, media = null) {
     submitting.value = true;
     error.value = '';
-    const temporaryComment = createTemporaryComment(content);
+    const temporaryComment = createTemporaryComment(content, null, media?.previewUrl ?? '');
     comments.value.unshift(temporaryComment);
     emit('count-changed', 1);
 
     try {
-        const data = await addGroupComment(props.postId, content);
+        const data = await addGroupComment(props.postId, content, null, media?.file ?? null);
         const realComment = createGroupComment(data);
         const index = comments.value.findIndex(comment => comment.ID === temporaryComment.ID);
         if (index !== -1) comments.value[index] = realComment;
+        revokeMedia(media);
     } catch (err) {
         comments.value = comments.value.filter(comment => comment.ID !== temporaryComment.ID);
         emit('count-changed', -1);
         newComment.value = content;
+        restoreMedia(media);
         error.value = err.message || 'Failed to add comment';
     } finally {
         submitting.value = false;
     }
 }
 
-async function submitReplyTo(parentComment, content) {
+async function submitReplyTo(parentComment, content, media = null) {
     submitting.value = true;
     replyErrors.value[parentComment.ID] = '';
-    const temporaryReply = createTemporaryComment(content, parentComment.ID);
+    const temporaryReply = createTemporaryComment(content, parentComment.ID, media?.previewUrl ?? '');
 
     if (!parentComment.loadedReplies) parentComment.loadedReplies = [];
     parentComment.loadedReplies.unshift(temporaryReply);
@@ -126,16 +142,18 @@ async function submitReplyTo(parentComment, content) {
     emit('count-changed', 1);
 
     try {
-        const data = await addGroupComment(props.postId, content, parentComment.ID);
+        const data = await addGroupComment(props.postId, content, parentComment.ID, media?.file ?? null);
         const realReply = createGroupComment(data);
         const index = parentComment.loadedReplies.findIndex(reply => reply.ID === temporaryReply.ID);
         if (index !== -1) parentComment.loadedReplies[index] = realReply;
+        revokeMedia(media);
         replyingTo.value = null;
     } catch (err) {
         parentComment.loadedReplies = parentComment.loadedReplies.filter(reply => reply.ID !== temporaryReply.ID);
         parentComment.replies--;
         emit('count-changed', -1);
         newComment.value = content;
+        restoreMedia(media);
         replyErrors.value[parentComment.ID] = err.message || 'Failed to add reply';
     } finally {
         submitting.value = false;
@@ -144,14 +162,15 @@ async function submitReplyTo(parentComment, content) {
 
 async function submitComment() {
     const content = newComment.value.trim();
-    if (!content || submitting.value) return;
+    if ((!content && !mediaFile.value) || submitting.value) return;
 
+    const media = takeMedia();
     newComment.value = '';
 
     if (replyingTo.value) {
-        await submitReplyTo(replyingTo.value, content);
+        await submitReplyTo(replyingTo.value, content, media);
     } else {
-        await submitTopLevel(content);
+        await submitTopLevel(content, media);
     }
 }
 
@@ -178,12 +197,14 @@ async function showReplies(comment) {
 function startReply(comment) {
     replyingTo.value = comment;
     newComment.value = '';
+    clearMedia();
     nextTick(() => commentInput.value?.focus());
 }
 
 function cancelReply() {
     replyingTo.value = null;
     newComment.value = '';
+    clearMedia();
 }
 
 function isOwner(comment) {
@@ -243,6 +264,7 @@ async function likeComment(comment) {
 }
 
 function close() {
+    clearMedia();
     emit('close');
 }
 
@@ -333,9 +355,26 @@ watch(
                     <button type="button" @click="cancelReply">✕</button>
                 </div>
 
+                <div v-if="mediaError" class="comments-error media-error">{{ mediaError }}</div>
+
+                <div v-if="mediaPreview" class="comment-media-preview">
+                    <img :src="mediaPreview" alt="Selected image">
+                    <button type="button" aria-label="Remove image" @click="clearMedia">✕</button>
+                </div>
+
                 <form class="add-comment" @submit.prevent="submitComment">
+                    <input ref="fileInput" type="file" class="media-file-input" :accept="COMMENT_MEDIA_ACCEPT"
+                        @change="onSelect">
+                    <button type="button" class="media-button" title="Add an image or GIF" aria-label="Add an image or GIF"
+                        @click="openPicker">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <rect x="3" y="3" width="18" height="18" rx="3" />
+                            <circle cx="9" cy="9" r="1.8" />
+                            <path d="m21 15-5-5L5 21" />
+                        </svg>
+                    </button>
                     <input ref="commentInput" v-model="newComment" maxlength="200" :placeholder="inputPlaceholder">
-                    <button type="submit" :disabled="submitting || !newComment.trim()">{{ replyingTo ? 'Reply' : 'Post'
+                    <button type="submit" :disabled="submitting || (!newComment.trim() && !mediaFile)">{{ replyingTo ? 'Reply' : 'Post'
                         }}</button>
                 </form>
 
@@ -614,6 +653,80 @@ watch(
     font-weight: 600;
 }
 
+.add-comment .media-file-input {
+    display: none;
+}
+
+.add-comment .media-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 42px;
+    padding: 0;
+    background: var(--cd-bg);
+    color: var(--cd-text);
+}
+
+.add-comment .media-button:hover:not(:disabled) {
+    background: var(--cd-text);
+    color: #fff;
+}
+
+.comment-media-preview {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px 22px 0;
+    border-top: 2px solid var(--cd-border);
+}
+
+.comment-media-preview + .add-comment {
+    border-top: 0;
+}
+
+.comment-media-preview img {
+    max-width: 160px;
+    max-height: 120px;
+    border: 2px solid var(--cd-border);
+    border-radius: 10px;
+    object-fit: contain;
+    background: var(--cd-surface);
+}
+
+.comment-media-preview button {
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--cd-border);
+    border-radius: 50%;
+    background: var(--cd-bg);
+    color: var(--cd-text);
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.comment-media-preview button:hover {
+    background: var(--cd-danger);
+    color: #fff;
+}
+
+.comments-error.media-error {
+    margin: 0 22px 10px;
+}
+
+.comment-image {
+    display: block;
+    max-width: 100%;
+    max-height: 260px;
+    margin-top: 8px;
+    border: 2px solid var(--cd-border);
+    border-radius: 10px;
+    object-fit: contain;
+    background: var(--cd-surface);
+}
+
 @media (max-width: 650px) {
     .comments-overlay {
         padding: 0;
@@ -634,6 +747,14 @@ watch(
 
     .reply-banner {
         margin: 0 16px;
+    }
+
+    .comment-media-preview {
+        padding: 12px 16px 0;
+    }
+
+    .comments-error.media-error {
+        margin: 0 16px 10px;
     }
 
     .add-comment {

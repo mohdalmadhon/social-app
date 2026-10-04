@@ -120,3 +120,12 @@ BEGIN
     SET num_of_following = num_of_following + 1
     WHERE user_id = NEW.follower_id;
 END;
+
+CREATE TRIGGER IF NOT EXISTS trg_change_privay
+AFTER UPDATE ON profile
+FOR EACH ROW
+BEGIN
+    UPDATE user_followers
+    SET status = 1
+    WHERE status = 0 AND target_id = NEW.user_id;
+END;

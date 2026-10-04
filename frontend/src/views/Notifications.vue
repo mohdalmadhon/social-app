@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router';
 import {
     getNotifications,
     acceptFollowRequest,
+    rejectFollowRequest,
     markNotificationsRead,
     respondToGroupInvite,
     respondToJoinRequest
@@ -493,6 +494,12 @@ async function answerJoin(notification, code) {
 }
 
 async function acceptRequest(notification) {
+    if (respondingInvites.value.has(notification.id)) {
+        return;
+    }
+
+    respondingInvites.value.add(notification.id);
+
     try {
         const result = await acceptFollowRequest(
             notification.follow_request_user_id
@@ -511,6 +518,40 @@ async function acceptRequest(notification) {
     } catch (err) {
         console.error(err);
         addNotification('could not accept follow request');
+    } finally {
+        respondingInvites.value.delete(notification.id);
+    }
+}
+
+async function rejectRequest(notification) {
+    if (respondingInvites.value.has(notification.id)) {
+        return;
+    }
+
+    respondingInvites.value.add(notification.id);
+
+    try {
+        const result = await rejectFollowRequest(
+            notification.follow_request_user_id
+        );
+
+        if (!result.status) {
+            addNotification(result.message || 'could not reject follow request');
+            return;
+        }
+
+        notifications.value = notifications.value.filter(
+            item => item.id !== notification.id
+        );
+
+        offset.value = Math.max(0, offset.value - 1);
+
+        addNotification('follow request rejected');
+    } catch (err) {
+        console.error(err);
+        addNotification('could not reject follow request');
+    } finally {
+        respondingInvites.value.delete(notification.id);
     }
 }
 </script>
@@ -628,13 +669,22 @@ async function acceptRequest(notification) {
 
                             <div
                                 v-if="isFollowRequest(notification)"
-                                class="notification-actions"
+                                class="notification-actions invite-actions"
                             >
                                 <button
                                     class="accept-button"
+                                    :disabled="respondingInvites.has(notification.id)"
                                     @click="acceptRequest(notification)"
                                 >
                                     Accept
+                                </button>
+
+                                <button
+                                    class="reject-button"
+                                    :disabled="respondingInvites.has(notification.id)"
+                                    @click="rejectRequest(notification)"
+                                >
+                                    Reject
                                 </button>
                             </div>
 

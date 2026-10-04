@@ -89,7 +89,7 @@ function openLocationDialog() {
                     </button>
 
                     <span v-if="groupId != -1 && groupId != 0" class="visibility-text">
-                        Visibility limited by user
+                        Visibility limited by the user
                     </span>
 
                 </div>

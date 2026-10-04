@@ -7,6 +7,7 @@ import { CHAT_MEDIA_ACCEPT, parseChatMedia, validateChatMedia } from '@/helpers/
 import { getGroupPost, insertPostReaction } from '@/api/posts/groups';
 import { activePage } from '@/data/chatState';
 import HomePosts from '@/components/home/HomePosts.vue';
+import EmojiPicker from '@/components/chats/EmojiPicker.vue';
 import GroupEventDialog from '@/components/groups/GroupEventDialog.vue';
 import GroupEventVotesDialog from '@/components/groups/GroupEventVotesDialog.vue';
 import { fetchGroupEvent, respondGroupEvent } from '@/api/groups/events';
@@ -786,6 +787,28 @@ function receiveMessage(event) {
     });
 }
 
+function insertEmoji(emoji) {
+    closeMentions();
+
+    const input = messageInput.value;
+    const current = message.value;
+    const start = input?.selectionStart ?? current.length;
+    const end = input?.selectionEnd ?? start;
+
+    message.value = current.slice(0, start) + emoji + current.slice(end);
+
+    const position = start + emoji.length;
+
+    nextTick(() => {
+        if (!input) {
+            return;
+        }
+
+        input.focus();
+        input.setSelectionRange(position, position);
+    });
+}
+
 async function send() {
     const content =
         message.value.trim();
@@ -1426,6 +1449,8 @@ onUnmounted(() => {
                 @click="pickFile">
                 + Image
             </button>
+
+            <EmojiPicker class="chat-emoji" :disabled="sending || loading" @select="insertEmoji" />
 
             <button type="button" class="event-trigger" title="Mention a member" :disabled="loading"
                 @mousedown.prevent @click="toggleMentionPicker">
@@ -2220,7 +2245,8 @@ onUnmounted(() => {
         order: 1;
     }
 
-    .event-trigger {
+    .event-trigger,
+    .chat-emoji {
         order: 2;
         flex: 1 1 auto;
     }

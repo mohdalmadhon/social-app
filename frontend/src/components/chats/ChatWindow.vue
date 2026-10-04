@@ -14,6 +14,7 @@ import { router } from '@/router/router';
 
 import { CHAT_MEDIA_ACCEPT, parseChatMedia, validateChatMedia } from '@/helpers/chatMedia';
 import HomePosts from '../home/HomePosts.vue';
+import EmojiPicker from './EmojiPicker.vue';
 
 
 const props = defineProps({
@@ -51,6 +52,8 @@ const props = defineProps({
 const emit = defineEmits(['chat-resolved']);
 
 const message = ref('');
+
+const messageInput = ref(null);
 
 const messages = ref([]);
 
@@ -815,6 +818,26 @@ async function receiveMessage(event) {
     });
 }
 
+function insertEmoji(emoji) {
+    const input = messageInput.value;
+    const current = message.value;
+    const start = input?.selectionStart ?? current.length;
+    const end = input?.selectionEnd ?? start;
+
+    message.value = current.slice(0, start) + emoji + current.slice(end);
+
+    const position = start + emoji.length;
+
+    nextTick(() => {
+        if (!input) {
+            return;
+        }
+
+        input.focus();
+        input.setSelectionRange(position, position);
+    });
+}
+
 async function send() {
     const content = message.value.trim();
 
@@ -1456,7 +1479,17 @@ onUnmounted(() => {
                     + Image
                 </button>
 
+                <EmojiPicker
+                    :disabled="
+                        sending ||
+                        loading ||
+                        !canMessage
+                    "
+                    @select="insertEmoji"
+                />
+
                 <input
+                    ref="messageInput"
                     v-model="message"
                     type="text"
                     :placeholder="
@@ -2015,6 +2048,7 @@ onUnmounted(() => {
 }
 
 .composer {
+    position: relative;
     flex-shrink: 0;
     display: flex;
     gap: 10px;

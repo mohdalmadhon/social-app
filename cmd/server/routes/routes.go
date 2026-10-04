@@ -63,6 +63,7 @@ func StartServer(db *sql.DB) *http.ServeMux {
 	mux.HandleFunc("GET /api/profile/following", app.AuthMiddleware(app.GetFollowing))
 	mux.HandleFunc("DELETE /api/profile/followers", app.AuthMiddleware(app.RemoveFollower))
 	mux.HandleFunc("/api/follow/accept", app.AuthMiddleware(app.AcceptFollowRequest))
+	mux.HandleFunc("POST /api/follow/reject", app.AuthMiddleware(app.RejectFollowRequest))
 
 	//folder handlers
 	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir(uploadsDir))))
