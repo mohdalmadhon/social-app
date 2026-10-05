@@ -2,18 +2,16 @@ package groups
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
+	"social/database/dbutil"
 	"social/database/users"
 	"social/internal/models"
-	"strconv"
-	"strings"
 )
 
 func GetPosts(db *sql.DB, groupID, userID, offset int) ([]models.Post, error) {
 	var posts []models.Post
 	rows, err := db.Query(`
-		SELECT id, content, user_id, image_path, location, tags, created_at FROM group_posts
+		SELECT id, content, user_id, image_path, location, created_at FROM group_posts
 		WHERE 
 			group_id = ?
 		AND EXISTS (
@@ -28,6 +26,8 @@ func GetPosts(db *sql.DB, groupID, userID, offset int) ([]models.Post, error) {
 		return nil, err
 	}
 
+	defer rows.Close()
+
 	for rows.Next() {
 		var p models.Post
 		err := rows.Scan(
@@ -36,7 +36,6 @@ func GetPosts(db *sql.DB, groupID, userID, offset int) ([]models.Post, error) {
 			&p.UserId,
 			&p.ImagePath,
 			&p.Location,
-			&p.TaggedPeople,
 			&p.CreatedAt,
 		)
 
@@ -47,30 +46,36 @@ func GetPosts(db *sql.DB, groupID, userID, offset int) ([]models.Post, error) {
 		posts = append(posts, p)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	rows.Close()
+
+	if err := dbutil.AttachTaggedPeople(db, dbutil.GroupPostTagsTable, posts); err != nil {
+		return nil, err
+	}
+
 	return posts, nil
 }
 
 func AddPost(db *sql.DB, post models.Post, groupID int, taggedPeople []int) (int, error) {
-	tags := func() string {
-		values := make([]string, len(taggedPeople))
+	tx, err := db.Begin()
+	if err != nil {
+		return 0, err
+	}
 
-		for i, id := range taggedPeople {
-			values[i] = strconv.Itoa(id)
-		}
+	defer tx.Rollback()
 
-		return strings.Join(values, ":")
-	}()
-
-	result, err := db.Exec(`
+	result, err := tx.Exec(`
 	INSERT INTO group_posts (
 		user_id,
 		content,
 		image_path,
 		location,
-		group_id,
-		tags
+		group_id
 	)
-	SELECT ?, ?, ?, ?, ?, ?
+	SELECT ?, ?, ?, ?, ?
 	WHERE EXISTS (
 		SELECT 1
 		FROM groups_users
@@ -84,7 +89,6 @@ func AddPost(db *sql.DB, post models.Post, groupID int, taggedPeople []int) (int
 		post.ImagePath,
 		post.Location,
 		groupID,
-		tags,
 		groupID,
 		post.UserId,
 	)
@@ -109,13 +113,20 @@ func AddPost(db *sql.DB, post models.Post, groupID int, taggedPeople []int) (int
 		return 0, err
 	}
 
+	if err := dbutil.InsertTags(tx, dbutil.GroupPostTagsTable, int(id), taggedPeople); err != nil {
+		return 0, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+
 	return int(id), nil
 }
 
 func GetGroupPost(db *sql.DB, postID int, userID int) (models.Post, error) {
 	var post models.Post
 
-	var tags sql.NullString
 	var reaction sql.NullInt64
 	var groupID sql.NullInt64
 
@@ -127,7 +138,6 @@ func GetGroupPost(db *sql.DB, postID int, userID int) (models.Post, error) {
 			gp.image_path,
 			gp.location,
 			gp.group_id,
-			gp.tags,
 			gp.created_at,
 			g.name,
 
@@ -163,7 +173,6 @@ func GetGroupPost(db *sql.DB, postID int, userID int) (models.Post, error) {
 			gp.image_path,
 			gp.location,
 			gp.group_id,
-			gp.tags,
 			gp.created_at,
 			g.name
 	`
@@ -175,7 +184,6 @@ func GetGroupPost(db *sql.DB, postID int, userID int) (models.Post, error) {
 		&post.ImagePath,
 		&post.Location,
 		&groupID,
-		&tags,
 		&post.CreatedAt,
 		&post.GroupName,
 		&post.LikeCount,
@@ -207,18 +215,15 @@ func GetGroupPost(db *sql.DB, postID int, userID int) (models.Post, error) {
 	post.Username = &user.UserName
 	post.AvatarPath = user.Avatar
 
-	if tags.Valid && tags.String != "" {
-		// Use your existing tag parser here if tags are stored as JSON.
-		if err := json.Unmarshal([]byte(tags.String), &post.TaggedPeople); err != nil {
-			return post, err
-		}
-	} else {
-		post.TaggedPeople = []models.TaggedPerson{}
-	}
-
 	post.AllowComments = true
 
-	return post, nil
+	list := []models.Post{post}
+
+	if err := dbutil.AttachTaggedPeople(db, dbutil.GroupPostTagsTable, list); err != nil {
+		return post, err
+	}
+
+	return list[0], nil
 }
 
 func InsertReaction(db *sql.DB, reaction models.Reaction) error {

@@ -1,5 +1,7 @@
 <script setup>
-defineProps({
+import { computed } from 'vue';
+
+const props = defineProps({
     imagePath: {
         type: String,
         default: ''
@@ -13,25 +15,39 @@ defineProps({
 
 const emit = defineEmits(['open-tags']);
 
+const validTaggedPeople = computed(() => {
+    if (!Array.isArray(props.taggedPeople)) {
+        return [];
+    }
+
+    return props.taggedPeople.filter(person => {
+        return person && (person.id != null || person.ID != null);
+    });
+});
+
+const hasImage = computed(() => {
+    return !!props.imagePath;
+});
+
 function openTaggedPeople() {
     emit('open-tags');
 }
 </script>
 
 <template>
-    <div v-if="imagePath" class="post-image-container">
-        <img :src="`/uploads/${imagePath}`" alt="Post" class="post-image">
+    <div v-if="hasImage || validTaggedPeople.length" class="post-image-container"
+        :class="{ 'no-image': !hasImage }">
+        <img v-if="hasImage" :src="`/uploads/${imagePath}`" alt="Post" class="post-image">
 
-        <button v-if="taggedPeople && taggedPeople.length != 0" class="image-tags" type="button" @click="openTaggedPeople">
+        <button v-if="validTaggedPeople.length" class="image-tags" :class="{ 'no-image-tags': !hasImage }"
+            type="button" aria-label="Show tagged people" title="Tagged people" @click.stop="openTaggedPeople">
             <svg viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="9" cy="8" r="3" />
-                <path d="M3 19c0-3.3 2.7-6 6-6s6 2.7 6 6" />
-                <circle cx="17" cy="9" r="2.2" />
-                <path d="M15 14.5c.6-.3 1.3-.5 2-.5 2.8 0 5 2.2 5 5" />
+                <path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z" />
+                <circle cx="7.5" cy="7.5" r="1.5" />
             </svg>
 
             <span>
-                {{ taggedPeople.length }}
+                {{ validTaggedPeople.length }}
             </span>
         </button>
     </div>
@@ -50,6 +66,16 @@ function openTaggedPeople() {
     background: #dedede;
 }
 
+.post-image-container.no-image {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+
+    padding: 12px 20px;
+
+    background: transparent;
+}
+
 .post-image {
     display: block;
 
@@ -65,6 +91,7 @@ function openTaggedPeople() {
     position: absolute;
     left: 15px;
     bottom: 15px;
+    z-index: 2;
 
     display: flex;
     align-items: center;
@@ -84,9 +111,15 @@ function openTaggedPeople() {
     font-size: 10px;
     font-weight: 600;
 
+    cursor: pointer;
+
     transition:
         transform 0.1s,
         box-shadow 0.1s;
+}
+
+.image-tags.no-image-tags {
+    position: static;
 }
 
 .image-tags:hover {
@@ -107,9 +140,19 @@ function openTaggedPeople() {
     stroke: currentColor;
     stroke-width: 1.8;
     stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.image-tags svg circle {
+    fill: currentColor;
+    stroke: none;
 }
 
 @media (max-width: 650px) {
+    .post-image-container.no-image {
+        padding: 10px 14px;
+    }
+
     .image-tags {
         left: 10px;
         bottom: 10px;

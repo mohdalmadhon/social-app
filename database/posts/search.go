@@ -7,13 +7,6 @@ import (
 	"social/internal/models"
 )
 
-// SearchPosts finds posts whose content contains the search text, limited to
-// the posts the searching user is allowed to see:
-//
-//   - their own posts
-//   - public posts (group id 0)
-//   - followers-only posts (group id -1) of people they follow
-//   - posts shared with a custom visibility group they belong to
 func SearchPosts(db *sql.DB, userID int, search string, limit, offset int) ([]models.Post, error) {
 	pattern := dbutil.LikePattern(search)
 
@@ -31,7 +24,6 @@ func SearchPosts(db *sql.DB, userID int, search string, limit, offset int) ([]mo
 			p.location,
 			p.created_at,
 			p.group_id,
-			p.tags,
 			COALESCE(prx.value, 0),
 			p.like_count,
 			p.dislike_count,
@@ -78,13 +70,11 @@ func SearchPosts(db *sql.DB, userID int, search string, limit, offset int) ([]mo
 	defer rows.Close()
 
 	result := make([]models.Post, 0)
-	tagsByPostIndex := make(map[int]string)
 
 	for rows.Next() {
 		var p models.Post
 		var username sql.NullString
 		var avatarPath sql.NullString
-		var tags sql.NullString
 
 		if err := rows.Scan(
 			&p.Id,
@@ -99,7 +89,6 @@ func SearchPosts(db *sql.DB, userID int, search string, limit, offset int) ([]mo
 			&p.Location,
 			&p.CreatedAt,
 			&p.GroupId,
-			&tags,
 			&p.ReactionValue,
 			&p.LikeCount,
 			&p.DisLikeCount,
@@ -116,10 +105,6 @@ func SearchPosts(db *sql.DB, userID int, search string, limit, offset int) ([]mo
 			p.AvatarPath = avatarPath.String
 		}
 
-		if tags.Valid {
-			tagsByPostIndex[len(result)] = tags.String
-		}
-
 		result = append(result, p)
 	}
 
@@ -133,7 +118,7 @@ func SearchPosts(db *sql.DB, userID int, search string, limit, offset int) ([]mo
 		return nil, err
 	}
 
-	if err := attachTaggedPeople(db, result, tagsByPostIndex); err != nil {
+	if err := attachTaggedPeople(db, &result); err != nil {
 		return nil, err
 	}
 

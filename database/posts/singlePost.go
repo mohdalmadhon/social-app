@@ -9,7 +9,6 @@ func GetSinglePost(db *sql.DB, postID, userID int) (models.Post, error) {
 	var post models.Post
 	var username sql.NullString
 	var avatarPath sql.NullString
-	var tags sql.NullString
 
 	err := db.QueryRow(`
 		SELECT
@@ -25,7 +24,6 @@ func GetSinglePost(db *sql.DB, postID, userID int) (models.Post, error) {
 			p.location,
 			p.created_at,
 			p.group_id,
-			p.tags,
 			COALESCE((
 				SELECT r.value
 				FROM post_reactions r
@@ -66,7 +64,6 @@ func GetSinglePost(db *sql.DB, postID, userID int) (models.Post, error) {
 		&post.Location,
 		&post.CreatedAt,
 		&post.GroupId,
-		&tags,
 		&post.ReactionValue,
 		&post.LikeCount,
 		&post.DisLikeCount,
@@ -89,17 +86,11 @@ func GetSinglePost(db *sql.DB, postID, userID int) (models.Post, error) {
 
 	list := []models.Post{post}
 
-	tagsByPostIndex := map[int]string{}
-
-	if tags.Valid && tags.String != "" {
-		tagsByPostIndex[0] = tags.String
-	}
-
 	if err := attachGroupOwnerNames(db, list); err != nil {
 		return post, err
 	}
 
-	if err := attachTaggedPeople(db, list, tagsByPostIndex); err != nil {
+	if err := attachTaggedPeople(db, &list); err != nil {
 		return post, err
 	}
 

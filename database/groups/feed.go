@@ -2,6 +2,7 @@ package groups
 
 import (
 	"database/sql"
+	"social/database/dbutil"
 	"social/internal/models"
 )
 
@@ -95,12 +96,17 @@ func GetGroupFeedPosts(db *sql.DB, groupID, userID, limit, offset int) ([]models
 
 		post.Username = &username
 		post.AllowComments = true
-		post.TaggedPeople = []models.TaggedPerson{}
 
 		posts = append(posts, post)
 	}
 
 	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	rows.Close()
+
+	if err := dbutil.AttachTaggedPeople(db, dbutil.GroupPostTagsTable, posts); err != nil {
 		return nil, err
 	}
 

@@ -1,25 +1,32 @@
-```vue
 <script setup>
-
 import { ref, onMounted, onUnmounted } from 'vue';
-
 import HomePosts from '@/components/home/HomePosts.vue';
-
 import HomeSearch from '@/components/home/HomeSearch.vue';
-
 import SideNavigation from '@/components/layout/SideNavigation.vue';
-
 import TopNavigation from '@/components/layout/TopNavigation.vue';
 
 const posts = ref([]);
-
 const loading = ref(false);
-
 const hasMore = ref(true);
-
 const offset = ref(0);
 
 let throttleTimeout = null;
+
+function getTaggedPeople(post) {
+    if (Array.isArray(post?.taggedPeople)) {
+        return post.taggedPeople;
+    }
+
+    if (Array.isArray(post?.TaggedPeople)) {
+        return post.TaggedPeople;
+    }
+
+    if (Array.isArray(post?.tagged_people)) {
+        return post.tagged_people;
+    }
+
+    return [];
+}
 
 async function loadPosts() {
     if (loading.value || !hasMore.value) {
@@ -32,13 +39,14 @@ async function loadPosts() {
         const response = await fetch(
             `/api/posts?offset=${offset.value}`,
             {
+                method: 'GET',
                 credentials: 'include'
             }
         );
 
         const data = await response.json();
 
-        console.log(data);
+        console.log('API response:', data);
 
         if (!response.ok || !data.status) {
             return;
@@ -46,8 +54,18 @@ async function loadPosts() {
 
         const newPosts = data.posts || [];
 
-        posts.value.push(...newPosts);
+        console.log('Posts:', newPosts);
 
+        newPosts.forEach(post => {
+            console.log(
+                'Post:',
+                post.id,
+                'tagged people:',
+                getTaggedPeople(post)
+            );
+        });
+
+        posts.value.push(...newPosts);
         offset.value += newPosts.length;
 
         if (newPosts.length < 13) {
@@ -68,8 +86,11 @@ function handleScroll() {
     throttleTimeout = setTimeout(() => {
         throttleTimeout = null;
 
-        const scrollPosition = window.innerHeight + window.scrollY;
-        const pageHeight = document.documentElement.scrollHeight;
+        const scrollPosition =
+            window.innerHeight + window.scrollY;
+
+        const pageHeight =
+            document.documentElement.scrollHeight;
 
         if (scrollPosition >= pageHeight - 500) {
             loadPosts();
@@ -79,7 +100,12 @@ function handleScroll() {
 
 onMounted(() => {
     loadPosts();
-    window.addEventListener('scroll', handleScroll, { passive: true });
+
+    window.addEventListener(
+        'scroll',
+        handleScroll,
+        { passive: true }
+    );
 });
 
 onUnmounted(() => {
@@ -90,7 +116,6 @@ onUnmounted(() => {
         throttleTimeout = null;
     }
 });
-
 </script>
 
 <template>
@@ -108,17 +133,21 @@ onUnmounted(() => {
                         <HomePosts
                             v-for="post in posts"
                             :key="post.id"
+                            v-bind="post"
                             :post-id="post.id"
                             :likes="post.likeCount"
                             :dislikes="post.disLikeCount"
                             :reaction="post.ReactionValue"
-                            :allowComments="post.allowComments"
+                            :allow-comments="post.allowComments"
                             :avatar-path="post.avatarPath"
-                            v-bind="post"
+                            :tagged-people="getTaggedPeople(post)"
                         />
                     </section>
 
-                    <div v-if="loading" class="loading">
+                    <div
+                        v-if="loading"
+                        class="loading"
+                    >
                         Loading posts...
                     </div>
 
@@ -135,7 +164,6 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-
 .home-page {
     min-height: 100vh;
     padding-top: 64px;
@@ -191,6 +219,4 @@ onUnmounted(() => {
         padding-right: 10px;
     }
 }
-
 </style>
-```

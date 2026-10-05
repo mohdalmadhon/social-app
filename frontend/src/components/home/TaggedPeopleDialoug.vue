@@ -1,10 +1,12 @@
 <script setup>
-defineProps({
+import { computed } from 'vue';
+import { useRouter } from 'vue-router';
+
+const props = defineProps({
     show: {
         type: Boolean,
         default: false
     },
-
     people: {
         type: Array,
         default: () => []
@@ -13,182 +15,286 @@ defineProps({
 
 const emit = defineEmits(['close']);
 
-function close() {
+const router = useRouter();
+
+const visiblePeople = computed(() => {
+    return props.people.filter(person => {
+        return person && (person.id != null || person.ID != null);
+    });
+});
+
+function getPersonId(person) {
+    return person?.id ?? person?.ID ?? null;
+}
+
+function getFirstName(person) {
+    return person?.firstName ?? person?.FirstName ?? '';
+}
+
+function getLastName(person) {
+    return person?.lastName ?? person?.LastName ?? '';
+}
+
+function getUsername(person) {
+    return person?.username ?? person?.UserName ?? '';
+}
+
+function getFullName(person) {
+    const firstName = getFirstName(person);
+    const lastName = getLastName(person);
+
+    const fullName = `${firstName} ${lastName}`.trim();
+
+    if (fullName) {
+        return fullName;
+    }
+
+    return getUsername(person);
+}
+
+function getAvatar(person) {
+    return person?.avatarPath ?? person?.Avatar ?? 'avatars/default.png';
+}
+
+function getAvatarUrl(person) {
+    const avatar = getAvatar(person);
+
+    if (!avatar) {
+        return '/uploads/avatars/default.png';
+    }
+
+    if (
+        avatar.startsWith('http://') ||
+        avatar.startsWith('https://') ||
+        avatar.startsWith('/')
+    ) {
+        return avatar;
+    }
+
+    return `/uploads/${avatar}`;
+}
+
+function openProfile(person) {
+    const id = getPersonId(person);
+
+    if (id == null) {
+        return;
+    }
+
     emit('close');
+
+    router.push({
+        path: '/user',
+        query: {
+            id: String(id)
+        }
+    });
+}
+
+function closeDialog() {
+    emit('close');
+}
+
+function handleBackdropClick(event) {
+    if (event.target === event.currentTarget) {
+        closeDialog();
+    }
 }
 </script>
 
 <template>
     <Teleport to="body">
-        <div v-if="show" class="tagged-dialog-overlay" @click.self="close">
+        <div
+            v-if="show"
+            class="dialog-overlay"
+            @click="handleBackdropClick"
+        >
             <div class="tagged-dialog">
-                <header class="tagged-dialog-header">
-                    <span>Tagged people</span>
+                <div class="dialog-header">
+                    <h2>Tagged people</h2>
 
-                    <button type="button" class="dialog-close" @click="close">
-                        ✕
+                    <button
+                        type="button"
+                        class="close-button"
+                        @click="closeDialog"
+                    >
+                        ×
                     </button>
-                </header>
+                </div>
 
-                <ul class="tagged-list">
-                    <li v-for="person in people" :key="person.id" class="tagged-list-item">
-                        <a :href="`/user?id=${person.id}`" class="tagged-list-link">
-                            <div class="tagged-list-avatar">
-                                <img v-if="person.avatarPath" :src="`/uploads/${person.avatarPath}`"
-                                    :alt="`${person.firstName} ${person.lastName}`">
+                <div v-if="visiblePeople.length" class="people-list">
+                    <button
+                        v-for="person in visiblePeople"
+                        :key="getPersonId(person)"
+                        type="button"
+                        class="person-row"
+                        @click="openProfile(person)"
+                    >
+                        <img
+                            :src="getAvatarUrl(person)"
+                            :alt="getFullName(person)"
+                            class="person-avatar"
+                        />
 
-                                <span v-else>
-                                    {{ person.firstName?.charAt(0) }}
-                                </span>
-                            </div>
-
-                            <span class="tagged-list-name">
-                                {{ person.firstName }} {{ person.lastName }}
+                        <div class="person-info">
+                            <span class="person-name">
+                                {{ getFullName(person) }}
                             </span>
-                        </a>
-                    </li>
-                </ul>
+
+                            <span
+                                v-if="getUsername(person)"
+                                class="person-username"
+                            >
+                                @{{ getUsername(person) }}
+                            </span>
+                        </div>
+                    </button>
+                </div>
+
+                <div v-else class="empty-state">
+                    No tagged people.
+                </div>
             </div>
         </div>
     </Teleport>
 </template>
 
 <style scoped>
-.tagged-dialog-overlay {
+.dialog-overlay {
     position: fixed;
     inset: 0;
     z-index: 1000;
-
     display: flex;
     align-items: center;
     justify-content: center;
-
     padding: 20px;
-
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.65);
 }
 
 .tagged-dialog {
     width: 100%;
-    max-width: 400px;
-    max-height: 70vh;
-
-    display: flex;
-    flex-direction: column;
-
-    border: 2px solid var(--main-color);
-    border-radius: 8px;
+    max-width: 420px;
+    max-height: 80vh;
     overflow: hidden;
-
+    border: 2px solid var(--main-color);
+    border-radius: 10px;
     background: var(--bg-color);
-    box-shadow: 7px 7px var(--main-color);
+    box-shadow: 8px 8px var(--main-color);
 }
 
-.tagged-dialog-header {
+.dialog-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-
-    padding: 14px 16px;
-
+    padding: 16px 18px;
     border-bottom: 2px solid var(--main-color);
-
-    color: var(--main-color);
-
-    font-family: "Liter", serif;
-    font-size: 14px;
-    font-weight: 600;
 }
 
-.dialog-close {
-    padding: 2px 6px;
-
-    border: none;
-    background: transparent;
-
-    color: var(--font-color-sub);
-
-    font-size: 14px;
-    font-weight: 600;
-}
-
-.dialog-close:hover {
-    color: var(--main-color);
-}
-
-.tagged-list {
+.dialog-header h2 {
     margin: 0;
-    padding: 8px;
-
-    list-style: none;
-
-    overflow-y: auto;
+    color: var(--font-color);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 15px;
+    font-weight: 700;
 }
 
-.tagged-list-item {
-    border-bottom: 1px solid #eee;
-}
-
-.tagged-list-item:last-child {
-    border-bottom: none;
-}
-
-.tagged-list-link {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-
-    padding: 10px 8px;
-
-    text-decoration: none;
-
-    transition: background 0.15s;
-}
-
-.tagged-list-link:hover {
-    background: var(--page-background);
-}
-
-.tagged-list-avatar {
-    flex-shrink: 0;
-
-    width: 40px;
-    height: 40px;
-
+.close-button {
     display: flex;
     align-items: center;
     justify-content: center;
-
-    overflow: hidden;
-
+    width: 32px;
+    height: 32px;
+    padding: 0;
     border: 2px solid var(--main-color);
-    border-radius: 50%;
-
-    background: var(--input-focus);
-
-    color: white;
-
-    font-family: "Liter", serif;
-    font-size: 16px;
-    font-weight: 600;
+    border-radius: 6px;
+    background: var(--bg-color);
+    color: var(--font-color);
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
 }
 
-.tagged-list-avatar img {
+.close-button:hover {
+    background: var(--main-color);
+    color: var(--bg-color);
+}
+
+.people-list {
+    max-height: calc(80vh - 70px);
+    overflow-y: auto;
+    padding: 8px;
+}
+
+.person-row {
+    display: flex;
+    align-items: center;
     width: 100%;
-    height: 100%;
+    gap: 12px;
+    padding: 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--font-color);
+    text-align: left;
+    cursor: pointer;
+}
+
+.person-row:hover {
+    background: var(--main-color);
+    color: var(--bg-color);
+}
+
+.person-avatar {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border: 2px solid var(--main-color);
+    border-radius: 50%;
     object-fit: cover;
 }
 
-.tagged-list-name {
-    color: var(--main-color);
-
-    font-size: 13px;
-    font-weight: 600;
+.person-info {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 3px;
 }
 
-@media (max-width: 650px) {
+.person-name {
+    overflow: hidden;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.person-username {
+    overflow: hidden;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    opacity: 0.7;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.empty-state {
+    padding: 30px 20px;
+    color: var(--font-color);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    text-align: center;
+}
+
+@media (max-width: 500px) {
+    .dialog-overlay {
+        align-items: flex-end;
+        padding: 10px;
+    }
+
     .tagged-dialog {
-        max-width: 100%;
+        max-width: none;
+        box-shadow: 4px 4px var(--main-color);
     }
 }
 </style>

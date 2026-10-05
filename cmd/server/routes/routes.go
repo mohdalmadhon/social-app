@@ -39,7 +39,7 @@ func StartServer(db *sql.DB) *http.ServeMux {
 	mux.HandleFunc("POST /api/user", app.RegisterUser)
 	mux.HandleFunc("PATCH /api/user", app.AuthMiddleware(app.UpdateUserInfo))
 	mux.HandleFunc("DELETE /api/user", app.AuthMiddleware(app.DeleteAccount))
-	
+
 	//registration
 	mux.HandleFunc("GET /api/registration/check", app.CheckAvailability)
 	mux.HandleFunc("POST /api/email/code", app.SendEmailCode)
@@ -110,7 +110,7 @@ func StartServer(db *sql.DB) *http.ServeMux {
 	mux.HandleFunc("POST /api/chats/media", app.AuthMiddleware(app.SendChatMedia))
 	mux.HandleFunc("POST /api/chats/share", app.AuthMiddleware(app.SharePost))
 	mux.HandleFunc("POST /api/chats/share/profile", app.AuthMiddleware(app.ShareProfile))
-	
+
 	//group chats
 	mux.HandleFunc("GET /api/groups/invites/search", app.AuthMiddleware(app.SearchInvites))
 	mux.HandleFunc("POST /api/groups", app.AuthMiddleware(app.MakeNewGroup))

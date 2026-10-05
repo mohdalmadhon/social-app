@@ -121,7 +121,7 @@ const locationParts = computed(() => {
     if (!props.location) {
         return null;
     }
-    
+
     const parts = props.location.split(':').map(p => p.trim());
 
     if (parts.length < 3) {
@@ -151,6 +151,21 @@ const mapEmbedUrl = computed(() => {
     }
 
     return `https://www.google.com/maps?q=${locationParts.value.lat},${locationParts.value.lon}&output=embed`;
+});
+
+const normalizedTaggedPeople = computed(() => {
+    if (!Array.isArray(props.taggedPeople)) {
+        return [];
+    }
+
+    return props.taggedPeople.filter(person => {
+        return person && (
+            person.id != null ||
+            person.ID != null ||
+            person.userId != null ||
+            person.UserID != null
+        );
+    });
 });
 
 const mapExternalUrl = computed(() => {
@@ -216,12 +231,12 @@ function handleSubmitComment(text) {
 }
 
 function openTaggedPeople() {
-    if (!props.taggedPeople.length) {
+    if (!normalizedTaggedPeople.value.length) {
         return;
     }
 
     showTaggedDialog.value = true;
-    emit('open-tags', props.taggedPeople);
+    emit('open-tags', normalizedTaggedPeople.value);
 }
 
 function closeTaggedDialog() {
@@ -282,80 +297,37 @@ onMounted(() => {
 onBeforeUnmount(() => {
     observer?.disconnect();
 });
+
 </script>
 
 <template>
     <article ref="postElement" class="post-card">
-        <HomePostHeader
-            :user-id="userId"
-            :group-id="groupId"
-            :first-name="firstName"
-            :last-name="lastName"
-            :avatar-path="avatarPath"
-            :relationship="relationship"
-            :tagged-people="taggedPeople"
-            :formatted-date="formattedDate"
-            :location-display="locationParts?.display"
-            :has-location="!!location"
-            @open-tags="openTaggedPeople"
-            @open-location="openLocationDialog"
-        />
+        <HomePostHeader :user-id="userId" :group-id="groupId" :first-name="firstName" :last-name="lastName"
+            :avatar-path="avatarPath" :relationship="relationship" :tagged-people="normalizedTaggedPeople"
+            :formatted-date="formattedDate" :location-display="locationParts?.display" :has-location="!!location"
+            @open-tags="openTaggedPeople" @open-location="openLocationDialog" />
 
         <div v-if="content" class="post-content">
             {{ content }}
         </div>
 
-        <HomePostImage
-            :image-path="imagePath"
-            :tagged-people="taggedPeople"
-            @open-tags="openTaggedPeople"
-        />
+        <HomePostImage :image-path="imagePath" :tagged-people="normalizedTaggedPeople" @open-tags="openTaggedPeople" />
 
-        <HomePostReaction
-            :likes="likes"
-            :dislikes="dislikes"
-            :comments-count="comments.length"
-            @toggle-comments="toggleComments"
-        />
+        <HomePostReaction :likes="likes" :dislikes="dislikes" :comments-count="comments.length"
+            @toggle-comments="toggleComments" />
 
-        <HomePostAction
-            :reaction="props.reaction"
-            :user-reaction="userReaction"
-            :post-id="postId"
-            :likes="props.likes"
-            :allowComments="props.allowComments"
-            :dislikes="props.dislikes"
-            @like="handleLike"
-            @dislike="handleDislike"
-            @toggle-comments="toggleComments"
-        />
+        <HomePostAction :reaction="props.reaction" :user-reaction="userReaction" :post-id="postId" :likes="props.likes"
+            :allowComments="props.allowComments" :dislikes="props.dislikes" @like="handleLike" @dislike="handleDislike"
+            @toggle-comments="toggleComments" />
 
-        <HomePostComments
-            :show="showComments"
-            :post-id="postId"
-            :current-user-id="currentUserId"
-            :first-name="firstName"
-            :last-name="lastName"
-            :avatar-path="avatarPath"
-            :created-at="createdAt"
-            :content="content"
-            :image-path="imagePath"
-            @close="showComments = false"
-        />
+        <HomePostComments :show="showComments" :post-id="postId" :current-user-id="currentUserId"
+            :first-name="firstName" :last-name="lastName" :avatar-path="avatarPath" :created-at="createdAt"
+            :content="content" :image-path="imagePath" @close="showComments = false" />
 
-        <LocationDialouge
-            :show="showLocationDialog"
-            :display="locationParts?.display"
-            :embed-url="mapEmbedUrl"
-            :external-url="mapExternalUrl"
-            @close="closeLocationDialog"
-        />
+        <LocationDialouge :show="showLocationDialog" :display="locationParts?.display" :embed-url="mapEmbedUrl"
+            :external-url="mapExternalUrl" @close="closeLocationDialog" />
 
-        <TaggedPeopleDialoug
-            :show="showTaggedDialog"
-            :people="taggedPeople"
-            @close="closeTaggedDialog"
-        />
+        <TaggedPeopleDialoug :show="showTaggedDialog" :people="normalizedTaggedPeople" @close="closeTaggedDialog" />
     </article>
 </template>
 

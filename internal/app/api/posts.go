@@ -186,7 +186,7 @@ func (app *App) GetHomePosts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	posts, err := posts.GetHomePosts(app.DB, userID, offset)
-
+	
 	if err != nil {
 		log.Println(err)
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
@@ -427,7 +427,6 @@ func (app *App) ViewPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Println(postID, userID)
 	if err := posts.ViewPost(app.DB, postID, userID); err != nil && err.Error() != "UNIQUE constraint failed: post_views.user_id, post_views.post_id" {
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 			"status":  false,
