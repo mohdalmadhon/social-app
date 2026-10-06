@@ -66,6 +66,15 @@ func (app *App) AddPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	file, header, err := r.FormFile("image")
+	
+	res := validation.ValidatePost(&post, header)
+	if res.Field != "" {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": "could not upload post",
+		})
+		return
+	}
 
 	if err == nil {
 		defer file.Close()
@@ -99,15 +108,6 @@ func (app *App) AddPost(w http.ResponseWriter, r *http.Request) {
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 			"status":  false,
 			"message": "could not get group post",
-		})
-		return
-	}
-
-	res := validation.ValidatePost(&post, header)
-	if res.Field != "" {
-		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
-			"status":  false,
-			"message": "could not upload post",
 		})
 		return
 	}
@@ -186,7 +186,7 @@ func (app *App) GetHomePosts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	posts, err := posts.GetHomePosts(app.DB, userID, offset)
-	
+
 	if err != nil {
 		log.Println(err)
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{

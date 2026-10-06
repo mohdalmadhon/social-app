@@ -1,3 +1,4 @@
+
 <script setup>
 import { computed } from 'vue';
 
@@ -29,21 +30,74 @@ const hasImage = computed(() => {
     return !!props.imagePath;
 });
 
+const isVideo = computed(() => {
+    if (!props.imagePath) {
+        return false;
+    }
+
+    return props.imagePath
+        .split('?')[0]
+        .toLowerCase()
+        .endsWith('.mp4');
+});
+
+const mediaUrl = computed(() => {
+    if (!props.imagePath) {
+        return '';
+    }
+
+    return `/uploads/${props.imagePath}`;
+});
+
 function openTaggedPeople() {
     emit('open-tags');
 }
 </script>
 
 <template>
-    <div v-if="hasImage || validTaggedPeople.length" class="post-image-container"
-        :class="{ 'no-image': !hasImage }">
-        <img v-if="hasImage" :src="`/uploads/${imagePath}`" alt="Post" class="post-image">
+    <div
+        v-if="hasImage || validTaggedPeople.length"
+        class="post-image-container"
+        :class="{ 'no-image': !hasImage }"
+    >
+        <video
+            v-if="isVideo"
+            :src="mediaUrl"
+            class="post-video"
+            controls
+            playsinline
+            preload="metadata"
+        ></video>
 
-        <button v-if="validTaggedPeople.length" class="image-tags" :class="{ 'no-image-tags': !hasImage }"
-            type="button" aria-label="Show tagged people" title="Tagged people" @click.stop="openTaggedPeople">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z" />
-                <circle cx="7.5" cy="7.5" r="1.5" />
+        <img
+            v-else-if="hasImage"
+            :src="mediaUrl"
+            alt="Post"
+            class="post-image"
+        >
+
+        <button
+            v-if="validTaggedPeople.length"
+            class="image-tags"
+            :class="{ 'no-image-tags': !hasImage }"
+            type="button"
+            aria-label="Show tagged people"
+            title="Tagged people"
+            @click.stop="openTaggedPeople"
+        >
+            <svg
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+            >
+                <path
+                    d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z"
+                />
+
+                <circle
+                    cx="7.5"
+                    cy="7.5"
+                    r="1.5"
+                />
             </svg>
 
             <span>
@@ -56,13 +110,10 @@ function openTaggedPeople() {
 <style scoped>
 .post-image-container {
     position: relative;
-
     width: 100%;
     padding: 0 20px;
-
     border-top: 2px solid var(--main-color);
     border-bottom: 2px solid var(--main-color);
-
     background: #dedede;
 }
 
@@ -70,21 +121,26 @@ function openTaggedPeople() {
     display: flex;
     align-items: center;
     justify-content: flex-start;
-
     padding: 12px 20px;
-
     background: transparent;
 }
 
 .post-image {
     display: block;
-
     width: calc(100% - 40px);
     max-height: 450px;
-
     object-fit: contain;
-
     margin: 12px auto;
+}
+
+.post-video {
+    display: block;
+    width: calc(100% - 40px);
+    max-height: 450px;
+    object-fit: contain;
+    margin: 12px auto;
+    border-radius: 4px;
+    background: #000;
 }
 
 .image-tags {
@@ -92,27 +148,19 @@ function openTaggedPeople() {
     left: 15px;
     bottom: 15px;
     z-index: 2;
-
     display: flex;
     align-items: center;
     gap: 6px;
-
     padding: 8px 10px;
-
     border: 2px solid var(--main-color);
     border-radius: 5px;
-
     background: var(--bg-color);
     box-shadow: 3px 3px var(--main-color);
-
     color: var(--main-color);
-
     font-family: "JetBrains Mono", monospace;
     font-size: 10px;
     font-weight: 600;
-
     cursor: pointer;
-
     transition:
         transform 0.1s,
         box-shadow 0.1s;
@@ -135,7 +183,6 @@ function openTaggedPeople() {
 .image-tags svg {
     width: 17px;
     height: 17px;
-
     fill: none;
     stroke: currentColor;
     stroke-width: 1.8;
@@ -156,6 +203,11 @@ function openTaggedPeople() {
     .image-tags {
         left: 10px;
         bottom: 10px;
+    }
+
+    .post-image,
+    .post-video {
+        width: calc(100% - 20px);
     }
 }
 </style>

@@ -68,13 +68,14 @@ export function validatePost(data) {
         const allowedTypes = [
             'image/png',
             'image/jpeg',
-            'image/gif'
+            'image/gif',
+            'video/mp4'
         ];
 
         if (!allowedTypes.includes(data.image.type)) {
             return {
                 field: 'image',
-                message: 'image must be png, jpg or gif'
+                message: 'image must be png, jpg or gif\n or video of type mp4'
             };
         }
 
@@ -83,7 +84,7 @@ export function validatePost(data) {
             .pop()
             .toLowerCase();
 
-        if (!['png', 'jpg', 'jpeg', 'gif'].includes(extension)) {
+        if (!['png', 'jpg', 'jpeg', 'gif', 'mp4'].includes(extension)) {
             return {
                 field: 'image',
                 message: 'image must be png, jpg or gif'
