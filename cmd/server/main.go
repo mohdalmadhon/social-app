@@ -20,9 +20,13 @@ func main() {
 	if err := utils.MakeUploadDirectories(); err != nil {
 		log.Println(err)
 		return
-	} 		
+	}
 
-	// copy default avatar
+	if err := utils.SeedUploads(); err != nil {
+		log.Println(err)
+		return
+	}
+
 	if err := utils.CopyDefaultAvatar(); err != nil {
 		log.Println(err)
 		return

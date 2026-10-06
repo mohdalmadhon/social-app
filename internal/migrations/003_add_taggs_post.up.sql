@@ -1,2 +1,2 @@
 ALTER TABLE posts
-ADD COLUMN tags TEXT; 
+ADD COLUMN tags TEXT;

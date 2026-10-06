@@ -1,34 +1,51 @@
+```vue
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import {
+    ref,
+    computed,
+    watch,
+    onMounted,
+    onBeforeUnmount
+} from 'vue';
+
 import HomePostComments from './HomePostComments.vue';
+
 import { postReaction } from '@/api/posts/actions';
 import { viewPost } from '@/api/posts/posts';
 import { addNotification } from '@/data/notifications';
 import { Reaction } from '@/models/posts';
+import { claimPlayback, releasePlayback } from '@/helpers/singleVideo';
 
 const props = defineProps({
     post: {
         type: Object,
         required: true
     },
+
     active: {
         type: Boolean,
         default: false
     },
+
     muted: {
         type: Boolean,
         default: true
     },
+
     currentUserId: {
         type: [Number, String],
         default: null
     }
 });
 
-const emit = defineEmits(['toggle-mute', 'visible']);
+const emit = defineEmits([
+    'toggle-mute',
+    'visible'
+]);
 
 const itemElement = ref(null);
 const videoElement = ref(null);
+
 const playing = ref(false);
 const progress = ref(0);
 const flash = ref('');
@@ -36,22 +53,37 @@ const expanded = ref(false);
 const showComments = ref(false);
 const failed = ref(false);
 
-const likeCount = ref(props.post.likeCount ?? 0);
-const dislikeCount = ref(props.post.disLikeCount ?? 0);
-const commentCount = ref(props.post.commentCount ?? 0);
-const currentReaction = ref(props.post.ReactionValue ?? 0);
+const likeCount = ref(
+    props.post.likeCount ?? 0
+);
+
+const dislikeCount = ref(
+    props.post.disLikeCount ?? 0
+);
+
+const commentCount = ref(
+    props.post.commentCount ?? 0
+);
+
+const currentReaction = ref(
+    props.post.ReactionValue ?? 0
+);
 
 let observer = null;
 let flashTimer = null;
 let seen = false;
 
-const videoUrl = computed(() => `/uploads/${props.post.imagePath}`);
+const videoUrl = computed(() => {
+    return `/uploads/${props.post.imagePath}`;
+});
 
 const authorName = computed(() => {
     return `${props.post.firstName || ''} ${props.post.lastName || ''}`.trim();
 });
 
-const hasLongContent = computed(() => (props.post.content || '').length > 90);
+const hasLongContent = computed(() => {
+    return (props.post.content || '').length > 90;
+});
 
 function showFlash(kind) {
     flash.value = kind;
@@ -66,14 +98,33 @@ function showFlash(kind) {
 async function play() {
     const video = videoElement.value;
 
-    if (!video) {
+    if (!video || !props.active) {
         return;
     }
+
+    video.muted = props.muted;
 
     try {
         await video.play();
     } catch (err) {
         playing.value = false;
+        console.debug('Video play prevented:', err);
+    }
+}
+
+function handlePlay() {
+    playing.value = true;
+
+    if (videoElement.value) {
+        claimPlayback(videoElement.value);
+    }
+}
+
+function handlePause() {
+    playing.value = false;
+
+    if (videoElement.value) {
+        releasePlayback(videoElement.value);
     }
 }
 
@@ -85,12 +136,13 @@ function pause() {
     }
 
     video.pause();
+    playing.value = false;
 }
 
 function togglePlay() {
     const video = videoElement.value;
 
-    if (!video) {
+    if (!video || !props.active) {
         return;
     }
 
@@ -110,7 +162,8 @@ function handleTimeUpdate() {
         return;
     }
 
-    progress.value = (video.currentTime / video.duration) * 100;
+    progress.value =
+        (video.currentTime / video.duration) * 100;
 }
 
 function seek(event) {
@@ -120,10 +173,19 @@ function seek(event) {
         return;
     }
 
-    const rect = event.currentTarget.getBoundingClientRect();
-    const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+    const rect =
+        event.currentTarget.getBoundingClientRect();
 
-    video.currentTime = ratio * video.duration;
+    const ratio = Math.min(
+        1,
+        Math.max(
+            0,
+            (event.clientX - rect.left) / rect.width
+        )
+    );
+
+    video.currentTime =
+        ratio * video.duration;
 }
 
 async function markSeen() {
@@ -136,23 +198,38 @@ async function markSeen() {
     try {
         await viewPost(props.post.id);
     } catch (err) {
-        console.error('Could not mark video as seen:', err);
+        console.error(
+            'Could not mark video as seen:',
+            err
+        );
     }
 }
 
 async function react(value) {
     const previous = currentReaction.value;
-    const next = previous === value ? 0 : value;
+
+    const next =
+        previous === value
+            ? 0
+            : value;
 
     try {
-        const result = await postReaction(new Reaction(value, props.post.id).getData());
+        const result = await postReaction(
+            new Reaction(
+                value,
+                props.post.id
+            ).getData()
+        );
 
         if (!result.status) {
             addNotification(result.message);
             return;
         }
     } catch (err) {
-        addNotification(err.message || 'could not react');
+        addNotification(
+            err.message || 'could not react'
+        );
+
         return;
     }
 
@@ -177,45 +254,65 @@ async function react(value) {
 
 function formatCount(value) {
     if (value >= 1000000) {
-        return `${(value / 1000000).toFixed(1).replace(/\.0$/, '')}M`;
+        return `${(value / 1000000)
+            .toFixed(1)
+            .replace(/\.0$/, '')}M`;
     }
 
     if (value >= 1000) {
-        return `${(value / 1000).toFixed(1).replace(/\.0$/, '')}K`;
+        return `${(value / 1000)
+            .toFixed(1)
+            .replace(/\.0$/, '')}K`;
     }
 
     return String(value);
 }
 
-watch(() => props.active, isActive => {
-    const video = videoElement.value;
+watch(
+    () => props.active,
+    async isActive => {
+        const video = videoElement.value;
 
-    if (isActive) {
-        if (video) {
+        if (isActive) {
+            if (!video) {
+                return;
+            }
+
             video.currentTime = 0;
+            video.muted = props.muted;
+
+            await play();
+            markSeen();
+        } else {
+            if (video) {
+                video.pause();
+            }
+
+            playing.value = false;
+            expanded.value = false;
         }
-
-        play();
-        markSeen();
-    } else {
-        pause();
-        expanded.value = false;
     }
-});
+);
 
-watch(() => props.muted, value => {
-    if (videoElement.value) {
-        videoElement.value.muted = value;
+watch(
+    () => props.muted,
+    value => {
+        if (videoElement.value) {
+            videoElement.value.muted = value;
+        }
     }
-});
+);
 
-watch(showComments, open => {
-    if (open) {
-        pause();
-    } else if (props.active) {
-        play();
+watch(
+    showComments,
+    open => {
+        if (open) {
+            pause();
+        } else if (props.active) {
+            play();
+        }
     }
-});
+);
 
 onMounted(() => {
     if (!itemElement.value) {
@@ -226,8 +323,18 @@ onMounted(() => {
         entries => {
             const entry = entries[0];
 
-            if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
-                emit('visible', props.post.id);
+            if (!entry) {
+                return;
+            }
+
+            if (
+                entry.isIntersecting &&
+                entry.intersectionRatio >= 0.6
+            ) {
+                emit(
+                    'visible',
+                    props.post.id
+                );
             }
         },
         {
@@ -235,7 +342,9 @@ onMounted(() => {
         }
     );
 
-    observer.observe(itemElement.value);
+    observer.observe(
+        itemElement.value
+    );
 
     if (props.active) {
         play();
@@ -245,108 +354,306 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
     observer?.disconnect();
+
     clearTimeout(flashTimer);
+
     pause();
+
+    if (videoElement.value) {
+        videoElement.value.removeAttribute('src');
+        videoElement.value.load();
+    }
 });
 </script>
 
 <template>
-    <article ref="itemElement" class="reel">
+    <article
+        ref="itemElement"
+        class="reel video-item"
+        :data-video-id="post.id"
+    >
         <div class="reel-frame">
-            <video ref="videoElement" class="reel-video" :src="videoUrl" :muted="muted" loop playsinline
-                preload="metadata" @play="playing = true" @pause="playing = false" @timeupdate="handleTimeUpdate"
-                @error="failed = true" @click="togglePlay"></video>
 
-            <div v-if="failed" class="reel-failed">
+            <video
+                ref="videoElement"
+                class="reel-video"
+                :src="videoUrl"
+                :muted="muted"
+                loop
+                playsinline
+                webkit-playsinline
+                preload="metadata"
+                @play="handlePlay"
+                @pause="handlePause"
+                @timeupdate="handleTimeUpdate"
+                @error="failed = true"
+                @click="togglePlay"
+            ></video>
+
+            <div
+                v-if="failed"
+                class="reel-failed"
+            >
                 Could not load this video.
             </div>
 
-            <div v-if="flash" class="reel-flash" :class="flash">
-                <svg v-if="flash === 'pause'" viewBox="0 0 24 24" fill="currentColor">
-                    <rect x="6" y="5" width="4" height="14" rx="1" />
-                    <rect x="14" y="5" width="4" height="14" rx="1" />
+            <div
+                v-if="flash"
+                class="reel-flash"
+                :class="flash"
+            >
+                <svg
+                    v-if="flash === 'pause'"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                >
+                    <rect
+                        x="6"
+                        y="5"
+                        width="4"
+                        height="14"
+                        rx="1"
+                    />
+
+                    <rect
+                        x="14"
+                        y="5"
+                        width="4"
+                        height="14"
+                        rx="1"
+                    />
                 </svg>
 
-                <svg v-else viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M8 5.5V18.5L19 12L8 5.5Z" />
+                <svg
+                    v-else
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                >
+                    <path
+                        d="M8 5.5V18.5L19 12L8 5.5Z"
+                    />
                 </svg>
             </div>
 
-            <button class="reel-mute" type="button" :aria-label="muted ? 'Unmute' : 'Mute'"
-                @click.stop="emit('toggle-mute')">
-                <svg v-if="muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M11 5L6 9H3V15H6L11 19V5Z" />
-                    <path d="M22 9L16 15" />
-                    <path d="M16 9L22 15" />
+            <button
+                class="reel-mute"
+                type="button"
+                :aria-label="
+                    muted ? 'Unmute' : 'Mute'
+                "
+                @click.stop="
+                    emit('toggle-mute')
+                "
+            >
+                <svg
+                    v-if="muted"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <path
+                        d="M11 5L6 9H3V15H6L11 19V5Z"
+                    />
+
+                    <path
+                        d="M22 9L16 15"
+                    />
+
+                    <path
+                        d="M16 9L22 15"
+                    />
                 </svg>
 
-                <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M11 5L6 9H3V15H6L11 19V5Z" />
-                    <path d="M15.5 8.5C17.2 10.2 17.2 13.8 15.5 15.5" />
-                    <path d="M18.5 5.5C22 9 22 15 18.5 18.5" />
+                <svg
+                    v-else
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <path
+                        d="M11 5L6 9H3V15H6L11 19V5Z"
+                    />
+
+                    <path
+                        d="M15.5 8.5C17.2 10.2 17.2 13.8 15.5 15.5"
+                    />
+
+                    <path
+                        d="M18.5 5.5C22 9 22 15 18.5 18.5"
+                    />
                 </svg>
             </button>
 
             <div class="reel-gradient"></div>
 
             <div class="reel-info">
-                <a :href="`/user?id=${post.userId}`" class="reel-author">
+
+                <a
+                    :href="`/user?id=${post.userId}`"
+                    class="reel-author"
+                >
                     <span class="reel-avatar">
-                        <img v-if="post.avatarPath" :src="`/uploads/${post.avatarPath}`" :alt="authorName">
-                        <span v-else>{{ (post.firstName || '?').charAt(0) }}</span>
+
+                        <img
+                            v-if="post.avatarPath"
+                            :src="`/uploads/${post.avatarPath}`"
+                            :alt="authorName"
+                        >
+
+                        <span v-else>
+                            {{
+                                (post.firstName || '?')
+                                    .charAt(0)
+                            }}
+                        </span>
+
                     </span>
 
-                    <span class="reel-name">{{ authorName }}</span>
+                    <span class="reel-name">
+                        {{ authorName }}
+                    </span>
                 </a>
 
-                <p v-if="post.content" class="reel-caption" :class="{ expanded }"
-                    @click="hasLongContent && (expanded = !expanded)">
+                <p
+                    v-if="post.content"
+                    class="reel-caption"
+                    :class="{ expanded }"
+                    @click="
+                        hasLongContent &&
+                        (expanded = !expanded)
+                    "
+                >
                     {{ post.content }}
                 </p>
+
             </div>
 
             <div class="reel-actions">
-                <button class="reel-action" :class="{ on: currentReaction === 1 }" type="button" aria-label="Like"
-                    @click.stop="react(1)">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 19V5" />
-                        <path d="M5 12L12 5L19 12" />
+
+                <button
+                    class="reel-action"
+                    :class="{
+                        on: currentReaction === 1
+                    }"
+                    type="button"
+                    aria-label="Like"
+                    @click.stop="react(1)"
+                >
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
+                        <path
+                            d="M12 19V5"
+                        />
+
+                        <path
+                            d="M5 12L12 5L19 12"
+                        />
                     </svg>
-                    <span>{{ formatCount(likeCount) }}</span>
+
+                    <span>
+                        {{ formatCount(likeCount) }}
+                    </span>
                 </button>
 
-                <button class="reel-action" :class="{ on: currentReaction === -1 }" type="button"
-                    aria-label="Dislike" @click.stop="react(-1)">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 5V19" />
-                        <path d="M5 12L12 19L19 12" />
+                <button
+                    class="reel-action"
+                    :class="{
+                        on: currentReaction === -1
+                    }"
+                    type="button"
+                    aria-label="Dislike"
+                    @click.stop="react(-1)"
+                >
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
+                        <path
+                            d="M12 5V19"
+                        />
+
+                        <path
+                            d="M5 12L12 19L19 12"
+                        />
                     </svg>
-                    <span>{{ formatCount(dislikeCount) }}</span>
+
+                    <span>
+                        {{ formatCount(dislikeCount) }}
+                    </span>
                 </button>
 
-                <button v-if="post.allowComments" class="reel-action" type="button" aria-label="Comments"
-                    @click.stop="showComments = true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21 12C21 16.4 16.97 20 12 20C10.8 20 9.65 19.8 8.6 19.4L3 21L4.6 16.6C3.6 15.3 3 13.7 3 12C3 7.6 7.03 4 12 4C16.97 4 21 7.6 21 12Z" />
+                <button
+                    v-if="post.allowComments"
+                    class="reel-action"
+                    type="button"
+                    aria-label="Comments"
+                    @click.stop="
+                        showComments = true
+                    "
+                >
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
+                        <path
+                            d="M21 12C21 16.4 16.97 20 12 20C10.8 20 9.65 19.8 8.6 19.4L3 21L4.6 16.6C3.6 15.3 3 13.7 3 12C3 7.6 7.03 4 12 4C16.97 4 21 7.6 21 12Z"
+                        />
                     </svg>
-                    <span>{{ formatCount(commentCount) }}</span>
+
+                    <span>
+                        {{ formatCount(commentCount) }}
+                    </span>
                 </button>
+
             </div>
 
-            <div class="reel-progress" @click.stop="seek">
-                <div class="reel-progress-bar" :style="{ width: `${progress}%` }"></div>
+            <div
+                class="reel-progress"
+                @click.stop="seek"
+            >
+                <div
+                    class="reel-progress-bar"
+                    :style="{
+                        width: `${progress}%`
+                    }"
+                ></div>
             </div>
+
         </div>
 
-        <HomePostComments :show="showComments" :post-id="post.id" :current-user-id="currentUserId"
-            :first-name="post.firstName || ''" :last-name="post.lastName || ''" :avatar-path="post.avatarPath || ''"
-            :created-at="post.createdAt || ''" :content="post.content || ''" image-path=""
-            @close="showComments = false" />
+        <HomePostComments
+            :show="showComments"
+            :post-id="post.id"
+            :current-user-id="currentUserId"
+            :first-name="post.firstName || ''"
+            :last-name="post.lastName || ''"
+            :avatar-path="post.avatarPath || ''"
+            :created-at="post.createdAt || ''"
+            :content="post.content || ''"
+            image-path=""
+            @close="showComments = false"
+        />
+
     </article>
 </template>
 
@@ -465,7 +772,11 @@ onBeforeUnmount(() => {
     right: 0;
     bottom: 0;
     height: 45%;
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.78), rgba(0, 0, 0, 0));
+    background: linear-gradient(
+        to top,
+        rgba(0, 0, 0, 0.78),
+        rgba(0, 0, 0, 0)
+    );
     pointer-events: none;
 }
 
@@ -573,7 +884,9 @@ onBeforeUnmount(() => {
     box-sizing: border-box;
     border-radius: 50%;
     background: rgba(0, 0, 0, 0.5);
-    transition: transform 0.15s ease, background 0.15s ease;
+    transition:
+        transform 0.15s ease,
+        background 0.15s ease;
 }
 
 .reel-action:hover svg {
@@ -617,3 +930,4 @@ onBeforeUnmount(() => {
     }
 }
 </style>
+

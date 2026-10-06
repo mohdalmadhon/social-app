@@ -1,5 +1,1 @@
-DELETE from user;
-DELETE from posts;
-delete from user_followers;
-delete from comments;
-delete from post_reactions;
+DELETE FROM user WHERE email LIKE '%@minecraft.com' OR email IN ('dream@hotmail.com', 'max@hotmail.com', 'random@hotmail.com', 'celeste@hotmail.com');

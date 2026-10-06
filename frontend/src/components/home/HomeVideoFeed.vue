@@ -21,8 +21,12 @@ const activeId = ref(null);
 const muted = ref(true);
 const scroller = ref(null);
 
+let visibilityObserver = null;
+
 const activeIndex = computed(() => {
-    return videos.value.findIndex(video => video.id === activeId.value);
+    return videos.value.findIndex(
+        video => video.id === activeId.value
+    );
 });
 
 async function loadMore() {
@@ -34,14 +38,24 @@ async function loadMore() {
     error.value = '';
 
     try {
-        const response = await getHomeVideos(offset.value, BATCH_SIZE);
+        const response = await getHomeVideos(
+            offset.value,
+            BATCH_SIZE
+        );
+
         const incoming = response?.posts || [];
 
-        const known = new Set(videos.value.map(video => video.id));
-        const fresh = incoming.filter(video => !known.has(video.id));
+        const known = new Set(
+            videos.value.map(video => video.id)
+        );
+
+        const fresh = incoming.filter(
+            video => !known.has(video.id)
+        );
 
         videos.value.push(...fresh);
-        offset.value += BATCH_SIZE;
+
+        offset.value += incoming.length;
 
         if (typeof response?.hasMore === 'boolean') {
             hasMore.value = response.hasMore;
@@ -49,19 +63,74 @@ async function loadMore() {
             hasMore.value = false;
         }
 
-        if (activeId.value === null && videos.value.length > 0) {
+        if (
+            activeId.value === null &&
+            videos.value.length > 0
+        ) {
             activeId.value = videos.value[0].id;
         }
+
+        await nextTick();
+
+        setupVisibilityObserver();
     } catch (err) {
-        error.value = err.message || 'Failed to load videos';
+        console.error(err);
+        error.value =
+            err?.message || 'Failed to load videos';
     } finally {
         loading.value = false;
     }
 }
 
+/*
+ * Only one video can be active at a time.
+ */
 function handleVisible(id) {
+    if (activeId.value === id) {
+        return;
+    }
+
     activeId.value = id;
 }
+
+/*
+ * Extra safety:
+ * pause every video except the currently active video.
+ *
+ * This prevents multiple videos from playing if
+ * the browser or another component starts playback.
+ */
+function pauseOtherVideos(activeVideoId) {
+    document
+        .querySelectorAll('.video-item video')
+        .forEach(video => {
+            const container =
+                video.closest('.video-item');
+
+            if (!container) {
+                return;
+            }
+
+            const id = container.dataset.videoId;
+
+            if (String(id) !== String(activeVideoId)) {
+                video.pause();
+            }
+        });
+}
+
+watch(
+    activeId,
+    async id => {
+        if (id === null) {
+            return;
+        }
+
+        await nextTick();
+
+        pauseOtherVideos(id);
+    }
+);
 
 function toggleMute() {
     muted.value = !muted.value;
@@ -77,14 +146,21 @@ function goTo(index) {
     const target = container.children[index];
 
     if (target) {
-        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        target.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+        });
     }
 }
 
 function handleKeydown(event) {
     const tag = event.target?.tagName;
 
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || event.target?.isContentEditable) {
+    if (
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        event.target?.isContentEditable
+    ) {
         return;
     }
 
@@ -92,71 +168,249 @@ function handleKeydown(event) {
         return;
     }
 
-    if (event.key === 'ArrowDown' || event.key === 'j') {
+    if (
+        event.key === 'ArrowDown' ||
+        event.key === 'j'
+    ) {
         event.preventDefault();
-        goTo(Math.min(videos.value.length - 1, activeIndex.value + 1));
+
+        const nextIndex =
+            activeIndex.value < 0
+                ? 0
+                : Math.min(
+                    videos.value.length - 1,
+                    activeIndex.value + 1
+                );
+
+        goTo(nextIndex);
     }
 
-    if (event.key === 'ArrowUp' || event.key === 'k') {
+    if (
+        event.key === 'ArrowUp' ||
+        event.key === 'k'
+    ) {
         event.preventDefault();
-        goTo(Math.max(0, activeIndex.value - 1));
+
+        const previousIndex =
+            activeIndex.value < 0
+                ? 0
+                : Math.max(
+                    0,
+                    activeIndex.value - 1
+                );
+
+        goTo(previousIndex);
     }
 }
 
-watch(activeIndex, index => {
-    if (index >= 0 && index >= videos.value.length - 2) {
-        loadMore();
+function setupVisibilityObserver() {
+    if (!scroller.value) {
+        return;
     }
-});
+
+    visibilityObserver?.disconnect();
+
+    visibilityObserver =
+        new IntersectionObserver(
+            entries => {
+                let bestEntry = null;
+
+                for (const entry of entries) {
+                    if (!entry.isIntersecting) {
+                        continue;
+                    }
+
+                    if (
+                        !bestEntry ||
+                        entry.intersectionRatio >
+                            bestEntry.intersectionRatio
+                    ) {
+                        bestEntry = entry;
+                    }
+                }
+
+                if (!bestEntry) {
+                    return;
+                }
+
+                const id =
+                    bestEntry.target.dataset.videoId;
+
+                if (id != null) {
+                    handleVisible(
+                        isNaN(Number(id))
+                            ? id
+                            : Number(id)
+                    );
+                }
+            },
+            {
+                root: scroller.value,
+                threshold: [
+                    0.5,
+                    0.6,
+                    0.7,
+                    0.8,
+                    0.9,
+                    1
+                ]
+            }
+        );
+
+    const items =
+        scroller.value.querySelectorAll(
+            '.video-item'
+        );
+
+    items.forEach(item => {
+        visibilityObserver.observe(item);
+    });
+}
+
+watch(
+    activeIndex,
+    index => {
+        if (
+            index >= 0 &&
+            index >= videos.value.length - 2
+        ) {
+            loadMore();
+        }
+    }
+);
 
 onMounted(async () => {
-    window.addEventListener('keydown', handleKeydown);
+    window.addEventListener(
+        'keydown',
+        handleKeydown
+    );
 
     await loadMore();
+
     await nextTick();
+
+    setupVisibilityObserver();
 });
 
 onBeforeUnmount(() => {
-    window.removeEventListener('keydown', handleKeydown);
+    window.removeEventListener(
+        'keydown',
+        handleKeydown
+    );
+
+    visibilityObserver?.disconnect();
+
+    document
+        .querySelectorAll('.video-item video')
+        .forEach(video => {
+            video.pause();
+        });
 });
 </script>
 
 <template>
     <div class="video-feed">
-        <div ref="scroller" class="video-scroller">
-            <HomeVideoItem v-for="video in videos" :key="video.id" :post="video" :active="video.id === activeId"
-                :muted="muted" :current-user-id="currentUserId" @visible="handleVisible"
-                @toggle-mute="toggleMute" />
 
-            <div v-if="loading && videos.length > 0" class="video-status end-slide">
+        <div
+            ref="scroller"
+            class="video-scroller"
+        >
+
+            <HomeVideoItem
+                v-for="video in videos"
+                :key="video.id"
+                :post="video"
+                :active="video.id === activeId"
+                :muted="muted"
+                :current-user-id="currentUserId"
+                @visible="handleVisible"
+                @toggle-mute="toggleMute"
+            />
+
+            <div
+                v-if="loading && videos.length > 0"
+                class="video-status end-slide"
+            >
                 Loading videos...
             </div>
 
-            <div v-else-if="!hasMore && videos.length > 0" class="video-status end-slide">
+            <div
+                v-else-if="
+                    !hasMore &&
+                    videos.length > 0
+                "
+                class="video-status end-slide"
+            >
                 You're all caught up.
             </div>
+
         </div>
 
-        <div v-if="loading && videos.length === 0" class="video-status centered">
+        <div
+            v-if="
+                loading &&
+                videos.length === 0
+            "
+            class="video-status centered"
+        >
             Loading videos...
         </div>
 
-        <div v-else-if="!loading && !hasMore && videos.length === 0 && !error" class="video-empty">
+        <div
+            v-else-if="
+                !loading &&
+                !hasMore &&
+                videos.length === 0 &&
+                !error
+            "
+            class="video-empty"
+        >
             <div class="video-empty-icon">
-                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <rect x="3" y="4" width="18" height="16" rx="2.5" stroke="currentColor" stroke-width="1.8" />
-                    <path d="M10 8.5L16 12L10 15.5V8.5Z" stroke="currentColor" stroke-width="1.8"
-                        stroke-linejoin="round" />
+                <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                >
+                    <rect
+                        x="3"
+                        y="4"
+                        width="18"
+                        height="16"
+                        rx="2.5"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                    />
+
+                    <path
+                        d="M10 8.5L16 12L10 15.5V8.5Z"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linejoin="round"
+                    />
                 </svg>
             </div>
+
             <h3>No videos yet</h3>
-            <p>Videos shared by people will appear here.</p>
+
+            <p>
+                Videos shared by people will appear here.
+            </p>
         </div>
 
-        <div v-if="error" class="video-error">
+        <div
+            v-if="error"
+            class="video-error"
+        >
             {{ error }}
-            <button type="button" @click="loadMore">Retry</button>
+
+            <button
+                type="button"
+                @click="loadMore"
+            >
+                Retry
+            </button>
         </div>
+
     </div>
 </template>
 
@@ -222,7 +476,8 @@ onBeforeUnmount(() => {
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid var(--border-color, rgba(0, 0, 0, 0.12));
+    border: 1px solid
+        var(--border-color, rgba(0, 0, 0, 0.12));
     border-radius: 50%;
 }
 

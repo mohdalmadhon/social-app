@@ -1,6 +1,7 @@
 
 <script setup>
-import { computed } from 'vue';
+import { ref, computed, watch, onBeforeUnmount } from 'vue';
+import { claimPlayback, releasePlayback } from '@/helpers/singleVideo';
 const props = defineProps({
     imagePath: {
         type: String,
@@ -53,6 +54,75 @@ const mediaUrl = computed(() => {
     return `/uploads/${props.imagePath}`;
 });
 
+const videoElement = ref(null);
+
+let observer = null;
+
+async function playVideo(video) {
+    try {
+        await video.play();
+    } catch (err) {
+        video.muted = true;
+
+        try {
+            await video.play();
+        } catch (error) {
+            return;
+        }
+    }
+}
+
+function setupObserver(video) {
+    observer?.disconnect();
+    observer = null;
+
+    if (!video || !props.auto) {
+        return;
+    }
+
+    observer = new IntersectionObserver(
+        entries => {
+            const entry = entries[0];
+
+            if (!entry) {
+                return;
+            }
+
+            if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+                playVideo(video);
+            } else {
+                video.pause();
+            }
+        },
+        { threshold: [0, 0.6] }
+    );
+
+    observer.observe(video);
+}
+
+function handlePlay() {
+    if (videoElement.value) {
+        claimPlayback(videoElement.value);
+    }
+}
+
+function handlePause() {
+    if (videoElement.value) {
+        releasePlayback(videoElement.value);
+    }
+}
+
+watch(videoElement, video => setupObserver(video), { flush: 'post' });
+
+onBeforeUnmount(() => {
+    observer?.disconnect();
+
+    if (videoElement.value) {
+        videoElement.value.pause();
+        releasePlayback(videoElement.value);
+    }
+});
+
 function openTaggedPeople() {
     emit('open-tags');
 }
@@ -65,13 +135,15 @@ function openTaggedPeople() {
         :class="{ 'no-image': !hasImage }"
     >
         <video
-            :autoplay="props.auto"
             v-if="isVideo"
+            ref="videoElement"
             :src="mediaUrl"
             class="post-video"
             controls
             playsinline
             preload="metadata"
+            @play="handlePlay"
+            @pause="handlePause"
         ></video>
 
         <img
