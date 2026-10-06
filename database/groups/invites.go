@@ -1,9 +1,6 @@
 package groups
 
-import (
-	"database/sql"
-	"log"
-)
+import "database/sql"
 
 func AddPendingMember(db *sql.DB, groupID, userID, inviterID int) error {
 	_, err := db.Exec(`
@@ -50,8 +47,20 @@ func ChangeStatus(db *sql.DB, userID, status, groupID int) error {
 		AND invited_by IS NOT NULL
 	`, status, userID, groupID)
 
-	log.Println(res)
-	return err
+	if err != nil {
+		return err
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if affected > 0 {
+		return LiftBan(db, groupID, userID)
+	}
+
+	return nil
 }
 
 func DeleteInvite(db *sql.DB, userID, senderID, groupID int) error {

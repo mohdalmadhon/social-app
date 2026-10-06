@@ -48,6 +48,24 @@ func (app *App) addOrInvite(inviterID, targetID, groupID int, groupTitle string)
 		return memberSkipped, nil
 	}
 
+	banned, err := groups.IsBanned(app.DB, groupID, targetID)
+
+	if err != nil {
+		return memberSkipped, err
+	}
+
+	if banned {
+		ownerID, err := groups.GetGroupOwner(app.DB, groupID)
+
+		if err != nil {
+			return memberSkipped, err
+		}
+
+		if ownerID != inviterID {
+			return memberSkipped, nil
+		}
+	}
+
 	_, allowed, err := app.groupRelation(inviterID, targetID)
 
 	if err != nil {

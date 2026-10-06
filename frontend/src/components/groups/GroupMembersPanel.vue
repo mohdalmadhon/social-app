@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import Groupssearch from './Groupssearch.vue';
 import GroupRequestsDialog from './GroupRequestsDialog.vue';
 import { searchInvites } from '@/api/chats/search';
+import { kickMember, leaveGroup } from '@/api/groups/groups';
 
 const props = defineProps({
     show: {
@@ -21,10 +22,14 @@ const props = defineProps({
     isOwner: {
         type: Boolean,
         default: false
+    },
+    currentUserId: {
+        type: [Number, String],
+        default: null
     }
 });
 
-const emit = defineEmits(['close']);
+const emit = defineEmits(['close', 'kicked', 'left']);
 
 const router = useRouter();
 
@@ -400,6 +405,102 @@ async function confirmInvite() {
     }
 }
 
+const memberToKick = ref(null);
+const kicking = ref(false);
+const kickError = ref('');
+
+const showLeaveDialog = ref(false);
+const leaving = ref(false);
+const leaveError = ref('');
+
+function canKick(member) {
+    if (!props.isOwner) {
+        return false;
+    }
+
+    return Number(getMemberId(member)) !== Number(props.currentUserId);
+}
+
+function openKick(member) {
+    memberToKick.value = member;
+    kickError.value = '';
+}
+
+function closeKick() {
+    if (kicking.value) {
+        return;
+    }
+
+    memberToKick.value = null;
+    kickError.value = '';
+}
+
+async function confirmKick() {
+    if (!memberToKick.value || kicking.value) {
+        return;
+    }
+
+    const id = Number(getMemberId(memberToKick.value));
+
+    kicking.value = true;
+    kickError.value = '';
+
+    try {
+        await kickMember(props.groupID, id);
+
+        memberList.value = memberList.value.filter(
+            member => Number(getMemberId(member)) !== id
+        );
+
+        offset.value = Math.max(0, offset.value - 1);
+
+        emit('kicked', id);
+
+        memberToKick.value = null;
+    } catch (error) {
+        console.error(error);
+        kickError.value = error.message || 'Could not remove member';
+    } finally {
+        kicking.value = false;
+    }
+}
+
+function openLeave() {
+    showLeaveDialog.value = true;
+    leaveError.value = '';
+}
+
+function closeLeave() {
+    if (leaving.value) {
+        return;
+    }
+
+    showLeaveDialog.value = false;
+    leaveError.value = '';
+}
+
+async function confirmLeave() {
+    if (leaving.value) {
+        return;
+    }
+
+    leaving.value = true;
+    leaveError.value = '';
+
+    try {
+        await leaveGroup(props.groupID);
+
+        showLeaveDialog.value = false;
+
+        emit('left');
+    } catch (error) {
+        console.error(error);
+        leaveError.value = error.message || 'Could not leave group';
+    } finally {
+        leaving.value = false;
+    }
+}
+
 watch(search, () => {
     clearTimeout(debounceTimer);
 
@@ -467,6 +568,15 @@ onBeforeUnmount(() => {
                 </button>
 
                 <button
+                    v-if="!isOwner"
+                    class="leave-button"
+                    type="button"
+                    @click="openLeave"
+                >
+                    Leave
+                </button>
+
+                <button
                     class="close-button"
                     type="button"
                     @click="$emit('close')"
@@ -513,6 +623,15 @@ onBeforeUnmount(() => {
                         {{ getMemberName(member) }}
                     </span>
                 </div>
+
+                <button
+                    v-if="canKick(member)"
+                    class="kick-button"
+                    type="button"
+                    @click.stop="openKick(member)"
+                >
+                    Kick
+                </button>
             </div>
 
             <div
@@ -715,6 +834,98 @@ onBeforeUnmount(() => {
             </div>
         </div>
 
+        <div
+            v-if="memberToKick"
+            class="dialog-overlay confirm-overlay"
+            @click.self="closeKick"
+        >
+            <div class="confirm-dialog">
+                <div class="confirm-icon">
+                    ?
+                </div>
+
+                <h3>Remove Member</h3>
+
+                <p>
+                    Are you sure you want to remove
+                    <strong>{{ getMemberName(memberToKick) }}</strong>
+                    from this group? They will not be able to request to join again. They can only come back if you invite them.
+                </p>
+
+                <div
+                    v-if="kickError"
+                    class="dialog-error"
+                >
+                    {{ kickError }}
+                </div>
+
+                <div class="confirm-actions">
+                    <button
+                        type="button"
+                        class="cancel-button"
+                        :disabled="kicking"
+                        @click="closeKick"
+                    >
+                        Cancel
+                    </button>
+
+                    <button
+                        type="button"
+                        class="confirm-invite-button danger-button"
+                        :disabled="kicking"
+                        @click="confirmKick"
+                    >
+                        {{ kicking ? 'Removing...' : 'Remove' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div
+            v-if="showLeaveDialog"
+            class="dialog-overlay confirm-overlay"
+            @click.self="closeLeave"
+        >
+            <div class="confirm-dialog">
+                <div class="confirm-icon">
+                    ?
+                </div>
+
+                <h3>Leave Group</h3>
+
+                <p>
+                    Are you sure you want to leave this group?
+                </p>
+
+                <div
+                    v-if="leaveError"
+                    class="dialog-error"
+                >
+                    {{ leaveError }}
+                </div>
+
+                <div class="confirm-actions">
+                    <button
+                        type="button"
+                        class="cancel-button"
+                        :disabled="leaving"
+                        @click="closeLeave"
+                    >
+                        Cancel
+                    </button>
+
+                    <button
+                        type="button"
+                        class="confirm-invite-button danger-button"
+                        :disabled="leaving"
+                        @click="confirmLeave"
+                    >
+                        {{ leaving ? 'Leaving...' : 'Leave' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <GroupRequestsDialog
             :show="showRequestsDialog"
             :group-id="groupID"
@@ -763,7 +974,9 @@ onBeforeUnmount(() => {
 }
 
 .requests-button,
-.invite-button {
+.invite-button,
+.leave-button,
+.kick-button {
     min-height: 28px;
     padding: 5px 9px;
     border: 2px solid var(--main-color);
@@ -792,6 +1005,31 @@ onBeforeUnmount(() => {
 .invite-button:hover {
     background: var(--bg-color);
     color: var(--main-color);
+}
+
+.leave-button,
+.kick-button {
+    flex-shrink: 0;
+    background: var(--bg-color);
+    color: #d93025;
+    border-color: #d93025;
+}
+
+.leave-button:hover,
+.kick-button:hover {
+    background: #d93025;
+    color: #fff;
+}
+
+.confirm-invite-button.danger-button {
+    background: #d93025;
+    border-color: #d93025;
+    color: #fff;
+}
+
+.confirm-invite-button.danger-button:hover:not(:disabled) {
+    background: var(--bg-color);
+    color: #d93025;
 }
 
 .close-button {
@@ -1173,7 +1411,9 @@ onBeforeUnmount(() => {
     }
 
     .requests-button,
-    .invite-button {
+    .invite-button,
+    .leave-button,
+    .kick-button {
         padding: 5px 7px;
         font-size: 9px;
     }

@@ -162,6 +162,15 @@ export function connectToWS() {
                 handleIncomingNotification(payload.data);
                 break;
 
+            case 'groupRemoved':
+                window.dispatchEvent(
+                    new CustomEvent('group-removed', {
+                        detail: payload
+                    })
+                );
+
+                break;
+
             case 'typing': {
                 const typingData = payload.data || {};
 

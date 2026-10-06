@@ -901,6 +901,24 @@ func (app *App) GroupRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Code == 0 {
+		banned, err := groups.IsBanned(app.DB, req.GroupID, userID)
+		if err != nil {
+			log.Println(err)
+			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+				"status":  false,
+				"message": "could not check group access",
+			})
+			return
+		}
+
+		if banned {
+			helpers.WriteJson(w, http.StatusForbidden, map[string]any{
+				"status":  false,
+				"message": "you were removed from this group and can only rejoin if the owner invites you",
+			})
+			return
+		}
+
 		userIN, err := groups.UserIN(app.DB, req.GroupID, userID)
 		if err != nil {
 			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{

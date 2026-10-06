@@ -23,3 +23,46 @@ export async function createGroup(data) {
 
     return result;
 }
+
+export async function kickMember(groupID, userID) {
+    const resp = await fetch('/api/group/kick', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            groupID: Number(groupID),
+            userID: Number(userID)
+        })
+    });
+
+    const result = await resp.json();
+
+    if (!resp.ok || !result.status) {
+        throw new Error(result.message || 'Could not remove member');
+    }
+
+    return result;
+}
+
+export async function leaveGroup(groupID) {
+    const resp = await fetch('/api/group/leave', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            groupID: Number(groupID)
+        })
+    });
+
+    const result = await resp.json();
+
+    if (!resp.ok || !result.status) {
+        throw new Error(result.message || 'Could not leave group');
+    }
+
+    return result;
+}

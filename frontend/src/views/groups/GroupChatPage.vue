@@ -18,11 +18,12 @@ import { getGroupPosts as fetchGroupPosts } from '@/api/posts/groupComments';
 import { throttle } from '@/helpers/throttle';
 
 import { onMounted, onUnmounted, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
 const group = ref({});
 const members = ref([]);
 const route = useRoute();
+const router = useRouter();
 
 const groupID = Number(route.params.id);
 
@@ -62,6 +63,31 @@ function toggleMembers() {
 
 function closeMembers() {
     showMembers.value = false;
+}
+
+function handleMemberKicked() {
+    const current = Number(group.value.Count) || 1;
+
+    group.value = {
+        ...group.value,
+        Count: Math.max(0, current - 1)
+    };
+}
+
+function handleLeft() {
+    addNotification('You left the group', 'success');
+
+    router.push('/groups');
+}
+
+function handleGroupRemoved(event) {
+    if (Number(event.detail?.groupID) !== groupID) {
+        return;
+    }
+
+    addNotification('You were removed from this group', 'error');
+
+    router.push('/groups');
 }
 
 function setActiveTab(tab) {
@@ -178,6 +204,7 @@ onMounted(async () => {
     openGroupPage.value = groupID;
 
     window.addEventListener('scroll', handlePostsScroll, { passive: true });
+    window.addEventListener('group-removed', handleGroupRemoved);
 
     await getGroupData();
     await getGroupPosts(true);
@@ -191,6 +218,7 @@ onUnmounted(() => {
     postsRequestID++;
 
     window.removeEventListener('scroll', handlePostsScroll);
+    window.removeEventListener('group-removed', handleGroupRemoved);
 });
 </script>
 
@@ -213,7 +241,8 @@ onUnmounted(() => {
                                 @toggle-members="toggleMembers" />
 
                             <GroupMembersPanel :show="showMembers" :isOwner="isOwner" :members="members"
-                                :group-i-d="groupID" @close="closeMembers" />
+                                :current-user-id="currentUserId" :group-i-d="groupID" @close="closeMembers"
+                                @kicked="handleMemberKicked" @left="handleLeft" />
                         </div>
 
                         <GroupTabs :active-tab="activeTab" @change="setActiveTab" />

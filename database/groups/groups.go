@@ -234,6 +234,25 @@ func SearchInvites(db *sql.DB, userID, groupID int, searchValue string) ([]model
 		`
 
 		args = append(args, groupID)
+
+		query += `
+			AND (
+				NOT EXISTS (
+					SELECT 1
+					FROM group_bans gb
+					WHERE gb.group_id = ?
+						AND gb.user_id = u.id
+				)
+				OR EXISTS (
+					SELECT 1
+					FROM groups g
+					WHERE g.id = ?
+						AND g.owner_id = ?
+				)
+			)
+		`
+
+		args = append(args, groupID, groupID, userID)
 	}
 
 	query += `
@@ -363,10 +382,16 @@ func DiscoverGroups(db *sql.DB, userID, offset int, search string) ([]models.Gro
 			WHERE gu.group_id = g.id
 			  AND gu.user_id = ?
 		)
+		AND NOT EXISTS (
+			SELECT 1
+			FROM group_bans gb
+			WHERE gb.group_id = g.id
+			  AND gb.user_id = ?
+		)
 		AND g.is_private_chat = 0
 	`
 
-	args := []any{userID}
+	args := []any{userID, userID}
 
 	if search != "" {
 		query += `
