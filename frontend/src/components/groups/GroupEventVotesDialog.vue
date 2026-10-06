@@ -200,6 +200,7 @@ onUnmounted(() => {
     width: 100%;
     max-width: 460px;
     height: min(560px, 88vh);
+    height: min(560px, 88dvh);
     flex-direction: column;
     overflow: hidden;
 

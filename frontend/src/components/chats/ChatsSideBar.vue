@@ -1,7 +1,8 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import { getPrivateChatsLists, searchChats } from '@/api/chats/chats';
 import { addNotification } from '@/data/notifications';
+import { chatsSidebarOpen, closeChatsSidebar } from '@/data/chatState';
 
 const props = defineProps({
     targetUserId: {
@@ -20,6 +21,8 @@ const searchValue = ref('');
 const activeChatId = ref(null);
 
 const listEl = ref(null);
+
+const desktopQuery = window.matchMedia('(min-width: 1025px)');
 
 function throttle(fn, wait = 300) {
     let lastCallTime = 0;
@@ -94,7 +97,6 @@ async function loadChats({ reset = false } = {}) {
         const result = searchValue.value
             ? await searchChats(nextOffset, searchValue.value)
             : await getPrivateChatsLists(nextOffset);
-``
         const list = normalizeList(result);
         console.log(list)
         chats.value = mergeByUserId(reset ? [] : chats.value, list);
@@ -125,10 +127,28 @@ async function loadChats({ reset = false } = {}) {
 }
 
 function selectChat(chat) {
-    console.log(chat)
     activeChatId.value = chat.UserID;
     emit('select-chat', chat);
+    closeChatsSidebar();
 }
+
+function handleKeydown(event) {
+    if (event.key === 'Escape' && chatsSidebarOpen.value) {
+        closeChatsSidebar();
+    }
+}
+
+function handleBreakpointChange(event) {
+    if (event.matches) {
+        closeChatsSidebar();
+    }
+}
+
+watch(chatsSidebarOpen, (open) => {
+    if (!desktopQuery.matches) {
+        document.body.style.overflow = open ? 'hidden' : '';
+    }
+});
 
 const handleScroll = throttle(() => {
     const el = listEl.value;
@@ -148,21 +168,33 @@ const handleSearchInput = debounce(() => {
 onMounted(() => {
     loadChats({ reset: true });
     listEl.value?.addEventListener('scroll', handleScroll);
+    window.addEventListener('keydown', handleKeydown);
+    desktopQuery.addEventListener('change', handleBreakpointChange);
 });
 
 onBeforeUnmount(() => {
     listEl.value?.removeEventListener('scroll', handleScroll);
+    window.removeEventListener('keydown', handleKeydown);
+    desktopQuery.removeEventListener('change', handleBreakpointChange);
+    document.body.style.overflow = '';
+    closeChatsSidebar();
 });
 </script>
 
 <template>
-    <aside class="chat-sidebar">
+    <div class="chat-overlay" :class="{ open: chatsSidebarOpen }" aria-hidden="true" @click="closeChatsSidebar"></div>
+
+    <aside id="chat-drawer" class="chat-sidebar" :class="{ open: chatsSidebarOpen }" aria-label="Chats">
 
         <div class="sidebar-heading">
             <div>
                 <p class="eyebrow">MESSAGES</p>
                 <h2>Chats</h2>
             </div>
+
+            <button type="button" class="sidebar-close" aria-label="Close chats list" @click="closeChatsSidebar">
+                ×
+            </button>
         </div>
 
         <div class="search">
@@ -238,12 +270,20 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.chat-overlay {
+    display: none;
+}
+
+.sidebar-close {
+    display: none;
+}
+
 .chat-sidebar {
     display: flex;
     flex-direction: column;
     width: 330px;
     flex-shrink: 0;
-    height: calc(100vh - 64px - 40px);
+    height: var(--chat-height, calc(100dvh - 64px - 40px));
     border: 2px solid var(--main-color);
     border-radius: 10px;
     background: var(--bg-color);
@@ -511,15 +551,64 @@ h2 {
     font-size: 9px;
 }
 
-@media (max-width: 800px) {
-
-    .chat-sidebar {
-        width: 100%;
-        height: 320px;
+@media (max-width: 1024px) {
+    .chat-overlay {
+        display: block;
+        position: fixed;
+        z-index: 1199;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.55);
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.25s ease, visibility 0s linear 0.25s;
     }
 
-    .chat-list {
-        padding: 3px 0;
+    .chat-overlay.open {
+        opacity: 1;
+        visibility: visible;
+        transition: opacity 0.25s ease, visibility 0s;
+    }
+
+    .chat-sidebar {
+        position: fixed;
+        z-index: 1200;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: min(340px, 88vw);
+        height: 100vh;
+        height: 100dvh;
+        border-width: 0 2px 0 0;
+        border-radius: 0;
+        box-shadow: 6px 0 0 rgba(0, 0, 0, 0.12);
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+        transform: translateX(-100%);
+        visibility: hidden;
+        transition: transform 0.25s ease, visibility 0s linear 0.25s;
+    }
+
+    .chat-sidebar.open {
+        transform: translateX(0);
+        visibility: visible;
+        transition: transform 0.25s ease, visibility 0s;
+    }
+
+    .sidebar-close {
+        flex-shrink: 0;
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border: 2px solid var(--main-color);
+        border-radius: 5px;
+        background: var(--page-background);
+        color: var(--font-color);
+        font-size: 22px;
+        line-height: 1;
+        cursor: pointer;
     }
 
     .chat-item {
@@ -530,6 +619,12 @@ h2 {
         width: 44px;
         height: 44px;
     }
+}
 
+@media (prefers-reduced-motion: reduce) {
+    .chat-overlay,
+    .chat-sidebar {
+        transition: none !important;
+    }
 }
 </style>

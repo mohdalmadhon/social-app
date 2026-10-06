@@ -3,6 +3,7 @@ import { reactive, ref, watch } from 'vue';
 
 import SideNavigation from '@/components/layout/SideNavigation.vue';
 import TopNavigation from '@/components/layout/TopNavigation.vue';
+import BackToHome from '@/components/layout/BackToHome.vue';
 import HideCommentsToggle from '@/components/addPost/HideCommentsToggle.vue';
 import LocationPicker from '@/components/addPost/LocationPicker.vue';
 import PostContentForm from '@/components/addPost/PostContentForm.vue';
@@ -125,6 +126,8 @@ async function handleSubmit() {
             <SideNavigation />
 
             <main class="add-post-page">
+                <BackToHome />
+
                 <div class="page-heading">
                     <p class="eyebrow">SHARE</p>
                     <h1>Create post</h1>
@@ -228,6 +231,7 @@ async function handleSubmit() {
 <style scoped>
 .facebook-layout {
     min-height: 100vh;
+    min-height: 100dvh;
 }
 
 .page-layout {

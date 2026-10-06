@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue';
 import SideNavigation from '@/components/layout/SideNavigation.vue';
 import TopNavigation from '@/components/layout/TopNavigation.vue';
+import BackToHome from '@/components/layout/BackToHome.vue';
 import { addNotification } from '@/data/notifications';
 import { activePage } from '@/data/chatState';
 import { THEMES, getThemeCookie, setTheme } from '@/helpers/common/theme';
@@ -319,6 +320,8 @@ async function confirmDeleteAccount() {
             <SideNavigation />
 
             <main class="settings-page">
+                <BackToHome />
+
                 <div class="page-heading">
                     <p class="eyebrow">SETTINGS</p>
                     <h1>Settings</h1>
@@ -587,6 +590,7 @@ async function confirmDeleteAccount() {
 <style scoped>
 .facebook-layout {
     min-height: 100vh;
+    min-height: 100dvh;
 }
 
 .page-layout {

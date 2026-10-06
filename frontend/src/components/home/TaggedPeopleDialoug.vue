@@ -175,6 +175,7 @@ function handleBackdropClick(event) {
     width: 100%;
     max-width: 420px;
     max-height: 80vh;
+    max-height: 80dvh;
     overflow: hidden;
     border: 2px solid var(--main-color);
     border-radius: 10px;
@@ -221,6 +222,7 @@ function handleBackdropClick(event) {
 
 .people-list {
     max-height: calc(80vh - 70px);
+    max-height: calc(80dvh - 70px);
     overflow-y: auto;
     padding: 8px;
 }

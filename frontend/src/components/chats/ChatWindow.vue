@@ -4,6 +4,8 @@ import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
 
 import { addNotification } from '@/data/notifications';
 
+import { chatsSidebarOpen, toggleChatsSidebar } from '@/data/chatState';
+
 import { Message } from '@/models/chats';
 
 import { sendWS } from '@/api/socket/socket';
@@ -1166,6 +1168,20 @@ onUnmounted(() => {
 
             <header class="chat-window-header">
 
+                <button
+                    type="button"
+                    class="chats-burger"
+                    :class="{ open: chatsSidebarOpen }"
+                    :aria-expanded="chatsSidebarOpen"
+                    aria-controls="chat-drawer"
+                    aria-label="Toggle chats list"
+                    @click="toggleChatsSidebar"
+                >
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+
                 <div class="avatar">
 
                     <img
@@ -1625,6 +1641,18 @@ onUnmounted(() => {
             class="empty-state"
         >
 
+            <button
+                type="button"
+                class="chats-burger empty-burger"
+                aria-controls="chat-drawer"
+                aria-label="Open chats list"
+                @click="toggleChatsSidebar"
+            >
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+
             <p class="eyebrow">
                 NO CHAT SELECTED
             </p>
@@ -1769,10 +1797,12 @@ onUnmounted(() => {
 }
 
 .chat-window {
+    position: relative;
     flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 64px - 40px);
+    height: var(--chat-height, calc(100dvh - 64px - 40px));
     border: 2px solid var(--main-color);
     border-radius: 8px;
     background: var(--bg-color);
@@ -1781,17 +1811,75 @@ onUnmounted(() => {
 }
 
 .chat-window-header {
+    position: sticky;
+    top: 0;
+    z-index: 5;
     flex-shrink: 0;
     display: flex;
     align-items: center;
     gap: 13px;
     padding: 16px 20px;
     border-bottom: 2px solid var(--page-background);
+    background: var(--bg-color);
+}
+
+.chats-burger {
+    display: none;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    border: 2px solid var(--main-color);
+    border-radius: 5px;
+    background: var(--page-background);
+    box-shadow: 3px 3px var(--main-color);
+    cursor: pointer;
+}
+
+.chats-burger span {
+    display: block;
+    width: 18px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--main-color);
+    transition: transform 0.25s ease, opacity 0.2s ease;
+}
+
+.chats-burger.open span:nth-child(1) {
+    transform: translateY(7px) rotate(45deg);
+}
+
+.chats-burger.open span:nth-child(2) {
+    opacity: 0;
+}
+
+.chats-burger.open span:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg);
+}
+
+.chats-burger:active {
+    transform: translate(3px, 3px);
+    box-shadow: none;
+}
+
+.empty-burger {
+    margin-bottom: 20px;
 }
 
 .chat-user-info {
+    min-width: 0;
     display: flex;
     flex-direction: column;
+}
+
+.chat-user-info strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .chat-window-header strong {
@@ -2338,14 +2426,35 @@ onUnmounted(() => {
     font-size: 12px;
 }
 
+@media (max-width: 1024px) {
+
+    .chats-burger {
+        display: flex;
+    }
+
+    .chat-window-header {
+        padding: 12px 14px;
+    }
+}
+
 @media (max-width: 800px) {
 
     .message-image {
         max-width: 100%;
     }
 
-    .chat-window {
-        height: 480px;
+    .composer {
+        flex-wrap: wrap;
+        padding: 12px 14px;
+    }
+
+    .composer input[type="text"] {
+        flex: 1 1 100%;
+        order: -1;
+    }
+
+    .messages {
+        padding: 14px;
     }
 
     .message {

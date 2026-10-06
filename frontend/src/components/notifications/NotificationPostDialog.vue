@@ -231,6 +231,7 @@ watch(
     width: 100%;
     max-width: 720px;
     max-height: calc(100vh - 60px);
+    max-height: calc(100dvh - 60px);
     overflow-y: auto;
 }
 
@@ -275,6 +276,7 @@ watch(
 
     .notification-post-dialog {
         max-height: calc(100vh - 32px);
+        max-height: calc(100dvh - 32px);
     }
 
     .notification-post-close {

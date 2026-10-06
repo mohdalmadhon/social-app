@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue';
 import SideNavigation from '@/components/layout/SideNavigation.vue';
 import TopNavigation from '@/components/layout/TopNavigation.vue';
+import BackToHome from '@/components/layout/BackToHome.vue';
 import ProfileHeader from '@/components/personalProfile/ProfileHeader.vue';
 import ProfileTabs from '@/components/personalProfile/ProfileTabs.vue';
 import PrivateProfileIcon from '@/components/ProfileEdit/PrivateProfileIcon.vue';
@@ -73,6 +74,8 @@ onMounted(getData);
             <SideNavigation />
 
             <main class="profile-page">
+                <BackToHome />
+
                 <div v-if="loading">
                     Loading profile...
                 </div>
@@ -157,6 +160,7 @@ onMounted(getData);
 <style scoped>
 .facebook-layout {
     min-height: 100vh;
+    min-height: 100dvh;
 }
 
 .page-layout {

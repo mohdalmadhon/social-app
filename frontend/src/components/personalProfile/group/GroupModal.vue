@@ -288,6 +288,7 @@ onUnmounted(() => {
 .modal {
     width: min(520px, 100%);
     max-height: 90vh;
+    max-height: 90dvh;
     overflow-y: auto;
     background: #ffffff;
     border: 3px solid #1a1a1a;

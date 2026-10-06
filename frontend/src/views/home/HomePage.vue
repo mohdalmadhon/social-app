@@ -169,32 +169,17 @@ onUnmounted(() => {
                         <HomeSearch />
 
                         <section class="posts">
-                            <HomePosts
-                                :auto="true"
-                                v-for="post in posts"
-                                :key="post.id"
-                                v-bind="post"
-                                :post-id="post.id"
-                                :likes="post.likeCount"
-                                :dislikes="post.disLikeCount"
-                                :reaction="post.ReactionValue"
-                                :allow-comments="post.allowComments"
-                                :avatar-path="post.avatarPath"
-                                :tagged-people="getTaggedPeople(post)"
-                            />
+                            <HomePosts :auto="true" v-for="post in posts" :key="post.id" v-bind="post"
+                                :post-id="post.id" :likes="post.likeCount" :dislikes="post.disLikeCount"
+                                :reaction="post.ReactionValue" :allow-comments="post.allowComments"
+                                :avatar-path="post.avatarPath" :tagged-people="getTaggedPeople(post)" />
                         </section>
 
-                        <div
-                            v-if="loading"
-                            class="loading"
-                        >
+                        <div v-if="loading" class="loading">
                             Loading posts...
                         </div>
 
-                        <div
-                            v-else-if="!hasMore && posts.length"
-                            class="end-message"
-                        >
+                        <div v-else-if="!hasMore && posts.length" class="end-message">
                             You're all caught up.
                         </div>
                     </template>
@@ -211,6 +196,7 @@ onUnmounted(() => {
 <style scoped>
 .home-page {
     min-height: 100vh;
+    min-height: 100dvh;
     padding-top: 64px;
 }
 
@@ -218,6 +204,7 @@ onUnmounted(() => {
     display: flex;
     align-items: flex-start;
     min-height: calc(100vh - 64px);
+    min-height: calc(100dvh - 64px);
 }
 
 .main-content {

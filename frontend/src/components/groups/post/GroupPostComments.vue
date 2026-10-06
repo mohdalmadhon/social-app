@@ -414,6 +414,7 @@ watch(
     width: 100%;
     max-width: 620px;
     height: min(760px, 90vh);
+    height: min(760px, 90dvh);
     display: flex;
     flex-direction: column;
     overflow: hidden;

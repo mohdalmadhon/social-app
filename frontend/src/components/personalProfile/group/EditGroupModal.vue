@@ -269,6 +269,7 @@ async function handleSave() {
     width: 100%;
     max-width: 640px;
     max-height: 90vh;
+    max-height: 90dvh;
     display: flex;
     flex-direction: column;
     background: #fff;

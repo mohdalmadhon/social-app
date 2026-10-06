@@ -71,6 +71,9 @@ html {
     padding: 0;
     width: 100%;
     min-height: 100%;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -78,12 +81,15 @@ body {
     padding: 0;
     width: 100%;
     min-height: 100vh;
+    min-height: 100dvh;
 
     background: var(--page-background);
 
     color: var(--font-color);
 
     font-family: "Hedvig Letters Sans", sans-serif;
+    overflow-wrap: break-word;
+    -webkit-font-smoothing: antialiased;
 }
 
 button,
@@ -91,6 +97,20 @@ input,
 textarea,
 select {
     font: inherit;
+}
+
+input,
+textarea,
+select {
+    font-size: max(16px, 1em);
+}
+
+@media (min-width: 1025px) {
+    input,
+    textarea,
+    select {
+        font-size: inherit;
+    }
 }
 
 button {
@@ -142,5 +162,30 @@ button {
 @media (max-width: 520px) {
     body {
         font-size: 13px;
+    }
+}
+
+pre,
+table {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+@media (hover: none) and (pointer: coarse) {
+    button,
+    [role="button"],
+    select {
+        min-height: 36px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
     }
 }

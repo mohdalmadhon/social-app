@@ -166,6 +166,7 @@ async function handleSubmit() {
     width: 100%;
     max-width: 600px;
     max-height: calc(100vh - 60px);
+    max-height: calc(100dvh - 60px);
     display: flex;
     flex-direction: column;
     border: 2px solid var(--main-color);
@@ -335,6 +336,7 @@ textarea:focus {
 
     .group-modal {
         max-height: calc(100vh - 30px);
+        max-height: calc(100dvh - 30px);
     }
 
     .modal-scroll {

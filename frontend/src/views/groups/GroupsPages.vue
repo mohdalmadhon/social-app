@@ -5,6 +5,7 @@ import GroupCreateDialog from '@/components/groups/GroupCreateDialog.vue';
 import GroupsSearch from '@/components/groups/Groupssearch.vue';
 import SideNavigation from '@/components/layout/SideNavigation.vue';
 import TopNavigation from '@/components/layout/TopNavigation.vue';
+import BackToHome from '@/components/layout/BackToHome.vue';
 import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 
@@ -269,6 +270,8 @@ onUnmounted(() => {
 
             <main class="main-content">
                 <div class="content-container">
+                    <BackToHome />
+
                     <div class="page-header">
                         <h1 class="page-title">
                             Groups
@@ -353,6 +356,7 @@ onUnmounted(() => {
 <style scoped>
 .groups-page {
     min-height: 100vh;
+    min-height: 100dvh;
     padding-top: 64px;
 }
 
@@ -360,6 +364,7 @@ onUnmounted(() => {
     display: flex;
     align-items: flex-start;
     min-height: calc(100vh - 64px);
+    min-height: calc(100dvh - 64px);
 }
 
 .main-content {

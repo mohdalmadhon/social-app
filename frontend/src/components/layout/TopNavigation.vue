@@ -3,6 +3,7 @@ import { getUserData } from '@/api/users/personalProfile';
 import { addNotification } from '@/data/notifications';
 import { useSearchBox } from '@/helpers/search/useSearchBox';
 import { onMounted, ref } from 'vue';
+import { sideNavOpen, toggleSideNav } from '@/data/sideNav';
 
 const avatar = ref('');
 const { searchQuery, submitSearch } = useSearchBox();
@@ -22,6 +23,19 @@ onMounted(getData)
 <template>
     <header class="top-navigation">
         <div class="nav-left">
+            <button
+                type="button"
+                class="burger"
+                :class="{ open: sideNavOpen }"
+                :aria-expanded="sideNavOpen"
+                aria-controls="side-drawer"
+                aria-label="Toggle navigation menu"
+                @click="toggleSideNav"
+            >
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
 
             <form class="search" role="search" @submit.prevent="submitSearch">
                 <button class="search-submit" type="submit" aria-label="Search">⌕</button>
@@ -44,7 +58,7 @@ onMounted(getData)
             <a href="/post/new"><button class="nav-button">+</button></a>
 
             <a href="/me" class="nav-avatar">
-                <img :src="`/uploads/${avatar}`" alt="">
+                <img :src="`/uploads/${avatar}`" alt="Profile">
             </a>
         </div>
     </header>
@@ -62,6 +76,8 @@ onMounted(getData)
     align-items: center;
     justify-content: space-between;
     padding: 0 clamp(12px, 3vw, 28px);
+    padding-left: max(clamp(12px, 3vw, 28px), env(safe-area-inset-left));
+    padding-right: max(clamp(12px, 3vw, 28px), env(safe-area-inset-right));
     background: var(--bg-color);
     border-bottom: 2px solid var(--main-color);
     box-sizing: border-box;
@@ -97,6 +113,48 @@ onMounted(getData)
     font-family: "JetBrains Mono", monospace;
     font-size: 19px;
     font-weight: 600;
+}
+
+.burger {
+    display: none;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    border: 2px solid var(--main-color);
+    border-radius: 5px;
+    background: var(--page-background);
+    box-shadow: 3px 3px var(--main-color);
+}
+
+.burger span {
+    display: block;
+    width: 18px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--main-color);
+    transition: transform 0.25s ease, opacity 0.2s ease;
+}
+
+.burger.open span:nth-child(1) {
+    transform: translateY(7px) rotate(45deg);
+}
+
+.burger.open span:nth-child(2) {
+    opacity: 0;
+}
+
+.burger.open span:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg);
+}
+
+.burger:active {
+    transform: translate(3px, 3px);
+    box-shadow: none;
 }
 
 .search {
@@ -208,6 +266,12 @@ onMounted(getData)
     box-shadow: none;
 }
 
+@media (max-width: 1024px) {
+    .burger {
+        display: flex;
+    }
+}
+
 @media (max-width: 900px) {
     .nav-links {
         display: none;
@@ -217,6 +281,22 @@ onMounted(getData)
 @media (max-width: 640px) {
     .search {
         width: 100%;
+    }
+
+    .nav-left {
+        gap: 10px;
+    }
+}
+
+@media (max-width: 360px) {
+    .nav-avatar {
+        width: 34px;
+        height: 34px;
+        margin-left: 0;
+    }
+
+    .search {
+        padding: 0 8px;
     }
 }
 

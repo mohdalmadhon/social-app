@@ -7,6 +7,7 @@ import HomePosts from '@/components/home/HomePosts.vue';
 import HomeSearch from '@/components/home/HomeSearch.vue';
 import SideNavigation from '@/components/layout/SideNavigation.vue';
 import TopNavigation from '@/components/layout/TopNavigation.vue';
+import BackToHome from '@/components/layout/BackToHome.vue';
 import SearchGroupCard from '@/components/search/SearchGroupCard.vue';
 import SearchResultsPanel from '@/components/search/SearchResultsPanel.vue';
 import SearchTabs from '@/components/search/SearchTabs.vue';
@@ -172,6 +173,8 @@ onBeforeUnmount(() => {
 
             <main class="main-content">
                 <div class="content-container">
+                    <BackToHome />
+
                     <HomeSearch />
 
                     <p v-if="!query" class="hint">
@@ -275,6 +278,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .search-page {
     min-height: 100vh;
+    min-height: 100dvh;
     padding-top: 64px;
 }
 
@@ -282,6 +286,7 @@ onBeforeUnmount(() => {
     display: flex;
     align-items: flex-start;
     min-height: calc(100vh - 64px);
+    min-height: calc(100dvh - 64px);
 }
 
 .main-content {

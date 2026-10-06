@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import { getUserData } from '@/api/users/personalProfile';
 import SideNavigation from '@/components/layout/SideNavigation.vue';
 import TopNavigation from '@/components/layout/TopNavigation.vue';
+import BackToHome from '@/components/layout/BackToHome.vue';
 import ProfileHeader from '@/components/personalProfile/ProfileHeader.vue';
 import ProfileTabs from '@/components/personalProfile/ProfileTabs.vue';
 import AboutTab from '@/components/profile/AboutTab.vue';
@@ -48,6 +49,8 @@ onMounted(() => {
             <SideNavigation />
 
             <main class="profile-page">
+                <BackToHome />
+
                 <div v-if="loading">
                     Loading profile...
                 </div>
@@ -82,6 +85,7 @@ onMounted(() => {
 <style scoped>
 .facebook-layout {
     min-height: 100vh;
+    min-height: 100dvh;
 }
 
 .page-layout {

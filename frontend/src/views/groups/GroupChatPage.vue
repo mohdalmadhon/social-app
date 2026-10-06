@@ -10,6 +10,7 @@ import GroupDialoge from '@/components/groups/GroupDialoge.vue';
 
 import SideNavigation from '@/components/layout/SideNavigation.vue';
 import TopNavigation from '@/components/layout/TopNavigation.vue';
+import BackToHome from '@/components/layout/BackToHome.vue';
 
 import { addNotification } from '@/data/notifications';
 import { openGroupPage } from '@/data/chatState';
@@ -202,6 +203,8 @@ onUnmounted(() => {
 
             <main class="main-content">
                 <div class="content-container">
+                    <BackToHome />
+
 
                     <div class="sticky-top">
                         <div class="header-wrapper">
@@ -242,6 +245,7 @@ onUnmounted(() => {
 <style scoped>
 .group-page {
     min-height: 100vh;
+    min-height: 100dvh;
     padding-top: 64px;
 }
 
@@ -249,6 +253,7 @@ onUnmounted(() => {
     display: flex;
     align-items: flex-start;
     min-height: calc(100vh - 64px);
+    min-height: calc(100dvh - 64px);
 }
 
 .main-content {
@@ -323,7 +328,7 @@ onUnmounted(() => {
 
 @media (max-width: 520px) {
     .group-page {
-        padding-top: 58px;
+        padding-top: 64px;
     }
 
     .content-container {

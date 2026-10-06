@@ -1,6 +1,7 @@
 <script setup>
 import SideNavigation from '@/components/layout/SideNavigation.vue';
 import TopNavigation from '@/components/layout/TopNavigation.vue';
+import BackToHome from '@/components/layout/BackToHome.vue';
 import EditProfileTabs from '@/components/ProfileEdit/EditProfileTabs.vue';
 import EditPersonalInfo from '@/components/ProfileEdit/EditPersonalInfo.vue';
 import EditAdditionalInfo from '@/components/ProfileEdit/EditAdditionalInfo.vue';
@@ -39,6 +40,8 @@ onMounted(getData);
             <SideNavigation />
 
             <main class="profile-page">
+                <BackToHome />
+
                 <div class="page-heading">
                     <p class="eyebrow">SETTINGS</p>
                     <h1>Edit Profile</h1>
@@ -64,6 +67,7 @@ onMounted(getData);
 <style scoped>
 .facebook-layout {
     min-height: 100vh;
+    min-height: 100dvh;
 }
 
 .page-layout {

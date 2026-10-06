@@ -16,6 +16,7 @@ import { addNotification } from '@/data/notifications';
 import { clearUnreadNotificationCount } from '@/data/notificationCount';
 import SideNavigation from '@/components/layout/SideNavigation.vue';
 import TopNavigation from '@/components/layout/TopNavigation.vue';
+import BackToHome from '@/components/layout/BackToHome.vue';
 import NotificationPostDialog from '@/components/notifications/NotificationPostDialog.vue';
 import { throttle } from '@/helpers/throttle';
 
@@ -618,6 +619,8 @@ async function rejectRequest(notification) {
             <SideNavigation />
 
             <main class="notifications-page">
+                <BackToHome />
+
                 <div class="page-header">
                     <span>ACTIVITY</span>
                     <h1>Notifications</h1>
@@ -891,6 +894,7 @@ async function rejectRequest(notification) {
 <style scoped>
 .notifications-page-wrap {
     min-height: 100vh;
+    min-height: 100dvh;
     padding-top: 64px;
 }
 
@@ -899,6 +903,7 @@ async function rejectRequest(notification) {
     align-items: flex-start;
     gap: 24px;
     min-height: calc(100vh - 64px);
+    min-height: calc(100dvh - 64px);
 }
 
 .notifications-page {

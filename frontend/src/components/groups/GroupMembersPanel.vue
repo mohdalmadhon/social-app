@@ -890,6 +890,7 @@ onBeforeUnmount(() => {
     width: 420px;
     max-width: 100%;
     max-height: 80vh;
+    max-height: 80dvh;
     display: flex;
     flex-direction: column;
     gap: 14px;

@@ -536,6 +536,7 @@ onBeforeUnmount(() => {
 .reel-caption.expanded {
     display: block;
     max-height: 38vh;
+    max-height: 38dvh;
     overflow-y: auto;
 }
 

@@ -271,6 +271,7 @@ watch(
 .requests-dialog {
     width: min(620px, 100%);
     max-height: 80vh;
+    max-height: 80dvh;
     overflow: hidden;
     border: 2px solid var(--main-color);
     border-radius: 8px;
@@ -312,6 +313,7 @@ watch(
 
 .requests-scroll {
     max-height: calc(80vh - 75px);
+    max-height: calc(80dvh - 75px);
     overflow-y: auto;
     padding: 14px;
 }

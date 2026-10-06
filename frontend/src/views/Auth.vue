@@ -13,6 +13,7 @@ import WelcomeSection from '@/components/auth/WelcomeSection.vue'
 <style scoped>
 .auth-page {
     min-height: 100vh;
+    min-height: 100dvh;
     width: 100%;
 
     display: grid;
@@ -26,6 +27,12 @@ import WelcomeSection from '@/components/auth/WelcomeSection.vue'
 @media (max-width: 900px) {
     .auth-page {
         grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .auth-page {
+        display: block;
     }
 }
 </style>

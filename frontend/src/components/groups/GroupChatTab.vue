@@ -1546,6 +1546,7 @@ onUnmounted(() => {
 .chat-window {
     width: 100%;
     height: calc(100vh - 100px);
+    height: calc(100dvh - 100px);
     min-height: 0;
     display: flex;
     flex-direction: column;
@@ -1900,6 +1901,7 @@ onUnmounted(() => {
     width: 100%;
     max-width: 720px;
     max-height: calc(100vh - 60px);
+    max-height: calc(100dvh - 60px);
     overflow-y: auto;
 }
 
@@ -2190,6 +2192,7 @@ onUnmounted(() => {
 @media (max-width: 800px) {
     .chat-window {
         height: calc(100vh - 220px);
+        height: calc(100dvh - 220px);
         min-height: 380px;
         max-height: none;
     }
@@ -2208,6 +2211,7 @@ onUnmounted(() => {
 
     .post-dialog {
         max-height: calc(100vh - 30px);
+        max-height: calc(100dvh - 30px);
     }
 
     .post-dialog-close {
@@ -2219,6 +2223,7 @@ onUnmounted(() => {
 @media (max-width: 560px) {
     .chat-window {
         height: calc(100vh - 200px);
+        height: calc(100dvh - 200px);
         min-height: 340px;
         box-shadow: 4px 4px var(--main-color);
     }
