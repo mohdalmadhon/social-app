@@ -75,8 +75,20 @@ function getCategory(notification) {
         return 'mentions';
     }
 
-    if (notification.group_invite_user_id || notification.group_join_user_id) {
+    if (
+        notification.group_invite_user_id ||
+        notification.group_join_user_id ||
+        notification.group_accept_user_id
+    ) {
         return 'invites';
+    }
+
+    if (
+        notification.comment_mention_user_id &&
+        notification.group?.id &&
+        !notification.post_id
+    ) {
+        return 'mentions';
     }
 
     if (notification.follow_request_user_id) {
@@ -134,30 +146,36 @@ const emptyMessages = {
 };
 
 let liveRefreshing = false;
+let liveQueued = false;
 
 async function handleLiveNotification() {
     if (liveRefreshing) {
+        liveQueued = true;
         return;
     }
 
     liveRefreshing = true;
 
     try {
-        const result = await getNotifications(0, limit);
+        do {
+            liveQueued = false;
 
-        const latest = Array.isArray(result.notifications)
-            ? result.notifications
-            : [];
+            const result = await getNotifications(0, limit);
 
-        const knownIDs = new Set(notifications.value.map(item => item.id));
-        const fresh = latest.filter(item => !knownIDs.has(item.id));
+            const latest = Array.isArray(result.notifications)
+                ? result.notifications
+                : [];
 
-        if (fresh.length) {
-            notifications.value.unshift(...fresh);
-            offset.value += fresh.length;
-        }
+            const knownIDs = new Set(notifications.value.map(item => item.id));
+            const fresh = latest.filter(item => !knownIDs.has(item.id));
 
-        markAsRead();
+            if (fresh.length) {
+                notifications.value.unshift(...fresh);
+                offset.value += fresh.length;
+            }
+
+            await markAsRead();
+        } while (liveQueued);
     } catch (err) {
         console.error(err);
     } finally {
@@ -165,8 +183,15 @@ async function handleLiveNotification() {
     }
 }
 
+function handleVisibilityChange() {
+    if (!document.hidden) {
+        handleLiveNotification();
+    }
+}
+
 onMounted(async () => {
     window.addEventListener('notification-received', handleLiveNotification);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     await loadNotifications();
     window.addEventListener('scroll', handleScroll);
     markAsRead();
@@ -176,9 +201,14 @@ onMounted(async () => {
 onUnmounted(() => {
     window.removeEventListener('scroll', handleScroll);
     window.removeEventListener('notification-received', handleLiveNotification);
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
 });
 
 async function markAsRead() {
+    if (document.hidden) {
+        return;
+    }
+
     try {
         await markNotificationsRead();
         clearUnreadNotificationCount();
@@ -419,6 +449,30 @@ async function answerInvite(notification, status) {
     }
 }
 
+function isGroupActivity(notification) {
+    return (
+        !!notification.group?.id &&
+        !notification.post_id &&
+        !isChatMention(notification) &&
+        !isGroupInvite(notification) &&
+        !isGroupJoin(notification) &&
+        !isEventInvite(notification)
+    );
+}
+
+function openGroup(notification) {
+    const groupID = notification.group?.id;
+
+    if (!groupID) {
+        return;
+    }
+
+    router.push({
+        path: `/groups/${groupID}`,
+        query: notification.event ? { tab: 'events' } : {}
+    });
+}
+
 function isEventInvite(notification) {
     return !!notification.event_invite_user_id && !!notification.event;
 }
@@ -579,9 +633,7 @@ async function rejectRequest(notification) {
                         @click="setTab(tab.key)"
                     >
                         {{ tab.label }}
-                        <span v-if="tabCounts[tab.key]" class="tab-count">
-                            {{ tabCounts[tab.key] }}
-                        </span>
+                        
                     </button>
                 </div>
 
@@ -689,7 +741,7 @@ async function rejectRequest(notification) {
                             </div>
 
                             <div
-                                v-if="(isGroupInvite(notification) || isGroupJoin(notification)) && notification.group"
+                                v-if="(isGroupInvite(notification) || isGroupJoin(notification) || isGroupActivity(notification)) && notification.group"
                                 class="group-preview"
                             >
                                 <div class="group-preview-avatar">
@@ -708,6 +760,18 @@ async function rejectRequest(notification) {
                                     <span>GROUP</span>
                                     <p>{{ notification.group.name }}</p>
                                 </div>
+                            </div>
+
+                            <div
+                                v-if="isGroupActivity(notification)"
+                                class="notification-actions"
+                            >
+                                <button
+                                    class="accept-button"
+                                    @click="openGroup(notification)"
+                                >
+                                    {{ notification.event ? 'Open events' : 'Open group' }}
+                                </button>
                             </div>
 
                             <div

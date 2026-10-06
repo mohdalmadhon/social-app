@@ -2,40 +2,12 @@ package api
 
 import (
 	"database/sql"
-	"encoding/json"
 	"log"
 	"net/http"
 	"social/database/notifications"
 	"social/internal/helpers"
-	"social/internal/models"
 	"strconv"
 )
-
-func (app *App) handleNotification(data json.RawMessage) {
-	var notification models.NewNotification
-
-	if err := json.Unmarshal(data, &notification); err != nil {
-		log.Println(err)
-		return
-	}
-
-	if _, err := notifications.InsertNotification(app.DB, notification); err != nil {
-		log.Println("failed to insert notification:", err)
-		return
-	}
-
-	msg, err := json.Marshal(models.WSPayload{
-		Type: "notification",
-		Data: data,
-	})
-
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	println(msg)
-}
 
 func (app *App) GetNotification(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value("userID").(int)
@@ -78,6 +50,7 @@ func (app *App) GetNotification(w http.ResponseWriter, r *http.Request) {
 			nt.event_response_user_id,
 			nt.group_invite_user_id,
 			nt.group_join_user_id,
+			nt.group_accept_user_id,
 			nt.group_id,
 			nt.event_id,
 			ge.title,
@@ -94,7 +67,7 @@ func (app *App) GetNotification(w http.ResponseWriter, r *http.Request) {
 			gr.name,
 			gr.avatar
 		FROM notifications n
-		LEFT JOIN notifications_types nt
+		JOIN notifications_types nt
 			ON nt.notifications_id = n.id
 		LEFT JOIN user actor
 			ON actor.id = COALESCE(
@@ -110,7 +83,8 @@ func (app *App) GetNotification(w http.ResponseWriter, r *http.Request) {
 				nt.event_invite_user_id,
 				nt.event_response_user_id,
 				nt.group_invite_user_id,
-				nt.group_join_user_id
+				nt.group_join_user_id,
+				nt.group_accept_user_id
 			)
 		LEFT JOIN profile actor_profile
 			ON actor_profile.user_id = actor.id
@@ -124,8 +98,7 @@ func (app *App) GetNotification(w http.ResponseWriter, r *http.Request) {
 			ON ge.id = nt.event_id
 		WHERE n.user_id = ?
 			AND nt.message_user_id IS NULL
-			AND nt.group_accept_user_id IS NULL
-		ORDER BY n.created_at DESC
+		ORDER BY n.created_at DESC, n.id DESC
 		LIMIT 20 OFFSET ?
 	`, userID, offset)
 
@@ -163,6 +136,7 @@ func (app *App) GetNotification(w http.ResponseWriter, r *http.Request) {
 			eventResponseUserID       sql.NullInt64
 			groupInviteUserID         sql.NullInt64
 			groupJoinUserID           sql.NullInt64
+			groupAcceptUserID         sql.NullInt64
 			groupID                   sql.NullInt64
 			eventID                   sql.NullInt64
 			eventTitle                sql.NullString
@@ -201,6 +175,7 @@ func (app *App) GetNotification(w http.ResponseWriter, r *http.Request) {
 			&eventResponseUserID,
 			&groupInviteUserID,
 			&groupJoinUserID,
+			&groupAcceptUserID,
 			&groupID,
 			&eventID,
 			&eventTitle,
@@ -219,7 +194,7 @@ func (app *App) GetNotification(w http.ResponseWriter, r *http.Request) {
 		)
 
 		if err != nil {
-			log.Println(err, "hre")
+			log.Println(err)
 			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 				"status":  false,
 				"message": "could not read notifications",
@@ -290,6 +265,10 @@ func (app *App) GetNotification(w http.ResponseWriter, r *http.Request) {
 			notification["group_join_user_id"] = groupJoinUserID.Int64
 		}
 
+		if groupAcceptUserID.Valid {
+			notification["group_accept_user_id"] = groupAcceptUserID.Int64
+		}
+
 		if eventID.Valid {
 			notification["event"] = map[string]any{
 				"id":        eventID.Int64,
@@ -332,7 +311,7 @@ func (app *App) GetNotification(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rows.Err(); err != nil {
-		log.Println(err, "hre1")
+		log.Println(err)
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 			"status":  false,
 			"message": "could not read notifications",
@@ -363,7 +342,7 @@ func (app *App) GetUnreadNotificationCount(w http.ResponseWriter, r *http.Reques
 	count, err := notifications.GetUnreadCount(app.DB, userID)
 
 	if err != nil {
-		log.Println(err, "here1")
+		log.Println(err)
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 			"status":  false,
 			"message": "could not get unread count",
@@ -389,7 +368,7 @@ func (app *App) MarkNotificationsRead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := notifications.MarkAllRead(app.DB, userID); err != nil {
-		log.Println(err, "here")
+		log.Println(err)
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 			"status":  false,
 			"message": "could not mark notifications read",
@@ -399,5 +378,52 @@ func (app *App) MarkNotificationsRead(w http.ResponseWriter, r *http.Request) {
 
 	helpers.WriteJson(w, http.StatusOK, map[string]any{
 		"status": true,
+	})
+}
+
+func (app *App) MarkNotificationRead(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("userID").(int)
+
+	if !ok {
+		helpers.WriteJson(w, http.StatusUnauthorized, map[string]any{
+			"status":  false,
+			"message": "could not authorize user",
+		})
+		return
+	}
+
+	notificationID, err := strconv.Atoi(r.PathValue("id"))
+
+	if err != nil || notificationID <= 0 {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": "invalid notification",
+		})
+		return
+	}
+
+	if err := notifications.MarkRead(app.DB, userID, notificationID); err != nil {
+		log.Println(err)
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not mark notification read",
+		})
+		return
+	}
+
+	count, err := notifications.GetUnreadCount(app.DB, userID)
+
+	if err != nil {
+		log.Println(err)
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not get unread count",
+		})
+		return
+	}
+
+	helpers.WriteJson(w, http.StatusOK, map[string]any{
+		"status": true,
+		"count":  count,
 	})
 }

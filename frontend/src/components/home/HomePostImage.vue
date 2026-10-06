@@ -1,7 +1,6 @@
 
 <script setup>
 import { computed } from 'vue';
-
 const props = defineProps({
     imagePath: {
         type: String,
@@ -11,6 +10,11 @@ const props = defineProps({
     taggedPeople: {
         type: Array,
         default: () => []
+    },
+    
+    auto: {
+        type: Boolean,
+        default: false
     }
 });
 
@@ -61,7 +65,7 @@ function openTaggedPeople() {
         :class="{ 'no-image': !hasImage }"
     >
         <video
-            autoplay
+            :autoplay="props.auto"
             v-if="isVideo"
             :src="mediaUrl"
             class="post-video"

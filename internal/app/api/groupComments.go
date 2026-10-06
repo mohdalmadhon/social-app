@@ -120,6 +120,8 @@ func (app *App) AddGroupComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	app.notifyGroupComment(userID, comment)
+
 	helpers.WriteJson(w, http.StatusOK, map[string]any{
 		"status":  true,
 		"message": "comment inserted!",
@@ -363,6 +365,10 @@ func (app *App) VoteGroupComment(w http.ResponseWriter, r *http.Request) {
 			"message": "failed to vote on comment",
 		})
 		return
+	}
+
+	if vote == 1 {
+		app.notifyGroupCommentLike(userID, commentID)
 	}
 
 	helpers.WriteJson(w, http.StatusOK, map[string]any{

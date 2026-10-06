@@ -30,16 +30,19 @@ function isDuplicateToast(payload) {
     return !!last && now - last < TOAST_COOLDOWN;
 }
 
+function viewingNotifications() {
+    return window.location.pathname === '/notifications' && !document.hidden;
+}
+
 function initialOf(firstName) {
     return (firstName || '').trim().charAt(0).toUpperCase();
 }
 
-// avatar + where a click on the toast should lead, for everything that is
-// not a chat message (post related -> dialog, follow -> notifications page)
 function notificationOptions(payload) {
     const options = {
         avatar: avatarUrl(payload.actor?.avatarPath),
-        initial: initialOf(payload.actor?.firstName)
+        initial: initialOf(payload.actor?.firstName),
+        notificationId: payload.id
     };
 
     if (payload.post_id) {
@@ -51,8 +54,12 @@ function notificationOptions(payload) {
         options.route = { path: `/groups/${payload.group_id}`, query: { tab: 'chat' } };
     } else if (payload.kind === 'event invite') {
         options.route = { path: '/notifications', query: { tab: 'events' } };
+    } else if (payload.kind === 'event response' && payload.group_id) {
+        options.route = { path: `/groups/${payload.group_id}`, query: { tab: 'events' } };
     } else if (payload.kind === 'group invite' || payload.kind === 'group join') {
         options.route = { path: '/notifications', query: { tab: 'invites' } };
+    } else if (payload.group_id) {
+        options.route = { path: `/groups/${payload.group_id}` };
     } else {
         options.route = { path: '/notifications' };
     }
@@ -60,7 +67,6 @@ function notificationOptions(payload) {
     return options;
 }
 
-// chat messages: private chat -> /chats, group chat -> the group's chat tab
 function messageOptions(payload) {
     const message = payload.data;
     const sender = message.Sender || {};
@@ -114,15 +120,17 @@ export function connectToWS() {
                 console.log('Notification:', payload.data);
 
                 if (payload.error == true) {
-                    addNotification("could not send notification " || payload.message, 'error')
+                    addNotification(payload.message || 'could not send notification', 'error')
                     return
                 }
 
                 if (payload.message) {
-                    if (typeof payload.unread === 'number') {
-                        setUnreadNotificationCount(payload.unread);
-                    } else {
-                        incrementUnreadNotificationCount();
+                    if (!viewingNotifications()) {
+                        if (typeof payload.unread === 'number') {
+                            setUnreadNotificationCount(payload.unread);
+                        } else {
+                            incrementUnreadNotificationCount();
+                        }
                     }
 
                     window.dispatchEvent(

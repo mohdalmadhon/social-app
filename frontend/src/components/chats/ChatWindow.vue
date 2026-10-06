@@ -1437,6 +1437,7 @@ onUnmounted(() => {
                             </div>
 
                             <HomePosts
+                                :auto="false"
                                 :current-user-id="msg.post.currentUserId"
                                 :allow-comments="msg.post.allowComments"
                                 :reaction="msg.post.reaction"

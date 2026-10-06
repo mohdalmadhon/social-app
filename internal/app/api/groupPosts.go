@@ -3,7 +3,6 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"social/database/groups"
@@ -157,24 +156,7 @@ func (app *App) AddGroupPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// group posts live in group_posts, not posts, so PostIDTag (a FK to
-	// posts.id) must not be set here: it would point at an unrelated post.
-	groupTagName := app.actorName(userID)
-	groupTagged := map[int]bool{userID: true}
-
-	for _, taggedUserID := range taggedPeople {
-		if groupTagged[taggedUserID] {
-			continue
-		}
-
-		groupTagged[taggedUserID] = true
-
-		app.notify(userID, models.NewNotification{
-			UserID:            taggedUserID,
-			Message:           fmt.Sprintf("%s tagged you in a group post", groupTagName),
-			PostMentionUserID: &userID,
-		})
-	}
+	app.notifyGroupPostPeople(userID, groupID, post.Content, taggedPeople)
 
 	user, err := users.GetUserSimpleData(app.DB, userID)
 	if err != nil {
@@ -354,6 +336,8 @@ func (app *App) InsertGroupPostReaction(w http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
+
+	app.notifyGroupPostReaction(userID, react.PostID, react.Value)
 
 	helpers.WriteJson(w, http.StatusOK, map[string]any{
 		"status":  true,

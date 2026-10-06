@@ -23,6 +23,15 @@ export async function markNotificationsRead() {
     return await response.json();
 }
 
+export async function markNotificationRead(id) {
+    const response = await fetch(`/api/notifications/${id}/read`, {
+        method: 'POST',
+        credentials: 'include'
+    });
+
+    return await response.json();
+}
+
 export async function respondToGroupInvite(groupID, status) {
     const response = await fetch('/api/groups/status', {
         method: 'POST',

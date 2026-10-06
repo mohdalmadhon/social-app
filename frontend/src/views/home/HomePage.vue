@@ -170,6 +170,7 @@ onUnmounted(() => {
 
                         <section class="posts">
                             <HomePosts
+                                :auto="true"
                                 v-for="post in posts"
                                 :key="post.id"
                                 v-bind="post"

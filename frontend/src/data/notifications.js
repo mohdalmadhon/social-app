@@ -2,7 +2,6 @@ import { reactive } from 'vue';
 
 export const notifications = reactive([]);
 
-// post dialog opened from a toast (mounted once, in NotificationContainer)
 export const postDialog = reactive({
     show: false,
     postId: null
@@ -22,7 +21,6 @@ export function closePostDialog() {
     postDialog.postId = null;
 }
 
-// returns '' for posts without an image and for videos
 export function postImageUrl(imagePath) {
     if (!imagePath) {
         return '';
@@ -48,12 +46,6 @@ export function avatarUrl(avatarPath) {
 
 let nextNotificationId = 0;
 
-// options:
-//   avatar   - url of the sender's avatar
-//   initial  - letter shown when the sender has no avatar
-//   image    - post image thumbnail
-//   postId   - clicking opens the post dialog
-//   route    - clicking navigates there (vue-router location)
 export function addNotification(message, type = 'success', options = {}) {
     const id = ++nextNotificationId;
 
@@ -67,7 +59,8 @@ export function addNotification(message, type = 'success', options = {}) {
         initial: options.initial || '',
         image: options.image || '',
         postId: options.postId || null,
-        route: options.route || null
+        route: options.route || null,
+        notificationId: options.notificationId || null
     });
 
     setTimeout(() => {

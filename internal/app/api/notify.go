@@ -25,11 +25,13 @@ func skipsSpamCheck(n models.NewNotification) bool {
 		return true
 	}
 
-	return n.PostMentionUserID != nil && n.GroupID != nil && n.PostIDTag == nil
+	if n.PostMentionUserID != nil && n.GroupID != nil && n.PostIDTag == nil {
+		return true
+	}
+
+	return n.CommentMentionUserID != nil && n.GroupID != nil && n.CommentIDTag == nil
 }
 
-// notify stores a notification for n.UserID and pushes it over the websocket
-// if that user is online. It never notifies the actor about their own action.
 func (app *App) notify(actorID int, n models.NewNotification) bool {
 	if n.UserID <= 0 || n.UserID == actorID {
 		return false
@@ -97,8 +99,6 @@ func (app *App) actorName(userID int) string {
 	return name
 }
 
-// mentionedUserIDs resolves @username mentions in content to user ids,
-// skipping anyone already present in skip.
 func (app *App) mentionedUserIDs(content string, skip map[int]bool) []int {
 	var ids []int
 
@@ -124,9 +124,34 @@ func (app *App) mentionedUserIDs(content string, skip map[int]bool) []int {
 	return ids
 }
 
-// notifyComment covers: comment on a post, reply to a comment and
-// @mentions inside the comment. Every one of them points at the post so the
-// notification can show its image and open the post dialog.
+func (app *App) groupMentionedUserIDs(content string, groupID int, skip map[int]bool) []int {
+	if groupID <= 0 {
+		return nil
+	}
+
+	var ids []int
+
+	for _, id := range app.mentionedUserIDs(content, skip) {
+		member, err := groups.IsMember(app.DB, groupID, id)
+
+		if err != nil || !member {
+			continue
+		}
+
+		ids = append(ids, id)
+	}
+
+	return ids
+}
+
+func optionalGroupID(groupID int) *int {
+	if groupID <= 0 {
+		return nil
+	}
+
+	return &groupID
+}
+
 func (app *App) notifyComment(actorID int, comment models.Comment) {
 	name := app.actorName(actorID)
 	actor := actorID
@@ -182,8 +207,6 @@ func (app *App) notifyComment(actorID int, comment models.Comment) {
 	}
 }
 
-// notifyCommentLike tells a comment's author that somebody liked it. It only
-// fires when the vote that now exists is a like (so un-liking stays silent).
 func (app *App) notifyCommentLike(actorID, commentID int) {
 	vote, err := posts.GetUserCommentVote(app.DB, commentID, actorID)
 
@@ -209,7 +232,189 @@ func (app *App) notifyCommentLike(actorID, commentID int) {
 	})
 }
 
-// notifyEventInvite tells every accepted group member about a new event.
+func (app *App) notifyGroupComment(actorID int, comment models.GroupComment) {
+	postOwnerID, groupID, err := groups.GetGroupPostMeta(app.DB, comment.GroupPostID)
+
+	if err != nil {
+		log.Println("could not find group post:", err)
+		return
+	}
+
+	name := app.actorName(actorID)
+	actor := actorID
+
+	notified := map[int]bool{actorID: true}
+
+	if comment.ReplyTo != nil {
+		ownerID, _, _, err := groups.GetGroupCommentMeta(app.DB, *comment.ReplyTo)
+
+		if err != nil {
+			log.Println("could not find group comment owner:", err)
+		} else if !notified[ownerID] {
+			notified[ownerID] = true
+
+			app.notify(actorID, models.NewNotification{
+				UserID:             ownerID,
+				Message:            fmt.Sprintf("%s replied to your comment in a group", name),
+				CommentReplyUserID: &actor,
+				GroupID:            optionalGroupID(groupID),
+			})
+		}
+	} else if !notified[postOwnerID] {
+		notified[postOwnerID] = true
+
+		app.notify(actorID, models.NewNotification{
+			UserID:             postOwnerID,
+			Message:            fmt.Sprintf("%s commented on your group post", name),
+			CommentReplyUserID: &actor,
+			GroupID:            optionalGroupID(groupID),
+		})
+	}
+
+	for _, id := range app.groupMentionedUserIDs(comment.Content, groupID, notified) {
+		notified[id] = true
+
+		app.notify(actorID, models.NewNotification{
+			UserID:               id,
+			Message:              fmt.Sprintf("%s mentioned you in a group comment", name),
+			CommentMentionUserID: &actor,
+			GroupID:              optionalGroupID(groupID),
+		})
+	}
+}
+
+func (app *App) notifyGroupCommentLike(actorID, commentID int) {
+	vote, err := groups.GetGroupCommentVote(app.DB, commentID, actorID)
+
+	if err != nil || vote != 1 {
+		return
+	}
+
+	ownerID, _, groupID, err := groups.GetGroupCommentMeta(app.DB, commentID)
+
+	if err != nil {
+		log.Println("could not find group comment owner:", err)
+		return
+	}
+
+	actor := actorID
+
+	app.notify(actorID, models.NewNotification{
+		UserID:            ownerID,
+		Message:           fmt.Sprintf("%s liked your comment in a group", app.actorName(actorID)),
+		CommentLikeUserID: &actor,
+		GroupID:           optionalGroupID(groupID),
+	})
+}
+
+func (app *App) notifyGroupPostReaction(actorID, postID, value int) {
+	stored, err := groups.GetGroupPostReactionValue(app.DB, postID, actorID)
+
+	if err != nil || stored != value {
+		return
+	}
+
+	ownerID, groupID, err := groups.GetGroupPostMeta(app.DB, postID)
+
+	if err != nil {
+		log.Println("could not find group post owner:", err)
+		return
+	}
+
+	actor := actorID
+	name := app.actorName(actorID)
+
+	notification := models.NewNotification{
+		UserID:  ownerID,
+		GroupID: optionalGroupID(groupID),
+	}
+
+	if value == 1 {
+		notification.PostLikeUserID = &actor
+		notification.Message = fmt.Sprintf("%s liked your group post", name)
+	} else {
+		notification.PostDislikeUserID = &actor
+		notification.Message = fmt.Sprintf("%s disliked your group post", name)
+	}
+
+	app.notify(actorID, notification)
+}
+
+func (app *App) notifyGroupPostPeople(actorID, groupID int, content string, tagged []int) {
+	name := app.actorName(actorID)
+	actor := actorID
+
+	notified := map[int]bool{actorID: true}
+
+	for _, id := range tagged {
+		if notified[id] {
+			continue
+		}
+
+		notified[id] = true
+
+		app.notify(actorID, models.NewNotification{
+			UserID:               id,
+			Message:              fmt.Sprintf("%s tagged you in a group post", name),
+			CommentMentionUserID: &actor,
+			GroupID:              optionalGroupID(groupID),
+		})
+	}
+
+	for _, id := range app.groupMentionedUserIDs(content, groupID, notified) {
+		notified[id] = true
+
+		app.notify(actorID, models.NewNotification{
+			UserID:               id,
+			Message:              fmt.Sprintf("%s mentioned you in a group post", name),
+			CommentMentionUserID: &actor,
+			GroupID:              optionalGroupID(groupID),
+		})
+	}
+}
+
+func (app *App) notifyGroupRequestAccepted(ownerID, groupID, requesterID int) {
+	group, err := groups.GetGroupData(app.DB, groupID)
+
+	if err != nil {
+		log.Println("could not get group data:", err)
+		return
+	}
+
+	actor := ownerID
+	gid := groupID
+
+	app.notify(ownerID, models.NewNotification{
+		UserID:            requesterID,
+		Message:           fmt.Sprintf("%s accepted your request to join the group \"%s\"", app.actorName(ownerID), group.Title),
+		GroupAcceptUserID: &actor,
+		GroupID:           &gid,
+	})
+}
+
+func (app *App) notifyGroupInviteAccepted(actorID, groupID, inviterID int) {
+	if inviterID <= 0 {
+		return
+	}
+
+	group, err := groups.GetGroupData(app.DB, groupID)
+
+	if err != nil {
+		log.Println("could not get group data:", err)
+		return
+	}
+
+	actor := actorID
+	gid := groupID
+
+	app.notify(actorID, models.NewNotification{
+		UserID:            inviterID,
+		Message:           fmt.Sprintf("%s accepted your invitation to join the group \"%s\"", app.actorName(actorID), group.Title),
+		GroupAcceptUserID: &actor,
+		GroupID:           &gid,
+	})
+}
+
 func (app *App) notifyEventInvite(actorID int, event models.GroupEvent) {
 	memberIDs, err := groups.GetActiveMemberIDs(app.DB, event.GroupID)
 
@@ -234,8 +439,6 @@ func (app *App) notifyEventInvite(actorID int, event models.GroupEvent) {
 	}
 }
 
-// notifyChatMentions tells every group member @mentioned in a group chat
-// message that they were mentioned.
 func (app *App) notifyChatMentions(actorID, groupID int, content string) {
 	matches := chatMentionPattern.FindAllStringSubmatch(content, -1)
 
@@ -290,7 +493,6 @@ func (app *App) notifyChatMentions(actorID, groupID int, content string) {
 	}
 }
 
-// notifyEventResponse tells the event creator that somebody answered.
 func (app *App) notifyEventResponse(actorID int, event models.GroupEvent) {
 	if event.UserResponse == nil {
 		return
@@ -303,10 +505,13 @@ func (app *App) notifyEventResponse(actorID int, event models.GroupEvent) {
 	}
 
 	actor := actorID
+	eventID := event.ID
 
 	app.notify(actorID, models.NewNotification{
 		UserID:              event.Creator.ID,
 		Message:             fmt.Sprintf("%s %s your event \"%s\"", app.actorName(actorID), verb, event.Title),
 		EventResponseUserID: &actor,
+		EventID:             &eventID,
+		GroupID:             optionalGroupID(event.GroupID),
 	})
 }

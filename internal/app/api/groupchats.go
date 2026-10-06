@@ -648,6 +648,12 @@ func (app *App) AcceptInvite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	inviterID, err := groups.GetPendingInviter(app.DB, req.GroupID, userID)
+
+	if err != nil {
+		log.Println(err)
+	}
+
 	if err := groups.ChangeStatus(app.DB, userID, req.Status, req.GroupID); err != nil {
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 			"status":  false,
@@ -671,6 +677,10 @@ func (app *App) AcceptInvite(w http.ResponseWriter, r *http.Request) {
 			"message": "could not delete invite",
 		})
 		return
+	}
+
+	if req.Status == 1 {
+		app.notifyGroupInviteAccepted(userID, req.GroupID, inviterID)
 	}
 
 	helpers.WriteJson(w, http.StatusOK, map[string]any{
@@ -1115,6 +1125,10 @@ func (app *App) HandleGroupRequest(w http.ResponseWriter, r *http.Request) {
 
 	if err := notifications.DeleteGroupJoinRequests(app.DB, ownerID, req.GroupID, req.UserID); err != nil {
 		log.Println(err)
+	}
+
+	if req.Code == 1 {
+		app.notifyGroupRequestAccepted(ownerID, req.GroupID, req.UserID)
 	}
 
 	helpers.WriteJson(w, http.StatusOK, map[string]any{

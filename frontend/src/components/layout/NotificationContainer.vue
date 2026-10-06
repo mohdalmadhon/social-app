@@ -7,9 +7,27 @@ import {
     closePostDialog
 } from '@/data/notifications';
 import NotificationPostDialog from '@/components/notifications/NotificationPostDialog.vue';
+import { markNotificationRead } from '@/api/common/notifications';
+import { setUnreadNotificationCount } from '@/data/notificationCount';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
+
+async function markToastRead(notification) {
+    if (!notification.notificationId) {
+        return;
+    }
+
+    try {
+        const result = await markNotificationRead(notification.notificationId);
+
+        if (result.status) {
+            setUnreadNotificationCount(result.count);
+        }
+    } catch (err) {
+        console.error(err);
+    }
+}
 
 function openToast(notification) {
     if (notification.postId) {
@@ -20,6 +38,7 @@ function openToast(notification) {
         return;
     }
 
+    markToastRead(notification);
     removeNotification(notification.id);
 }
 </script>

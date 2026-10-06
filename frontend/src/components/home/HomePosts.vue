@@ -26,6 +26,10 @@ const props = defineProps({
         type: [Number, String],
         default: null
     },
+    auto: {
+        type: Boolean,
+        default: false
+    },
     postId: {
         type: Number,
         required: true
@@ -311,7 +315,7 @@ onBeforeUnmount(() => {
             {{ content }}
         </div>
 
-        <HomePostImage :image-path="imagePath" :tagged-people="normalizedTaggedPeople" @open-tags="openTaggedPeople" />
+        <HomePostImage :auto="props.auto" :image-path="imagePath" :tagged-people="normalizedTaggedPeople" @open-tags="openTaggedPeople" />
 
         <HomePostReaction :likes="likes" :dislikes="dislikes" :comments-count="comments.length"
             @toggle-comments="toggleComments" />

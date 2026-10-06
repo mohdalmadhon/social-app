@@ -6,7 +6,15 @@ import (
 )
 
 func InsertNotification(db *sql.DB, n models.NewNotification) (int, error) {
-	result, err := db.Exec(`
+	tx, err := db.Begin()
+
+	if err != nil {
+		return 0, err
+	}
+
+	defer tx.Rollback()
+
+	result, err := tx.Exec(`
 		INSERT INTO notifications (user_id, message)
 		VALUES (?, ?)
 	`, n.UserID, n.Message)
@@ -21,7 +29,7 @@ func InsertNotification(db *sql.DB, n models.NewNotification) (int, error) {
 		return 0, err
 	}
 
-	_, err = db.Exec(`
+	_, err = tx.Exec(`
 		INSERT INTO notifications_types (
 			notifications_id,
 			message_user_id,
@@ -72,6 +80,10 @@ func InsertNotification(db *sql.DB, n models.NewNotification) (int, error) {
 		return 0, err
 	}
 
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+
 	return int(notificationID), nil
 }
 
@@ -106,7 +118,7 @@ func IsSpam(db *sql.DB, actorID int, n models.NewNotification) (bool, error) {
 		return false, nil
 	}
 
-	var postID, commentID int
+	var postID, commentID, groupID int
 
 	if n.PostIDTag != nil {
 		postID = *n.PostIDTag
@@ -114,6 +126,10 @@ func IsSpam(db *sql.DB, actorID int, n models.NewNotification) (bool, error) {
 
 	if n.CommentIDTag != nil {
 		commentID = *n.CommentIDTag
+	}
+
+	if n.GroupID != nil {
+		groupID = *n.GroupID
 	}
 
 	var duplicates int
@@ -128,8 +144,9 @@ func IsSpam(db *sql.DB, actorID int, n models.NewNotification) (bool, error) {
 			AND `+actorExpression+` = ?
 			AND IFNULL(nt.post_id_tag, 0) = ?
 			AND IFNULL(nt.comment_id_tag, 0) = ?
+			AND IFNULL(nt.group_id, 0) = ?
 			AND n.created_at >= datetime('now', ?)
-	`, n.UserID, n.Message, actorID, postID, commentID, duplicateWindow).Scan(&duplicates)
+	`, n.UserID, n.Message, actorID, postID, commentID, groupID, duplicateWindow).Scan(&duplicates)
 
 	if err != nil {
 		return false, err
@@ -160,7 +177,6 @@ func IsSpam(db *sql.DB, actorID int, n models.NewNotification) (bool, error) {
 
 const excludedTypesClause = `
 	nt.message_user_id IS NULL
-	AND nt.group_accept_user_id IS NULL
 `
 
 func GetUnreadCount(db *sql.DB, userID int) (int, error) {
@@ -169,7 +185,7 @@ func GetUnreadCount(db *sql.DB, userID int) (int, error) {
 	err := db.QueryRow(`
 		SELECT COUNT(*)
 		FROM notifications n
-		LEFT JOIN notifications_types nt
+		JOIN notifications_types nt
 			ON nt.notifications_id = n.id
 		WHERE n.user_id = ?
 			AND n.is_read = 0
@@ -184,7 +200,20 @@ func MarkAllRead(db *sql.DB, userID int) error {
 		UPDATE notifications
 		SET is_read = 1
 		WHERE user_id = ?
+			AND is_read = 0
 	`, userID)
+
+	return err
+}
+
+func MarkRead(db *sql.DB, userID, notificationID int) error {
+	_, err := db.Exec(`
+		UPDATE notifications
+		SET is_read = 1
+		WHERE id = ?
+			AND user_id = ?
+			AND is_read = 0
+	`, notificationID, userID)
 
 	return err
 }
@@ -215,51 +244,18 @@ func HasGroupInvite(db *sql.DB, userID, groupID int) (bool, error) {
 }
 
 func DeleteGroupInvites(db *sql.DB, userID, groupID int) error {
-	rows, err := db.Query(`
-		SELECT n.id
-		FROM notifications n
-		JOIN notifications_types nt
-			ON nt.notifications_id = n.id
-		WHERE n.user_id = ?
-			AND nt.group_id = ?
-			AND nt.group_invite_user_id IS NOT NULL
+	_, err := db.Exec(`
+		DELETE FROM notifications
+		WHERE user_id = ?
+			AND id IN (
+				SELECT nt.notifications_id
+				FROM notifications_types nt
+				WHERE nt.group_id = ?
+					AND nt.group_invite_user_id IS NOT NULL
+			)
 	`, userID, groupID)
 
-	if err != nil {
-		return err
-	}
-
-	var ids []int
-
-	for rows.Next() {
-		var id int
-
-		if err := rows.Scan(&id); err != nil {
-			rows.Close()
-			return err
-		}
-
-		ids = append(ids, id)
-	}
-
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return err
-	}
-
-	rows.Close()
-
-	for _, id := range ids {
-		if _, err := db.Exec(`DELETE FROM notifications_types WHERE notifications_id = ?`, id); err != nil {
-			return err
-		}
-
-		if _, err := db.Exec(`DELETE FROM notifications WHERE id = ?`, id); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return err
 }
 
 func DeleteGroupJoinRequests(db *sql.DB, ownerID, groupID, requesterID int) error {
