@@ -138,8 +138,8 @@ const CHAT_OPTIONS = [
 const GROUP_INVITE_OPTIONS = [
     {
         value: 'following',
-        label: 'Following',
-        description: 'Friends and people you follow can invite you to groups.',
+        label: 'Following & followers',
+        description: 'Friends, people you follow and your followers can invite you to groups.',
         icon: '→',
     },
     {

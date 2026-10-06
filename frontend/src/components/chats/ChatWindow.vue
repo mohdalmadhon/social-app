@@ -1,9 +1,10 @@
 <script setup>
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { addNotification } from '@/data/notifications';
 import { chatsSidebarOpen, toggleChatsSidebar } from '@/data/chatState';
 import { Message } from '@/models/chats';
 import { sendWS } from '@/api/socket/socket';
+import { isUserTyping } from '@/data/typingState';
 import { getMessages, sendChatMedia } from '@/api/chats/chats';
 import { router } from '@/router/router';
 import { CHAT_MEDIA_ACCEPT, parseChatMedia, validateChatMedia } from '@/helpers/chatMedia';
@@ -57,6 +58,95 @@ const canMessage = ref(false);
 
 let fetchTimer = null;
 let requestID = 0;
+let typingTarget = null;
+let typingStopTimer = null;
+let lastTypingSent = 0;
+
+const TYPING_RESEND = 2000;
+const TYPING_IDLE = 3000;
+
+const partnerTyping = computed(
+    () => Boolean(props.userID) && isUserTyping(props.userID)
+);
+
+function emitTyping(target, typing) {
+    sendWS({
+        type: 'typing',
+        data: {
+            userID: target.userID,
+            groupID: target.groupID || -1,
+            typing
+        }
+    });
+}
+
+function stopTyping() {
+    if (typingStopTimer) {
+        clearTimeout(typingStopTimer);
+        typingStopTimer = null;
+    }
+
+    if (!typingTarget) {
+        return;
+    }
+
+    emitTyping(typingTarget, false);
+
+    typingTarget = null;
+    lastTypingSent = 0;
+}
+
+function handleTypingInput(value) {
+    if (!props.chat || !props.userID || !canMessage.value) {
+        return;
+    }
+
+    if (!value || !value.trim()) {
+        stopTyping();
+        return;
+    }
+
+    if (typingTarget && typingTarget.userID !== props.userID) {
+        stopTyping();
+    }
+
+    if (!typingTarget) {
+        typingTarget = {
+            userID: props.userID,
+            groupID: props.groupID
+        };
+
+        lastTypingSent = 0;
+    }
+
+    const now = Date.now();
+
+    if (now - lastTypingSent >= TYPING_RESEND) {
+        emitTyping(typingTarget, true);
+        lastTypingSent = now;
+    }
+
+    if (typingStopTimer) {
+        clearTimeout(typingStopTimer);
+    }
+
+    typingStopTimer = setTimeout(stopTyping, TYPING_IDLE);
+}
+
+function announceActivity(groupID) {
+    window.dispatchEvent(
+        new CustomEvent('private-chat-activity', {
+            detail: {
+                userID: props.userID,
+                groupID,
+                firstName: props.userFirstName,
+                lastName: props.userLastName,
+                avatar: props.userAvatar,
+                own: true
+            }
+        })
+    );
+}
 
 const postCache = new Map();
 
@@ -965,6 +1055,7 @@ async function send() {
             });
 
             clearPending();
+            announceActivity(resolvedGroupID);
             await scrollToBottom();
         }
 
@@ -990,6 +1081,8 @@ async function send() {
                 type: 'privateMessage',
                 data: msg.getData()
             });
+
+            announceActivity(resolvedGroupID);
 
             const sharedPost =
                 parseSharedPost(content);
@@ -1058,6 +1151,17 @@ async function send() {
         sending.value = false;
     }
 }
+
+watch(message, handleTypingInput);
+
+watch(
+    () => props.userID,
+    (newID, oldID) => {
+        if (newID !== oldID) {
+            stopTyping();
+        }
+    }
+);
 
 watch(
     () => props.chat?.canMessage,
@@ -1158,6 +1262,8 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+    stopTyping();
+
     window.removeEventListener(
         'chat-message',
         receiveMessage
@@ -1224,6 +1330,13 @@ onUnmounted(() => {
                         {{ chat.FirstName }}
                         {{ chat.LastName }}
                     </strong>
+
+                    <span
+                        v-if="partnerTyping"
+                        class="typing-status"
+                    >
+                        typing<span class="typing-dots"><i></i><i></i><i></i></span>
+                    </span>
 
                 </div>
 
@@ -1909,6 +2022,50 @@ onUnmounted(() => {
 .chat-window-header strong {
     display: block;
     font-size: 14px;
+}
+
+.typing-status {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 2px;
+    color: var(--input-focus);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    font-style: italic;
+}
+
+.typing-dots {
+    display: inline-flex;
+    gap: 2px;
+}
+
+.typing-dots i {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: typing-bounce 1s infinite ease-in-out;
+}
+
+.typing-dots i:nth-child(2) {
+    animation-delay: 0.15s;
+}
+
+.typing-dots i:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+@keyframes typing-bounce {
+    0%, 60%, 100% {
+        opacity: 0.3;
+        transform: translateY(0);
+    }
+
+    30% {
+        opacity: 1;
+        transform: translateY(-3px);
+    }
 }
 
 .avatar {

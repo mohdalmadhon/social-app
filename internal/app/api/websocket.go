@@ -59,6 +59,8 @@ func (app *App) readLoop(userID int, ws *websocket.Conn) {
 
 		case "postGroup":
 			app.handleMessage(userID, payload.Data, "postGroup")
+		case "typing":
+			app.handleTyping(userID, payload.Data)
 		case "share-profile":
 
 		default:
@@ -460,6 +462,72 @@ func (app *App) sendMessageError(userID int, clientID string, message string) {
 	}
 }
 
+func (app *App) handleTyping(userID int, data json.RawMessage) {
+	var msg models.TypingMessage
 
+	if err := json.Unmarshal(data, &msg); err != nil {
+		log.Println("invalid typing payload:", err)
+		return
+	}
 
+	targetID := msg.UserID
+	groupID := msg.GroupID
 
+	if groupID > 0 {
+		inGroup, err := chats.UserInGroup(app.DB, userID, groupID)
+		if err != nil || !inGroup {
+			return
+		}
+
+		isPrivate, otherID, err := chats.IsPrivateChat(app.DB, groupID, userID)
+		if err != nil || !isPrivate || otherID <= 0 {
+			return
+		}
+
+		targetID = otherID
+	} else {
+		if targetID <= 0 || targetID == userID {
+			return
+		}
+
+		existingGroupID, err := chats.HasPrivateChat(app.DB, userID, targetID)
+		if err != nil {
+			return
+		}
+
+		groupID = existingGroupID
+	}
+
+	if msg.Typing {
+		canMessage, err := chats.CanSendMessage(app.DB, userID, targetID)
+		if err != nil || !canMessage {
+			return
+		}
+	}
+
+	response, err := json.Marshal(map[string]any{
+		"type": "typing",
+		"data": map[string]any{
+			"userID":  userID,
+			"groupID": groupID,
+			"typing":  msg.Typing,
+		},
+	})
+
+	if err != nil {
+		log.Println("marshal typing error:", err)
+		return
+	}
+
+	app.H.Mu.RLock()
+	conn, ok := app.H.Conn[targetID]
+	app.H.Mu.RUnlock()
+
+	if !ok {
+		return
+	}
+
+	if _, err := conn.Write(response); err != nil {
+		log.Println("websocket typing write error:", err)
+	}
+}

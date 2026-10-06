@@ -51,6 +51,7 @@ let debounceTimer = null;
 let scrollTimer = null;
 let inviteSearchTimer = null;
 let requestNumber = 0;
+let inviteRequestNumber = 0;
 
 function getMemberId(member) {
     return member.ID ?? member.id;
@@ -269,9 +270,7 @@ function toggleUser(user) {
 }
 
 async function searchInviteUsers() {
-    if (inviteLoading.value) {
-        return;
-    }
+    const currentRequest = ++inviteRequestNumber;
 
     inviteLoading.value = true;
     inviteError.value = '';
@@ -282,14 +281,24 @@ async function searchInviteUsers() {
             props.groupID
         );
 
+        if (currentRequest !== inviteRequestNumber) {
+            return;
+        }
+
         inviteUsers.value = result.data || [];
     } catch (error) {
+        if (currentRequest !== inviteRequestNumber) {
+            return;
+        }
+
         console.error(error);
         inviteUsers.value = [];
         inviteError.value =
             error.message || 'Could not search users';
     } finally {
-        inviteLoading.value = false;
+        if (currentRequest === inviteRequestNumber) {
+            inviteLoading.value = false;
+        }
     }
 }
 
@@ -425,6 +434,7 @@ onBeforeUnmount(() => {
     clearTimeout(debounceTimer);
     clearTimeout(scrollTimer);
     clearTimeout(inviteSearchTimer);
+    inviteRequestNumber++;
 });
 </script>
 
@@ -607,7 +617,7 @@ onBeforeUnmount(() => {
                         "
                         class="dialog-empty"
                     >
-                        No users found.
+                        No one available to invite. Only friends, followers and people you follow whose group invite settings allow it are listed.
                     </div>
                 </div>
 

@@ -3,6 +3,7 @@ import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import { getPrivateChatsLists, searchChats } from '@/api/chats/chats';
 import { addNotification } from '@/data/notifications';
 import { chatsSidebarOpen, closeChatsSidebar } from '@/data/chatState';
+import { isUserTyping } from '@/data/typingState';
 
 const props = defineProps({
     targetUserId: {
@@ -160,6 +161,56 @@ async function loadChats({ reset = false } = {}) {
     }
 }
 
+function bumpChat(event) {
+    const info = event.detail;
+
+    if (!info || !info.userID || searchValue.value) {
+        return;
+    }
+
+    const key = String(info.userID);
+
+    const index = chats.value.findIndex(
+        chat => String(chat.UserID) === key
+    );
+
+    let chat;
+
+    if (index !== -1) {
+        chat = { ...chats.value[index] };
+
+        if (info.groupID && info.groupID > 0) {
+            chat.GroupID = info.groupID;
+        }
+
+        if (info.own) {
+            chat.canMessage = true;
+        }
+    } else {
+        chat = {
+            UserID: Number(info.userID),
+            GroupID: info.groupID && info.groupID > 0
+                ? info.groupID
+                : null,
+            FirstName: info.firstName || '',
+            LastName: info.lastName || '',
+            Avatar: info.avatar || '',
+            canMessage: true
+        };
+    }
+
+    chats.value = [
+        chat,
+        ...chats.value.filter(
+            item => String(item.UserID) !== key
+        )
+    ];
+
+    if (info.own) {
+        activeChatId.value = chat.UserID;
+    }
+}
+
 function selectChat(chat) {
     activeChatId.value = chat.UserID;
     emit('select-chat', chat);
@@ -222,6 +273,11 @@ onMounted(() => {
         handleKeydown
     );
 
+    window.addEventListener(
+        'private-chat-activity',
+        bumpChat
+    );
+
     desktopQuery.addEventListener(
         'change',
         handleBreakpointChange
@@ -237,6 +293,11 @@ onBeforeUnmount(() => {
     window.removeEventListener(
         'keydown',
         handleKeydown
+    );
+
+    window.removeEventListener(
+        'private-chat-activity',
+        bumpChat
     );
 
     desktopQuery.removeEventListener(
@@ -347,6 +408,13 @@ onBeforeUnmount(() => {
                             }}
                         </span>
                     </div>
+
+                    <p
+                        v-if="isUserTyping(chat.UserID)"
+                        class="preview typing"
+                    >
+                        typing...
+                    </p>
                 </div>
 
                 <span
@@ -611,6 +679,11 @@ h2 {
     line-height: 1.4;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.preview.typing {
+    color: var(--input-focus);
+    font-style: italic;
 }
 
 .active .preview {

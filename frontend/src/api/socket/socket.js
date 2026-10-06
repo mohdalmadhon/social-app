@@ -1,5 +1,6 @@
 import { activePage, openGroupPage } from '@/data/chatState';
 import { addNotification, postImageUrl, avatarUrl } from '@/data/notifications';
+import { setTyping } from '@/data/typingState';
 import {
     handleIncomingNotification,
     incrementUnreadNotificationCount,
@@ -161,10 +162,35 @@ export function connectToWS() {
                 handleIncomingNotification(payload.data);
                 break;
 
+            case 'typing': {
+                const typingData = payload.data || {};
+
+                setTyping(typingData.userID, Boolean(typingData.typing));
+
+                break;
+            }
+
             case 'message': {
                 const message = payload.data;
 
                 const groupID = message.GroupID;
+
+                if (payload.isPrivate && message.Sender) {
+                    setTyping(message.Sender.ID, false);
+
+                    window.dispatchEvent(
+                        new CustomEvent('private-chat-activity', {
+                            detail: {
+                                userID: message.Sender.ID,
+                                groupID: message.GroupID,
+                                firstName: message.Sender.firstName || '',
+                                lastName: message.Sender.lastName || '',
+                                avatar: message.Sender.avatar || '',
+                                own: false
+                            }
+                        })
+                    );
+                }
                 const privateChat =
                     activePage.value === 'chat:' + message.Sender.ID;
 

@@ -78,33 +78,45 @@ func (app *App) InviteMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	requested := 0
+	skipped := 0
+	seen := make(map[int]bool, len(req.UserIDs))
 
 	for _, id := range req.UserIDs {
+		if seen[id] {
+			continue
+		}
+
+		seen[id] = true
+
 		result, err := app.addOrInvite(userID, id, req.GroupID, g.Title)
 
 		if err != nil {
 			log.Println(err)
+			skipped++
 			continue
 		}
 
-		switch result {
-		case memberRequested:
+		if result == memberRequested {
 			requested++
+			continue
 		}
+
+		skipped++
 	}
 
 	if requested == 0 {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
-			"message": "you can only invite friends, followers or people you follow, and only if their settings allow it",
+			"message": "nobody could be invited. They may already be in the group, or their group invite settings do not allow it",
 		})
 		return
 	}
 
 	helpers.WriteJson(w, http.StatusOK, map[string]any{
-		"status":  true,
-		"message":   "members updated",
+		"status":    true,
+		"message":   "invites sent",
 		"requested": requested,
 		"sent":      requested,
+		"skipped":   skipped,
 	})
 }

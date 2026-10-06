@@ -41,6 +41,12 @@ type IncomingMessage struct {
 	Content  string `json:"content"`
 }
 
+type TypingMessage struct {
+	UserID  int  `json:"userID"`
+	GroupID int  `json:"groupID"`
+	Typing  bool `json:"typing"`
+}
+
 type GroupInvite struct {
 	GroupData Group `json:"groupData"`
 	Users     []int `json:"users"`

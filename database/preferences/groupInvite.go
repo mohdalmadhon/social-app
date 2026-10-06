@@ -21,20 +21,26 @@ func CanInviteToGroup(db *sql.DB, inviterID, targetID int) (bool, error) {
 		return false, err
 	}
 
-	switch mode {
-	case "none":
+	if mode == "none" {
 		return false, nil
+	}
 
+	inviterFollows, err := users.IsFollowing(db, inviterID, targetID)
+	if err != nil {
+		return false, err
+	}
+
+	targetFollows, err := users.IsFollowing(db, targetID, inviterID)
+	if err != nil {
+		return false, err
+	}
+
+	switch mode {
 	case "friends":
-		return users.IsFriend(db, inviterID, targetID)
+		return inviterFollows && targetFollows, nil
 
 	case "following":
-		friend, err := users.IsFriend(db, inviterID, targetID)
-		if err != nil || friend {
-			return friend, err
-		}
-
-		return users.IsFollowing(db, targetID, inviterID)
+		return inviterFollows || targetFollows, nil
 	}
 
 	return false, nil

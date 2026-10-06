@@ -216,15 +216,12 @@ func SearchInvites(db *sql.DB, userID, groupID int, searchValue string) ([]model
 					WHERE b.follower_id = u.id AND b.target_id = ? AND b.status = 1
 				)
 			)
-			WHEN 'following' THEN EXISTS (
-				SELECT 1 FROM user_followers b
-				WHERE b.follower_id = u.id AND b.target_id = ? AND b.status = 1
-			)
+			WHEN 'following' THEN 1
 			ELSE 0
 		END
 	`
 
-	args = append(args, userID, userID, userID)
+	args = append(args, userID, userID)
 
 	if groupID != -1 {
 		query += `
@@ -259,7 +256,7 @@ func SearchInvites(db *sql.DB, userID, groupID int, searchValue string) ([]model
 			END,
 			u.first_name,
 			u.last_name
-		LIMIT 10
+		LIMIT 20
 	`
 
 	args = append(args, userID, userID)
