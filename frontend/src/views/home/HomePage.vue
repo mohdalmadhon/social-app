@@ -2,9 +2,11 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import HomePosts from '@/components/home/HomePosts.vue';
 import HomeSearch from '@/components/home/HomeSearch.vue';
+import HomeVideoFeed from '@/components/home/HomeVideoFeed.vue';
 import SideNavigation from '@/components/layout/SideNavigation.vue';
 import TopNavigation from '@/components/layout/TopNavigation.vue';
 
+const activeTab = ref('feed');
 const posts = ref([]);
 const loading = ref(false);
 const hasMore = ref(true);
@@ -78,8 +80,16 @@ async function loadPosts() {
     }
 }
 
+function switchTab(tab) {
+    activeTab.value = tab;
+
+    if (tab === 'feed') {
+        window.scrollTo({ top: 0 });
+    }
+}
+
 function handleScroll() {
-    if (throttleTimeout) {
+    if (activeTab.value !== 'feed' || throttleTimeout) {
         return;
     }
 
@@ -126,37 +136,71 @@ onUnmounted(() => {
             <SideNavigation />
 
             <main class="main-content">
-                <div class="content-container">
-                    <HomeSearch />
+                <div class="content-container" :class="{ 'videos-mode': activeTab === 'videos' }">
+                    <nav class="home-tabs">
+                        <button type="button" class="home-tab" :class="{ active: activeTab === 'feed' }"
+                            @click="switchTab('feed')">
+                            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor"
+                                    stroke-width="1.8" />
+                                <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor"
+                                    stroke-width="1.8" />
+                                <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor"
+                                    stroke-width="1.8" />
+                                <rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor"
+                                    stroke-width="1.8" />
+                            </svg>
+                            <span>Feed</span>
+                        </button>
 
-                    <section class="posts">
-                        <HomePosts
-                            v-for="post in posts"
-                            :key="post.id"
-                            v-bind="post"
-                            :post-id="post.id"
-                            :likes="post.likeCount"
-                            :dislikes="post.disLikeCount"
-                            :reaction="post.ReactionValue"
-                            :allow-comments="post.allowComments"
-                            :avatar-path="post.avatarPath"
-                            :tagged-people="getTaggedPeople(post)"
-                        />
+                        <button type="button" class="home-tab" :class="{ active: activeTab === 'videos' }"
+                            @click="switchTab('videos')">
+                            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <rect x="3" y="4" width="18" height="16" rx="2.5" stroke="currentColor"
+                                    stroke-width="1.8" />
+                                <path d="M10 8.5L16 12L10 15.5V8.5Z" stroke="currentColor" stroke-width="1.8"
+                                    stroke-linejoin="round" />
+                            </svg>
+                            <span>Videos</span>
+                        </button>
+                    </nav>
+
+                    <template v-if="activeTab === 'feed'">
+                        <HomeSearch />
+
+                        <section class="posts">
+                            <HomePosts
+                                v-for="post in posts"
+                                :key="post.id"
+                                v-bind="post"
+                                :post-id="post.id"
+                                :likes="post.likeCount"
+                                :dislikes="post.disLikeCount"
+                                :reaction="post.ReactionValue"
+                                :allow-comments="post.allowComments"
+                                :avatar-path="post.avatarPath"
+                                :tagged-people="getTaggedPeople(post)"
+                            />
+                        </section>
+
+                        <div
+                            v-if="loading"
+                            class="loading"
+                        >
+                            Loading posts...
+                        </div>
+
+                        <div
+                            v-else-if="!hasMore && posts.length"
+                            class="end-message"
+                        >
+                            You're all caught up.
+                        </div>
+                    </template>
+
+                    <section v-else class="videos-wrap">
+                        <HomeVideoFeed />
                     </section>
-
-                    <div
-                        v-if="loading"
-                        class="loading"
-                    >
-                        Loading posts...
-                    </div>
-
-                    <div
-                        v-else-if="!hasMore && posts.length"
-                        class="end-message"
-                    >
-                        You're all caught up.
-                    </div>
                 </div>
             </main>
         </div>
@@ -185,6 +229,77 @@ onUnmounted(() => {
     max-width: 760px;
     margin: 0 auto;
     padding: 30px 25px 60px;
+}
+
+.home-tabs {
+    height: 48px;
+    display: flex;
+    justify-content: center;
+    align-items: stretch;
+    gap: 8px;
+    border-bottom: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
+    margin-bottom: 24px;
+}
+
+.home-tab {
+    position: relative;
+    min-width: 120px;
+    padding: 0 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    border: none;
+    background: transparent;
+    color: var(--font-color-sub);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition:
+        color 0.2s ease,
+        background 0.2s ease;
+}
+
+.home-tab:hover {
+    color: var(--font-color);
+    background: rgba(0, 0, 0, 0.025);
+}
+
+.home-tab.active {
+    color: var(--font-color);
+}
+
+.home-tab.active::after {
+    content: "";
+    position: absolute;
+    left: 15%;
+    right: 15%;
+    bottom: -1px;
+    height: 2px;
+    background: var(--main-color);
+    border-radius: 2px 2px 0 0;
+}
+
+.tab-icon {
+    width: 17px;
+    height: 17px;
+    flex-shrink: 0;
+}
+
+.content-container.videos-mode {
+    max-width: 520px;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.content-container.videos-mode .home-tabs {
+    margin-bottom: 0;
+}
+
+.videos-wrap {
+    height: calc(100vh - 64px - 48px);
+    height: calc(100dvh - 64px - 48px);
 }
 
 .posts {
@@ -217,6 +332,18 @@ onUnmounted(() => {
     .content-container {
         padding-left: 10px;
         padding-right: 10px;
+    }
+
+    .content-container.videos-mode {
+        padding-left: 0;
+        padding-right: 0;
+    }
+
+    .home-tab {
+        flex: 1;
+        min-width: 0;
+        padding: 0 8px;
+        font-size: 9px;
     }
 }
 </style>

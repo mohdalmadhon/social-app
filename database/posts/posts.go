@@ -641,6 +641,123 @@ func GetHomePosts(db *sql.DB, userID, offset int) ([]models.Post, error) {
 	return posts, nil
 }
 
+func GetHomeVideos(db *sql.DB, userID, offset, limit int) ([]models.Post, error) {
+	rows, err := db.Query(`
+		SELECT
+			p.id,
+			p.user_id,
+			u.first_name,
+			u.last_name,
+			u.username,
+			pr.avatar_path,
+			p.content,
+			p.image_path,
+			p.allow_comments,
+			p.location,
+			p.created_at,
+			p.group_id,
+			COALESCE(prx.value, 0),
+			p.like_count,
+			p.dislike_count,
+			p.comment_count
+		FROM posts p
+		JOIN user u
+			ON u.id = p.user_id
+		LEFT JOIN profile pr
+			ON pr.user_id = p.user_id
+		LEFT JOIN post_reactions prx
+			ON prx.post_id = p.id
+			AND prx.user_id = ?
+		LEFT JOIN user_posts_groups g
+			ON g.id = p.group_id
+		WHERE LOWER(p.image_path) LIKE '%.mp4'
+			AND (
+				(
+					g.id IS NOT NULL
+					AND (':' || g.users || ':') LIKE ('%:' || ? || ':%')
+				)
+				OR (
+					p.user_id != ?
+					AND (
+						p.public = 1
+						OR (
+							p.private = 1
+							AND EXISTS (
+								SELECT 1
+								FROM user_followers uf
+								WHERE uf.follower_id = ?
+									AND uf.target_id = p.user_id
+									AND uf.status = 1
+							)
+						)
+					)
+				)
+			)
+		ORDER BY p.created_at DESC, p.id DESC
+		LIMIT ?
+		OFFSET ?
+	`, userID, userID, userID, userID, limit, offset)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	var videos []models.Post
+
+	for rows.Next() {
+		var p models.Post
+		var username sql.NullString
+		var avatarPath sql.NullString
+
+		if err := rows.Scan(
+			&p.Id,
+			&p.UserId,
+			&p.FirstName,
+			&p.LastName,
+			&username,
+			&avatarPath,
+			&p.Content,
+			&p.ImagePath,
+			&p.AllowComments,
+			&p.Location,
+			&p.CreatedAt,
+			&p.GroupId,
+			&p.ReactionValue,
+			&p.LikeCount,
+			&p.DisLikeCount,
+			&p.CommentCount,
+		); err != nil {
+			return nil, err
+		}
+
+		if username.Valid {
+			p.Username = &username.String
+		}
+
+		if avatarPath.Valid {
+			p.AvatarPath = avatarPath.String
+		}
+
+		videos = append(videos, p)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if err := attachGroupOwnerNames(db, videos); err != nil {
+		return nil, err
+	}
+
+	if err := attachTaggedPeople(db, &videos); err != nil {
+		return nil, err
+	}
+
+	return videos, nil
+}
+
 func attachGroupOwnerNames(db *sql.DB, posts []models.Post) error {
 	groupIDSet := make(map[int]bool)
 	for _, p := range posts {
@@ -747,8 +864,14 @@ func attachTaggedPeople(db *sql.DB, posts *[]models.Post) error {
 	return nil
 }
 
-func GetUserPosts(db *sql.DB, targetID, offset int) ([]models.Post, error) {
+func GetUserPosts(db *sql.DB, targetID, offset, limit int, videosOnly bool) ([]models.Post, error) {
 	var posts []models.Post
+
+	videoCondition := ""
+
+	if videosOnly {
+		videoCondition = "AND LOWER(p.image_path) LIKE '%.mp4'"
+	}
 
 	rows, err := db.Query(`
 		SELECT
@@ -771,10 +894,11 @@ func GetUserPosts(db *sql.DB, targetID, offset int) ([]models.Post, error) {
 		JOIN posts p
 			ON p.user_id = u.id
 		WHERE p.user_id = ?
-		ORDER BY p.created_at DESC
-		LIMIT 9
+		`+videoCondition+`
+		ORDER BY p.created_at DESC, p.id DESC
+		LIMIT ?
 		OFFSET ?
-	`, targetID, offset)
+	`, targetID, limit, offset)
 
 	if err != nil {
 		return nil, err

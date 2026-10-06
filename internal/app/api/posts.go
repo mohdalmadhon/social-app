@@ -185,6 +185,46 @@ func (app *App) GetHomePosts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if r.URL.Query().Get("type") == "videos" {
+		limit := 5
+
+		if value := r.URL.Query().Get("limit"); value != "" {
+			var err error
+
+			limit, err = strconv.Atoi(value)
+
+			if err != nil || limit < 1 {
+				helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+					"status":  false,
+					"message": "invalid limit",
+				})
+				return
+			}
+
+			if limit > 50 {
+				limit = 50
+			}
+		}
+
+		videos, err := posts.GetHomeVideos(app.DB, userID, offset, limit)
+
+		if err != nil {
+			log.Println(err)
+			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+				"status":  false,
+				"message": "could not get home videos",
+			})
+			return
+		}
+
+		helpers.WriteJson(w, http.StatusOK, map[string]any{
+			"status":  true,
+			"posts":   videos,
+			"hasMore": len(videos) == limit,
+		})
+		return
+	}
+
 	posts, err := posts.GetHomePosts(app.DB, userID, offset)
 
 	if err != nil {
@@ -317,7 +357,7 @@ func (app *App) GetUserPosts(w http.ResponseWriter, r *http.Request) {
 
 		offset, err = strconv.Atoi(offsetStr)
 
-		if err != nil {
+		if err != nil || offset < 0 {
 			helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 				"status":  false,
 				"message": "invalid offset",
@@ -326,12 +366,36 @@ func (app *App) GetUserPosts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	userPosts, err := posts.GetUserPosts(app.DB, targetID, offset)
+	limit := 9
+	limitStr := r.URL.Query().Get("limit")
+
+	if limitStr != "" {
+		var err error
+
+		limit, err = strconv.Atoi(limitStr)
+
+		if err != nil || limit < 1 {
+			helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+				"status":  false,
+				"message": "invalid limit",
+			})
+			return
+		}
+
+		if limit > 50 {
+			limit = 50
+		}
+	}
+
+	videosOnly := r.URL.Query().Get("type") == "videos"
+
+	userPosts, err := posts.GetUserPosts(app.DB, targetID, offset, limit, videosOnly)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			helpers.WriteJson(w, http.StatusOK, map[string]any{
 				"status":  true,
 				"message": "no posts",
+				"hasMore": false,
 			})
 			return
 		}
@@ -343,6 +407,8 @@ func (app *App) GetUserPosts(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	hasMore := len(userPosts) == limit
 
 	if targetID != userID {
 		log.Println("need filtering")
@@ -359,8 +425,9 @@ func (app *App) GetUserPosts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	helpers.WriteJson(w, http.StatusOK, map[string]any{
-		"status": true,
-		"data":   userPosts,
+		"status":  true,
+		"data":    userPosts,
+		"hasMore": hasMore,
 	})
 }
 

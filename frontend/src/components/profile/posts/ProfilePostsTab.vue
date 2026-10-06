@@ -28,6 +28,12 @@ const offset = ref(0);
 const loading = ref(false);
 const hasMore = ref(true);
 const error = ref('');
+
+const videosOffset = ref(0);
+const videosLoading = ref(false);
+const videosHasMore = ref(true);
+const videosError = ref('');
+
 const sentinel = ref(null);
 
 let observer = null;
@@ -81,20 +87,60 @@ async function loadMorePosts() {
 
     try {
         const targetID = getTargetID();
-        const response = await getUserPosts(targetID, offset.value);
+        const response = await getUserPosts(targetID, offset.value, BATCH_SIZE);
         const rawPosts = response?.data || [];
         const normalized = rawPosts.map(normalizeProfilePost);
 
         posts.value.push(...normalized);
         offset.value += BATCH_SIZE;
 
-        if (normalized.length < BATCH_SIZE) {
+        if (typeof response?.hasMore === 'boolean') {
+            hasMore.value = response.hasMore;
+        } else if (normalized.length < BATCH_SIZE) {
             hasMore.value = false;
         }
     } catch (err) {
         error.value = err.message || 'Failed to load posts';
     } finally {
         loading.value = false;
+    }
+}
+
+async function loadMoreVideos() {
+    if (videosLoading.value || !videosHasMore.value || activeTab.value !== 'videos') {
+        return;
+    }
+
+    videosLoading.value = true;
+    videosError.value = '';
+
+    try {
+        const targetID = getTargetID();
+        const response = await getUserPosts(targetID, videosOffset.value, BATCH_SIZE, 'videos');
+        const rawVideos = response?.data || [];
+        const normalized = rawVideos.map(normalizeProfilePost);
+
+        const knownIds = new Set(videos.value.map(video => video.id));
+        videos.value.push(...normalized.filter(video => !knownIds.has(video.id)));
+        videosOffset.value += BATCH_SIZE;
+
+        if (typeof response?.hasMore === 'boolean') {
+            videosHasMore.value = response.hasMore;
+        } else if (normalized.length < BATCH_SIZE) {
+            videosHasMore.value = false;
+        }
+    } catch (err) {
+        videosError.value = err.message || 'Failed to load videos';
+    } finally {
+        videosLoading.value = false;
+    }
+}
+
+function loadMoreActive() {
+    if (activeTab.value === 'posts') {
+        loadMorePosts();
+    } else if (activeTab.value === 'videos') {
+        loadMoreVideos();
     }
 }
 
@@ -111,18 +157,20 @@ function switchTab(tab) {
 
     activeTab.value = tab;
 
-    if (tab === 'posts' && posts.value.length === 0) {
-        offset.value = 0;
-        hasMore.value = true;
+    if (tab === 'posts' && posts.value.length === 0 && hasMore.value) {
         loadMorePosts();
+    }
+
+    if (tab === 'videos' && videos.value.length === 0 && videosHasMore.value) {
+        loadMoreVideos();
     }
 }
 
 function setupObserver() {
     observer = new IntersectionObserver(
         entries => {
-            if (entries[0].isIntersecting && activeTab.value === 'posts') {
-                loadMorePosts();
+            if (entries[0].isIntersecting) {
+                loadMoreActive();
             }
         },
         {
@@ -196,16 +244,21 @@ onBeforeUnmount(() => {
                         No posts yet.
                     </div>
 
-                    <div ref="sentinel" class="profile-posts-sentinel"></div>
                 </section>
 
-                <section v-else-if="activeTab === 'videos'" class="profile-empty-section">
-                    <div v-if="videos.length > 0">
-                        <ProfilePostGrid :posts="videos" :current-user-id="currentUserId"
-                            @deleted="handlePostDeleted" />
+                <section v-else-if="activeTab === 'videos'" class="profile-tab-content">
+                    <ProfilePostGrid v-if="videos.length > 0" :posts="videos" :current-user-id="currentUserId"
+                        @deleted="handlePostDeleted" />
+
+                    <div v-if="videosError" class="profile-posts-error">
+                        {{ videosError }}
                     </div>
 
-                    <div v-else class="empty-tab">
+                    <div v-if="videosLoading" class="profile-posts-loading">
+                        Loading videos...
+                    </div>
+
+                    <div v-else-if="!videosHasMore && videos.length === 0" class="empty-tab">
                         <div class="empty-icon">
                             <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                 <rect x="3" y="4" width="18" height="16" rx="2.5" stroke="currentColor"
@@ -239,6 +292,8 @@ onBeforeUnmount(() => {
                         <p>Posts that tag this user will appear here.</p>
                     </div>
                 </section>
+
+                <div ref="sentinel" class="profile-posts-sentinel"></div>
             </main>
         </div>
     </div>

@@ -28,9 +28,18 @@ export async function addPost(post = {}, image = null) {
     return await resp.json();
 }
 
-export async function getUserPosts(userID = "", offset = 0) {
-    console.log(userID)
-    const resp = await fetch(`/api/user/posts?offset=${offset}&targetID=${userID}`, {
+export async function getUserPosts(userID = "", offset = 0, limit = 9, type = "") {
+    const params = new URLSearchParams({
+        offset: String(offset),
+        limit: String(limit),
+        targetID: String(userID)
+    });
+
+    if (type) {
+        params.set('type', type);
+    }
+
+    const resp = await fetch(`/api/user/posts?${params.toString()}`, {
         method: "GET",
         credentials: 'include',
     });
@@ -40,7 +49,27 @@ export async function getUserPosts(userID = "", offset = 0) {
         throw new Error('Error: ' + (result.message || 'could not get data'))
     }
 
-    console.log(result)
+    return result;
+}
+
+export async function getHomeVideos(offset = 0, limit = 5) {
+    const params = new URLSearchParams({
+        type: 'videos',
+        offset: String(offset),
+        limit: String(limit)
+    });
+
+    const resp = await fetch(`/api/posts?${params.toString()}`, {
+        method: 'GET',
+        credentials: 'include'
+    });
+
+    const result = await resp.json();
+
+    if (!resp.ok) {
+        throw new Error(result.message || 'could not get videos');
+    }
+
     return result;
 }
 

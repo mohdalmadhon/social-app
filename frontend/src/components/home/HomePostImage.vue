@@ -61,6 +61,7 @@ function openTaggedPeople() {
         :class="{ 'no-image': !hasImage }"
     >
         <video
+            autoplay
             v-if="isVideo"
             :src="mediaUrl"
             class="post-video"
