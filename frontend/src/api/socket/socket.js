@@ -1,6 +1,6 @@
 import { activePage, openGroupPage } from '@/data/chatState';
 import { addNotification, postImageUrl, avatarUrl } from '@/data/notifications';
-import { setTyping } from '@/data/typingState';
+import { setGroupTyping, setTyping } from '@/data/typingState';
 import {
     handleIncomingNotification,
     incrementUnreadNotificationCount,
@@ -174,7 +174,15 @@ export function connectToWS() {
             case 'typing': {
                 const typingData = payload.data || {};
 
-                setTyping(typingData.userID, Boolean(typingData.typing));
+                if (typingData.isGroup) {
+                    setGroupTyping(
+                        typingData.groupID,
+                        typingData.userID,
+                        Boolean(typingData.typing)
+                    );
+                } else {
+                    setTyping(typingData.userID, Boolean(typingData.typing));
+                }
 
                 break;
             }
@@ -183,6 +191,10 @@ export function connectToWS() {
                 const message = payload.data;
 
                 const groupID = message.GroupID;
+
+                if (!payload.isPrivate && message.Sender) {
+                    setGroupTyping(groupID, message.Sender.ID, false);
+                }
 
                 if (payload.isPrivate && message.Sender) {
                     setTyping(message.Sender.ID, false);

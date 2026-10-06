@@ -480,7 +480,16 @@ func (app *App) handleTyping(userID int, data json.RawMessage) {
 		}
 
 		isPrivate, otherID, err := chats.IsPrivateChat(app.DB, groupID, userID)
-		if err != nil || !isPrivate || otherID <= 0 {
+		if err != nil {
+			return
+		}
+
+		if !isPrivate {
+			app.broadcastGroupTyping(userID, groupID, msg.Typing)
+			return
+		}
+
+		if otherID <= 0 {
 			return
 		}
 

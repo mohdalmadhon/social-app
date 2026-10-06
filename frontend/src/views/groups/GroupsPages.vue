@@ -6,6 +6,7 @@ import GroupsSearch from '@/components/groups/Groupssearch.vue';
 import SideNavigation from '@/components/layout/SideNavigation.vue';
 import TopNavigation from '@/components/layout/TopNavigation.vue';
 import BackToHome from '@/components/layout/BackToHome.vue';
+import { groupTypingCount } from '@/data/typingState';
 import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 
@@ -303,7 +304,8 @@ onUnmounted(() => {
                         <div v-else class="groups-list">
                             <GroupCard v-for="group in currentGroups" :key="group.ID" :group-id="group.ID"
                                 :name="group.title" :description="group.description" :avatar-path="group.avatar"
-                                :members-count="group.Count || 0" :is-member="true" @open="openGroup" />
+                                :members-count="group.Count || 0" :is-member="true"
+                                :typing-count="groupTypingCount(group.ID)" @open="openGroup" />
                         </div>
 
                         <div v-if="loadingCurrent && currentGroups.length" class="section-message">
@@ -375,12 +377,15 @@ onUnmounted(() => {
 .content-container {
     width: 100%;
     max-width: 760px;
+    min-width: 0;
     margin: 0 auto;
     padding: 30px 25px 60px;
+    overflow-x: clip;
 }
 
 .page-header {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 16px;
@@ -453,8 +458,10 @@ onUnmounted(() => {
 
 .groups-list {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 14px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    padding-right: 6px;
+    padding-bottom: 6px;
 }
 
 .section-message {
@@ -471,7 +478,7 @@ onUnmounted(() => {
     }
 
     .groups-list {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .content-container {
@@ -494,7 +501,7 @@ onUnmounted(() => {
     }
 
     .groups-list {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .create-group-button {

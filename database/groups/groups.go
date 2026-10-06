@@ -330,7 +330,16 @@ func GetGroupChats(db *sql.DB, userID, offset int) ([]models.Group, error) {
 			  AND status = 1
 		)
 		AND g.is_private_chat = 0
-		ORDER BY g.name, g.id
+		ORDER BY
+			COALESCE(
+				(
+					SELECT MAX(m.created_at)
+					FROM messages m
+					WHERE m.group_id = g.id
+				),
+				g.created_at
+			) DESC,
+			g.id DESC
 		LIMIT 12 OFFSET ?
 	`, userID, offset)
 
