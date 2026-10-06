@@ -9,10 +9,11 @@ import (
 	"social/database/users"
 	"social/internal/helpers"
 	"strconv"
+	"strings"
 )
 
 func (app *App) SearchLocation(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query().Get("q")
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
 
 	if query == "" {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
@@ -22,13 +23,45 @@ func (app *App) SearchLocation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	url := "https://nominatim.openstreetmap.org/search" +
+	if len([]rune(query)) < 2 {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": "search text is too short",
+		})
+		return
+	}
+
+	if len([]rune(query)) > 150 {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": "search text is too long",
+		})
+		return
+	}
+
+	lang := strings.TrimSpace(r.Header.Get("Accept-Language"))
+
+	if lang == "" || len(lang) > 100 {
+		lang = "en"
+	}
+
+	cacheKey := strings.ToLower(query) + "|" + lang
+
+	if cached, ok := locationCacheGet(cacheKey); ok {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(cached)
+		return
+	}
+
+	endpoint := "https://nominatim.openstreetmap.org/search" +
 		"?format=jsonv2" +
 		"&addressdetails=1" +
-		"&limit=5" +
+		"&dedupe=1" +
+		"&limit=8" +
+		"&accept-language=" + url.QueryEscape(lang) +
 		"&q=" + url.QueryEscape(query)
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
 		log.Println(err)
 
@@ -41,7 +74,9 @@ func (app *App) SearchLocation(w http.ResponseWriter, r *http.Request) {
 
 	req.Header.Set("User-Agent", "MySocialNetwork/1.0")
 
-	resp, err := http.DefaultClient.Do(req)
+	locationThrottle()
+
+	resp, err := locationClient.Do(req)
 	if err != nil {
 		log.Println(err)
 
@@ -64,9 +99,21 @@ func (app *App) SearchLocation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		log.Println(err)
 
-	io.Copy(w, resp.Body)
+		helpers.WriteJson(w, http.StatusBadGateway, map[string]any{
+			"status":  false,
+			"message": "could not read location response",
+		})
+		return
+	}
+
+	locationCacheSet(cacheKey, body)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(body)
 }
 
 func (app *App) GetFriends(w http.ResponseWriter, r *http.Request) {
