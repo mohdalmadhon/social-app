@@ -1,15 +1,22 @@
 <script setup>
-defineProps({
+import { computed } from 'vue';
+
+const props = defineProps({
     imagePath: {
         type: String,
         default: ''
     }
 });
+
+const isVideo = computed(() =>
+    (props.imagePath || '').split('?')[0].toLowerCase().endsWith('.mp4')
+);
 </script>
 
 <template>
     <div v-if="imagePath" class="post-image-container">
-        <img :src="`/uploads/${imagePath}`" alt="Post" class="post-image">
+        <video v-if="isVideo" :src="`/uploads/${imagePath}`" class="post-image" controls playsinline preload="metadata"></video>
+        <img v-else :src="`/uploads/${imagePath}`" alt="Post" class="post-image">
     </div>
 </template>
 

@@ -306,7 +306,8 @@ watch(
                             </div>
                         </div>
                         <div v-if="content" class="post-text">{{ content }}</div>
-                        <img v-if="imagePath" :src="`/uploads/${imagePath}`" class="post-image">
+                        <video v-if="imagePath && imagePath.toLowerCase().endsWith('.mp4')" :src="`/uploads/${imagePath}`" class="post-image" controls playsinline preload="metadata"></video>
+                        <img v-else-if="imagePath" :src="`/uploads/${imagePath}`" class="post-image">
                     </article>
 
                     <div v-if="error" class="comments-error">{{ error }}</div>

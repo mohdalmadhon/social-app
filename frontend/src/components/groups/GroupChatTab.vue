@@ -1362,8 +1362,10 @@ onUnmounted(() => {
                                 <div v-if="
                                     msg.post.imagePath
                                 " class="post-message-image">
-                                    <img :src="`/uploads/${msg.post.imagePath}`
-                                        " alt="" />
+                                    <video v-if="msg.post.imagePath.toLowerCase().endsWith('.mp4')"
+                                        :src="`/uploads/${msg.post.imagePath}#t=0.1`" muted playsinline
+                                        preload="metadata"></video>
+                                    <img v-else :src="`/uploads/${msg.post.imagePath}`" alt="" />
                                 </div>
 
                                 <div class="post-message-footer">
@@ -1855,15 +1857,18 @@ onUnmounted(() => {
     border-top: 1px solid var(--main-color);
 }
 
-.post-message-image img {
+.post-message-image img,
+.post-message-image video {
     display: block;
+    pointer-events: none;
     width: 100%;
     max-height: 160px;
     object-fit: cover;
     transition: transform 0.25s ease;
 }
 
-.post-message:hover .post-message-image img {
+.post-message:hover .post-message-image img,
+.post-message:hover .post-message-image video {
     transform: scale(1.03);
 }
 
