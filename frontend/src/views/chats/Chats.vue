@@ -14,10 +14,15 @@ activePage.value = 'chat:';
 
 const activeChat = ref(null);
 
-const targetUserId = computed(() => route.query.userId || null);
+const targetUserId = computed(
+    () => route.query.userId || null
+);
 
 function handleChatResolved(groupID) {
-    if (activeChat.value && !activeChat.value.GroupID) {
+    if (
+        activeChat.value &&
+        !activeChat.value.GroupID
+    ) {
         activeChat.value = {
             ...activeChat.value,
             GroupID: groupID
@@ -26,13 +31,20 @@ function handleChatResolved(groupID) {
 }
 
 function handleSelectChat(chat) {
-    activeChat.value = chat;
-    activePage.value = 'chat:' + chat.UserID;
+    activeChat.value = {
+        ...chat,
+        canMessage: Boolean(
+            chat.canMessage
+        )
+    };
+
+    activePage.value =
+        'chat:' + chat.UserID;
 }
 
 watch(
     targetUserId,
-    (userId) => {
+    userId => {
         if (!userId) {
             return;
         }
@@ -40,14 +52,21 @@ watch(
         activeChat.value = {
             UserID: Number(userId),
             GroupID: null,
-            FirstName: route.query.firstName || '',
-            LastName: route.query.lastName || '',
-            Avatar: route.query.avatar || ''
+            FirstName:
+                route.query.firstName || '',
+            LastName:
+                route.query.lastName || '',
+            Avatar:
+                route.query.avatar || '',
+            canMessage: false
         };
 
-        activePage.value = 'chat:' + userId;
+        activePage.value =
+            'chat:' + userId;
     },
-    { immediate: true }
+    {
+        immediate: true
+    }
 );
 </script>
 
@@ -57,12 +76,15 @@ watch(
 
         <div class="body-layout">
             <SideNavigation />
-            
+
             <main class="chats-page">
                 <BackToHome />
 
                 <div class="chats-body">
-                    <ChatsSideBar :target-user-id="targetUserId" @select-chat="handleSelectChat" />
+                    <ChatsSideBar
+                        :target-user-id="targetUserId"
+                        @select-chat="handleSelectChat"
+                    />
 
                     <ChatWindow
                         :chat="activeChat"

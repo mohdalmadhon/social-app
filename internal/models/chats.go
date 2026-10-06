@@ -10,11 +10,12 @@ type ChatList struct {
 }
 
 type PrivateChat struct {
-	UserID    int
-	GroupID   int
-	Avatar    string
-	FirstName string
-	LastName  string
+	UserID     int
+	GroupID    int
+	Avatar     string
+	FirstName  string
+	LastName   string
+	CanMessage bool
 }
 
 type Message struct {
@@ -26,8 +27,7 @@ type Message struct {
 }
 
 type SentPost struct {
-	PostID int `json:"postID"`
-	UserID int `json:"userID"`
+	PostID     int `json:"postID"`
+	UserID     int `json:"userID"`
 	RecieverID int `json:"recieverID"`
 }
-

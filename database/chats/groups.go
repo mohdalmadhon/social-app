@@ -154,6 +154,22 @@ func SearchChatUsers(db *sql.DB, userID, offset int, search string) ([]models.Pr
 			return nil, err
 		}
 
+		hasChat, err := HasPrivateChat(db, userID, chat.UserID)
+		if err != nil {
+			return nil, err
+		}
+
+		if hasChat == -1 {
+			canMsg, err := CanSendMessage(db, userID, chat.UserID)
+			if err != nil {
+				return nil, err
+			}
+
+			if !canMsg {
+				continue
+			}
+			chat.CanMessage = canMsg
+		}
 		chats = append(chats, chat)
 	}
 

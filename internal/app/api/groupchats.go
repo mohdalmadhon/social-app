@@ -337,7 +337,6 @@ func (app *App) GetMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Println(groupID)
 	exists, err := chats.ChatExists(app.DB, groupID)
 	if err != nil {
 		log.Println(err, "here1")
@@ -389,10 +388,17 @@ func (app *App) GetMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if isPrivate && targetID > 0 {
+	if isPrivate && targetID > 0 || (groupID == 0) {
+		targetID, err := strconv.Atoi(r.URL.Query().Get("userID"))
+		if err != nil {
+			helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+				"status":  false,
+				"message": "could not get chat data",
+			})
+			return
+		}
 		canMessage, err := chats.CanSendMessage(app.DB, userID, targetID)
 		if err != nil {
-			log.Println(err)
 			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 				"status":  false,
 				"message": "could not get group data",
@@ -1173,7 +1179,7 @@ func (app *App) CheckMessageAbility(w http.ResponseWriter, r *http.Request) {
 	}
 
 	helpers.WriteJson(w, http.StatusOK, map[string]any{
-		"status":  true,
+		"status":     true,
 		"canMessage": canMessage,
 	})
 }

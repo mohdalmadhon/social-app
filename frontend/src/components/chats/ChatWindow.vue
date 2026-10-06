@@ -1,50 +1,36 @@
 <script setup>
-
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
-
 import { addNotification } from '@/data/notifications';
-
 import { chatsSidebarOpen, toggleChatsSidebar } from '@/data/chatState';
-
 import { Message } from '@/models/chats';
-
 import { sendWS } from '@/api/socket/socket';
-
 import { getMessages, sendChatMedia } from '@/api/chats/chats';
-
 import { router } from '@/router/router';
-
 import { CHAT_MEDIA_ACCEPT, parseChatMedia, validateChatMedia } from '@/helpers/chatMedia';
 import HomePosts from '../home/HomePosts.vue';
 import EmojiPicker from './EmojiPicker.vue';
-
 
 const props = defineProps({
     chat: {
         type: Object,
         default: null
     },
-
     groupID: {
         type: Number,
         default: null
     },
-
     userID: {
         type: Number,
         default: null
     },
-
     userFirstName: {
         type: String,
         default: ''
     },
-
     userLastName: {
         type: String,
         default: ''
     },
-
     userAvatar: {
         type: String,
         default: ''
@@ -54,40 +40,37 @@ const props = defineProps({
 const emit = defineEmits(['chat-resolved']);
 
 const message = ref('');
-
 const messageInput = ref(null);
-
 const messages = ref([]);
-
 const fileInput = ref(null);
-
 const pendingFile = ref(null);
-
 const pendingPreview = ref('');
-
 const lightboxSrc = ref('');
-
 const sending = ref(false);
-
 const loading = ref(false);
-
 const loadingMore = ref(false);
-
 const hasMore = ref(true);
-
 const offset = ref(0);
-
 const messagesContainer = ref(null);
-
 const inviteStatus = ref({});
-
 const canMessage = ref(false);
 
 let fetchTimer = null;
-
 let requestID = 0;
 
 const postCache = new Map();
+
+function getSidebarCanMessage() {
+    return Boolean(props.chat?.canMessage);
+}
+
+function updateCanMessage(messagePermission) {
+    canMessage.value = Boolean(
+        canMessage.value ||
+        getSidebarCanMessage() ||
+        messagePermission
+    );
+}
 
 function pickFile() {
     if (fileInput.value) {
@@ -204,7 +187,10 @@ function parseSharedPost(content) {
 }
 
 function parseSharedProfile(content) {
-    if (typeof content !== 'string' || !content.startsWith('{')) {
+    if (
+        typeof content !== 'string' ||
+        !content.startsWith('{')
+    ) {
         return null;
     }
 
@@ -263,7 +249,8 @@ async function getSharedPost(postID) {
 
             if (!response.ok || !result?.status) {
                 throw new Error(
-                    result?.message || 'Could not load shared post'
+                    result?.message ||
+                    'Could not load shared post'
                 );
             }
 
@@ -310,7 +297,6 @@ function formatPost(post) {
 
     return {
         currentUserId: props.userID,
-
         allowComments: Boolean(
             getPostValue(
                 post,
@@ -318,9 +304,7 @@ function formatPost(post) {
                 'allowComments'
             )
         ),
-
         reaction,
-
         userId: Number(
             getPostValue(
                 post,
@@ -330,7 +314,6 @@ function formatPost(post) {
                 'userID'
             ) ?? 0
         ),
-
         postId: Number(
             getPostValue(
                 post,
@@ -340,7 +323,6 @@ function formatPost(post) {
                 'postId'
             ) ?? 0
         ),
-
         groupId: Number(
             getPostValue(
                 post,
@@ -350,25 +332,21 @@ function formatPost(post) {
                 'groupID'
             ) ?? 0
         ),
-
         firstName: getPostValue(
             post,
             'FirstName',
             'firstName'
         ) ?? '',
-
         lastName: getPostValue(
             post,
             'LastName',
             'lastName'
         ) ?? '',
-
         username: getPostValue(
             post,
             'Username',
             'username'
         ) ?? '',
-
         avatarPath: getPostValue(
             post,
             'AvatarPath',
@@ -376,37 +354,31 @@ function formatPost(post) {
             'Avatar',
             'avatar'
         ) ?? '',
-
         createdAt: getPostValue(
             post,
             'CreatedAt',
             'createdAt'
         ),
-
         content: getPostValue(
             post,
             'Content',
             'content'
         ) ?? '',
-
         imagePath: getPostValue(
             post,
             'ImagePath',
             'imagePath'
         ),
-
         location: getPostValue(
             post,
             'Location',
             'location'
         ),
-
         taggedPeople: getPostValue(
             post,
             'TaggedPeople',
             'taggedPeople'
         ) ?? [],
-
         likes: Number(
             getPostValue(
                 post,
@@ -416,7 +388,6 @@ function formatPost(post) {
                 'likes'
             ) ?? 0
         ),
-
         dislikes: Number(
             getPostValue(
                 post,
@@ -428,33 +399,28 @@ function formatPost(post) {
                 'dislikes'
             ) ?? 0
         ),
-
         comments: [],
-
-        userReaction: reaction === 1
-            ? 'like'
-            : reaction === -1
-                ? 'dislike'
-                : '',
-
+        userReaction:
+            reaction === 1
+                ? 'like'
+                : reaction === -1
+                    ? 'dislike'
+                    : '',
         relationship: getPostValue(
             post,
             'Relationship',
             'relationship'
         ),
-
         visibility: getPostValue(
             post,
             'Visibility',
             'visibility'
         ),
-
         visibilityUser: getPostValue(
             post,
             'VisibilityUser',
             'visibilityUser'
         ),
-
         commentCount: Number(
             getPostValue(
                 post,
@@ -478,7 +444,9 @@ async function parsePostMessage(content) {
     }
 
     try {
-        const post = await getSharedPost(sharedPost.postID);
+        const post = await getSharedPost(
+            sharedPost.postID
+        );
 
         return {
             post: formatPost(post),
@@ -487,7 +455,9 @@ async function parsePostMessage(content) {
     } catch (error) {
         return {
             post: null,
-            postError: error.message || 'Could not load shared post'
+            postError:
+                error.message ||
+                'Could not load shared post'
         };
     }
 }
@@ -501,78 +471,71 @@ async function formatMessage(msg) {
         ? null
         : parseSharedProfile(content);
 
-    const sharedPostInfo = invite || sharedProfile
-        ? {
-            post: null,
-            postError: null
-        }
-        : await parsePostMessage(content);
+    const sharedPostInfo =
+        invite || sharedProfile
+            ? {
+                post: null,
+                postError: null
+            }
+            : await parsePostMessage(content);
 
-    const media = invite || sharedProfile || sharedPostInfo.post
-        ? null
-        : parseChatMedia(content);
+    const media =
+        invite ||
+        sharedProfile ||
+        sharedPostInfo.post
+            ? null
+            : parseChatMedia(content);
 
     return {
         id: msg.ID ?? msg.id,
-
         clientID: msg.ClientID ?? msg.clientID,
-
         content,
-
         rawContent: content,
-
         media,
-
         post: sharedPostInfo.post,
-
         postError: sharedPostInfo.postError,
-
         profile: sharedProfile,
-
-        createdAt: msg.CreatedAt ?? msg.createdAt,
-
+        createdAt:
+            msg.CreatedAt ?? msg.createdAt,
         sender: {
             id:
                 msg.Sender?.ID ??
                 msg.Sender?.id ??
                 msg.sender?.ID ??
                 msg.sender?.id,
-
             firstName:
                 msg.Sender?.FirstName ??
                 msg.Sender?.firstName ??
                 msg.sender?.FirstName ??
                 msg.sender?.firstName,
-
             lastName:
                 msg.Sender?.LastName ??
                 msg.Sender?.lastName ??
                 msg.sender?.LastName ??
                 msg.sender?.lastName,
-
             avatar:
                 msg.Sender?.Avatar ??
                 msg.Sender?.avatar ??
                 msg.sender?.Avatar ??
                 msg.sender?.avatar
         },
-
-        groupID: msg.GroupID ?? msg.groupID,
-
+        groupID:
+            msg.GroupID ?? msg.groupID,
         invite,
-
         inviteStatus: invite
-            ? inviteStatus.value[invite.group.id] ?? null
+            ? inviteStatus.value[
+                invite.group.id
+            ] ?? null
             : null
     };
 }
 
 async function formatMessages(data) {
-    const formatted = await Promise.all(
-        data.map(message => formatMessage(message))
+    return Promise.all(
+        data.map(message =>
+            formatMessage(message)
+        )
     );
-
-    return formatted;
 }
 
 async function scrollToBottom() {
@@ -593,30 +556,40 @@ async function fetchChatMessages(groupID) {
     loadingMore.value = false;
     messages.value = [];
 
+    canMessage.value = getSidebarCanMessage();
+
     try {
         const result = await getMessages(
             groupID,
             0,
             props.userID
         );
-
+        console.log(result)
         if (currentRequestID !== requestID) {
             return;
         }
 
-        canMessage.value = result.canMessage ?? false;
+        updateCanMessage(
+            Array.isArray(result)
+                ? false
+                : result?.canMessage
+        );
 
         const data = Array.isArray(result)
             ? result
-            : result.messages || result.data || [];
+            : result.messages ||
+              result.data ||
+              [];
 
-        const formattedMessages = await formatMessages(data);
+        const formattedMessages =
+            await formatMessages(data);
 
         if (currentRequestID !== requestID) {
             return;
         }
 
-        messages.value = formattedMessages.reverse();
+        messages.value =
+            formattedMessages.reverse();
 
         offset.value = data.length;
 
@@ -631,10 +604,13 @@ async function fetchChatMessages(groupID) {
         messages.value = [];
         offset.value = 0;
         hasMore.value = false;
-        canMessage.value = false;
+
+        canMessage.value =
+            getSidebarCanMessage();
 
         addNotification(
-            err.message || 'Error happened while fetching messages',
+            err.message ||
+            'Error happened while fetching messages',
             'error'
         );
     } finally {
@@ -656,7 +632,8 @@ async function fetchOlderMessages() {
         return;
     }
 
-    const container = messagesContainer.value;
+    const container =
+        messagesContainer.value;
 
     if (!container) {
         return;
@@ -666,8 +643,11 @@ async function fetchOlderMessages() {
 
     loadingMore.value = true;
 
-    const oldScrollHeight = container.scrollHeight;
-    const oldScrollTop = container.scrollTop;
+    const oldScrollHeight =
+        container.scrollHeight;
+
+    const oldScrollTop =
+        container.scrollTop;
 
     try {
         const result = await getMessages(
@@ -680,19 +660,25 @@ async function fetchOlderMessages() {
             return;
         }
 
-        canMessage.value =
-            result.canMessage ?? canMessage.value;
+        updateCanMessage(
+            Array.isArray(result)
+                ? false
+                : result?.canMessage
+        );
 
         const data = Array.isArray(result)
             ? result
-            : result.messages || result.data || [];
+            : result.messages ||
+              result.data ||
+              [];
 
         if (data.length === 0) {
             hasMore.value = false;
             return;
         }
 
-        const olderMessages = await formatMessages(data);
+        const olderMessages =
+            await formatMessages(data);
 
         if (currentRequestID !== requestID) {
             return;
@@ -713,7 +699,8 @@ async function fetchOlderMessages() {
 
         container.scrollTop =
             oldScrollTop +
-            (container.scrollHeight - oldScrollHeight);
+            (container.scrollHeight -
+                oldScrollHeight);
     } catch (err) {
         if (currentRequestID !== requestID) {
             return;
@@ -749,7 +736,8 @@ function throttleFetchOlder() {
 }
 
 function handleScroll() {
-    const container = messagesContainer.value;
+    const container =
+        messagesContainer.value;
 
     if (!container) {
         return;
@@ -766,38 +754,54 @@ function handleScroll() {
 }
 
 async function respondToInvite(msg, status) {
-    if (!msg.invite || msg.invite.responding) {
+    if (
+        !msg.invite ||
+        msg.invite.responding
+    ) {
         return;
     }
 
     msg.invite.responding = true;
 
     try {
-        const response = await fetch('/api/groups/status', {
-            method: 'POST',
-            credentials: 'include',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                status,
-                groupID: msg.invite.group.id,
-                senderID: msg.invite.user.id,
-                content: msg.rawContent
-            })
-        });
+        const response = await fetch(
+            '/api/groups/status',
+            {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    'Content-Type':
+                        'application/json'
+                },
+                body: JSON.stringify({
+                    status,
+                    groupID:
+                        msg.invite.group.id,
+                    senderID:
+                        msg.invite.user.id,
+                    content:
+                        msg.rawContent
+                })
+            }
+        );
 
-        const result = await response.json();
+        const result =
+            await response.json();
 
-        if (!response.ok || !result.status) {
+        if (
+            !response.ok ||
+            !result.status
+        ) {
             throw new Error(
-                result.message || 'Could not update invite'
+                result.message ||
+                'Could not update invite'
             );
         }
 
-        messages.value = messages.value.filter(
-            message => message !== msg
-        );
+        messages.value =
+            messages.value.filter(
+                message => message !== msg
+            );
 
         addNotification(
             status === 1
@@ -809,7 +813,8 @@ async function respondToInvite(msg, status) {
         msg.invite.responding = false;
 
         addNotification(
-            err.message || 'Could not update invite',
+            err.message ||
+            'Could not update invite',
             'error'
         );
     }
@@ -825,13 +830,14 @@ async function receiveMessage(event) {
         return;
     }
 
-    const formatted = await formatMessage(incoming);
+    const formatted =
+        await formatMessage(incoming);
 
-    const senderID = formatted.sender.id;
+    const senderID =
+        formatted.sender.id;
 
     messages.value.push({
         ...formatted,
-
         inviteStatus: formatted.invite
             ? inviteStatus.value[
                 formatted.invite.group.id
@@ -840,7 +846,8 @@ async function receiveMessage(event) {
     });
 
     nextTick(() => {
-        const container = messagesContainer.value;
+        const container =
+            messagesContainer.value;
 
         if (!container) {
             return;
@@ -851,7 +858,8 @@ async function receiveMessage(event) {
             container.scrollTop -
             container.clientHeight;
 
-        const ownMessage = senderID === props.userID;
+        const ownMessage =
+            senderID === props.userID;
 
         if (
             ownMessage ||
@@ -866,12 +874,22 @@ async function receiveMessage(event) {
 function insertEmoji(emoji) {
     const input = messageInput.value;
     const current = message.value;
-    const start = input?.selectionStart ?? current.length;
-    const end = input?.selectionEnd ?? start;
 
-    message.value = current.slice(0, start) + emoji + current.slice(end);
+    const start =
+        input?.selectionStart ??
+        current.length;
 
-    const position = start + emoji.length;
+    const end =
+        input?.selectionEnd ??
+        start;
+
+    message.value =
+        current.slice(0, start) +
+        emoji +
+        current.slice(end);
+
+    const position =
+        start + emoji.length;
 
     nextTick(() => {
         if (!input) {
@@ -879,14 +897,19 @@ function insertEmoji(emoji) {
         }
 
         input.focus();
-        input.setSelectionRange(position, position);
+        input.setSelectionRange(
+            position,
+            position
+        );
     });
 }
 
 async function send() {
-    const content = message.value.trim();
+    const content =
+        message.value.trim();
 
-    const file = pendingFile.value;
+    const file =
+        pendingFile.value;
 
     if (
         (!content && !file) ||
@@ -899,34 +922,34 @@ async function send() {
 
     sending.value = true;
 
-    let resolvedGroupID = props.groupID;
+    let resolvedGroupID =
+        props.groupID;
 
     try {
         if (file) {
-            const result = await sendChatMedia(file, {
-                userID: props.userID,
-                groupID: props.groupID
-            });
+            const result =
+                await sendChatMedia(file, {
+                    userID: props.userID,
+                    groupID: props.groupID
+                });
 
             resolvedGroupID =
-                result.groupID ?? resolvedGroupID;
+                result.groupID ??
+                resolvedGroupID;
 
             messages.value.push({
-                content: result.content,
-
-                rawContent: result.content,
-
-                media: parseChatMedia(
-                    result.content
-                ),
-
+                content:
+                    result.content,
+                rawContent:
+                    result.content,
+                media:
+                    parseChatMedia(
+                        result.content
+                    ),
                 post: null,
-
                 postError: null,
-
                 createdAt:
                     new Date().toISOString(),
-
                 sender: {
                     id: -1,
                     firstName:
@@ -936,14 +959,12 @@ async function send() {
                     avatar:
                         props.userAvatar
                 },
-
-                groupID: resolvedGroupID,
-
+                groupID:
+                    resolvedGroupID,
                 invite: null
             });
 
             clearPending();
-
             await scrollToBottom();
         }
 
@@ -954,10 +975,16 @@ async function send() {
             const msg =
                 new Message(content);
 
-            msg.userID = props.userID;
-            msg.groupID = resolvedGroupID;
+            msg.userID =
+                props.userID;
+
+            msg.groupID =
+                resolvedGroupID;
+
             msg.private = 1;
-            msg.clientID = clientID;
+
+            msg.clientID =
+                clientID;
 
             sendWS({
                 type: 'privateMessage',
@@ -976,7 +1003,8 @@ async function send() {
                             sharedPost.postID
                         );
 
-                    localPost = formatPost(post);
+                    localPost =
+                        formatPost(post);
                 } catch {
                     localPost = null;
                 }
@@ -984,17 +1012,11 @@ async function send() {
 
             messages.value.push({
                 clientID,
-
                 content,
-
                 rawContent: content,
-
                 media: null,
-
                 post: localPost,
-
                 postError: null,
-
                 sender: {
                     id: -1,
                     firstName:
@@ -1004,13 +1026,10 @@ async function send() {
                     avatar:
                         props.userAvatar
                 },
-
-                groupID: resolvedGroupID,
-
+                groupID:
+                    resolvedGroupID,
                 sending: true,
-
                 failed: false,
-
                 error: null
             });
 
@@ -1041,8 +1060,19 @@ async function send() {
 }
 
 watch(
-    () => props.groupID,
+    () => props.chat?.canMessage,
+    value => {
+        if (value) {
+            canMessage.value = true;
+        }
+    },
+    {
+        immediate: true
+    }
+);
 
+watch(
+    () => props.groupID,
     newGroupID => {
         if (fetchTimer) {
             clearTimeout(fetchTimer);
@@ -1052,14 +1082,12 @@ watch(
         requestID++;
 
         messages.value = [];
-
         offset.value = 0;
-
         hasMore.value = true;
-
         loadingMore.value = false;
 
-        canMessage.value = false;
+        canMessage.value =
+            getSidebarCanMessage();
 
         if (
             newGroupID === null ||
@@ -1071,7 +1099,6 @@ watch(
 
         fetchChatMessages(newGroupID);
     },
-
     {
         immediate: true
     }
@@ -1079,7 +1106,6 @@ watch(
 
 watch(
     messagesContainer,
-
     (newEl, oldEl) => {
         if (oldEl) {
             oldEl.removeEventListener(
@@ -1095,7 +1121,6 @@ watch(
             );
         }
     },
-
     {
         immediate: true
     }
@@ -1104,19 +1129,19 @@ watch(
 function handleMessageSendError(event) {
     const error = event.detail;
 
-    const msg = messages.value.find(
-        message =>
-            message.clientID === error.clientID
-    );
+    const msg =
+        messages.value.find(
+            message =>
+                message.clientID ===
+                error.clientID
+        );
 
     if (!msg) {
         return;
     }
 
     msg.sending = false;
-
     msg.failed = true;
-
     msg.error = error.message;
 }
 
@@ -1157,7 +1182,6 @@ onUnmounted(() => {
 
     requestID++;
 });
-
 </script>
 
 <template>

@@ -1,55 +1,49 @@
-# syntax=docker/dockerfile:1
+# ---------- Build stage: Go server + golang-migrate (with sqlite3 driver) ----------
+# go-sqlite3 needs CGO, so we build on a glibc image with gcc.
+ARG GO_VERSION=1.26.0
+FROM golang:${GO_VERSION}-bookworm AS builder
+WORKDIR /src
 
-# ---------- Build stage ----------
-FROM golang:1.26.0-alpine AS builder
-
-# go-sqlite3 uses cgo, so we need a C toolchain
-RUN apk add --no-cache gcc musl-dev
-
-WORKDIR /app
-
-# Cache go modules separately from source changes
+# Cache dependencies first
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy the rest of the backend source
 COPY cmd ./cmd
 COPY internal ./internal
 COPY database ./database
 
-# CGO must stay enabled for mattn/go-sqlite3
 ENV CGO_ENABLED=1
-RUN go build -o /app/server ./cmd/server
+RUN go build -trimpath -ldflags="-s -w" -o /out/server ./cmd/server
 
-# Build the golang-migrate CLI with the sqlite3 driver baked in (it needs
-# cgo too, hence building it here rather than downloading a release binary)
-RUN go install -tags 'sqlite3' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+# migrate CLI built with the sqlite3 driver (needed for the sqlite3:// URL)
+RUN go install -tags 'sqlite3' github.com/golang-migrate/migrate/v4/cmd/migrate@latest \
+    && cp "$(go env GOPATH)/bin/migrate" /out/migrate
 
 # ---------- Runtime stage ----------
-FROM alpine:3.20
-
-RUN apk add --no-cache ca-certificates sqlite-libs tzdata
+FROM debian:bookworm-slim
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates tzdata \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-COPY --from=builder /app/server ./server
-COPY --from=builder /go/bin/migrate /usr/local/bin/migrate
+COPY --from=builder /out/server /app/server
+COPY --from=builder /out/migrate /usr/local/bin/migrate
 
-# Bring migrations along so the entrypoint can apply them at container start
+# Migrations + images (default avatar and sample images are read at startup)
 COPY internal/migrations ./internal/migrations
+COPY images ./images
 
-COPY entrypoint.sh ./entrypoint.sh
-RUN chmod +x ./entrypoint.sh
+# Seed uploads shipped with the project (volume mounts can override/extend them)
+COPY uploads ./uploads
 
-# The app expects ./db (sqlite file) and ./uploads (user media) relative
-# to its working directory — create them so they exist even before a
-# volume is mounted.
-RUN mkdir -p ./db ./uploads/avatars ./uploads/posts ./uploads/groups/avatars
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+# strip Windows CRLF line endings just in case
+RUN sed -i 's/\r$//' /usr/local/bin/docker-entrypoint.sh \
+    && chmod +x /usr/local/bin/docker-entrypoint.sh \
+    && mkdir -p /app/db /app/uploads
 
 EXPOSE 4000
+VOLUME ["/app/db", "/app/uploads"]
 
-# ORBIT_TOKEN_SECRET is read from the environment at runtime (see
-# internal/app/tokens/tokens.go) — set it via `docker run -e` or
-# docker-compose's `environment:` / `env_file:`.
-
-ENTRYPOINT ["./entrypoint.sh"]
+ENTRYPOINT ["docker-entrypoint.sh"]

@@ -76,7 +76,7 @@ export async function getMessages(groupID, offset = 0, userID = 0) {
         method: "GET",
         credentials: 'include'
     });
-
+    
     const result = await resp.json();
     if (!resp.ok) {
         throw new Error(result.message || 'error hapened while sending message')

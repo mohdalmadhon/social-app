@@ -19,9 +19,7 @@ const loading = ref(false);
 const hasMore = ref(true);
 const searchValue = ref('');
 const activeChatId = ref(null);
-
 const listEl = ref(null);
-
 const desktopQuery = window.matchMedia('(min-width: 1025px)');
 
 function throttle(fn, wait = 300) {
@@ -37,6 +35,7 @@ function throttle(fn, wait = 300) {
                 clearTimeout(pendingTimeout);
                 pendingTimeout = null;
             }
+
             lastCallTime = now;
             fn.apply(this, args);
         } else if (!pendingTimeout) {
@@ -65,42 +64,71 @@ function debounce(fn, wait = 300) {
 }
 
 function normalizeList(result) {
-    if (Array.isArray(result)) return result;
+    if (Array.isArray(result)) {
+        return result;
+    }
+
     return result.data || result.chats || result.groups || [];
 }
 
 function normalizeHasMore(result, list) {
-    if (typeof result?.hasMore === 'boolean') return result.hasMore;
+    if (typeof result?.hasMore === 'boolean') {
+        return result.hasMore;
+    }
+
     return list.length > 0;
 }
 
 function mergeByUserId(existing, incoming) {
-    const merged = new Map(existing.map((chat) => [chat.UserID, chat]));
+    const merged = new Map(
+        existing.map(chat => [String(chat.UserID), chat])
+    );
 
     for (const chat of incoming) {
-        if (!merged.has(chat.UserID)) {
-            merged.set(chat.UserID, chat);
+        const key = String(chat.UserID);
+        const current = merged.get(key);
+
+        if (!current) {
+            merged.set(key, chat);
+            continue;
         }
+
+        merged.set(key, {
+            ...current,
+            ...chat,
+            canMessage: Boolean(
+                current.canMessage || chat.canMessage
+            )
+        });
     }
 
     return Array.from(merged.values());
 }
 
 async function loadChats({ reset = false } = {}) {
-    if (loading.value) return;
-    if (!reset && !hasMore.value) return;
+    if (loading.value) {
+        return;
+    }
+
+    if (!reset && !hasMore.value) {
+        return;
+    }
 
     loading.value = true;
+
     const nextOffset = reset ? 0 : offset.value;
 
     try {
         const result = searchValue.value
             ? await searchChats(nextOffset, searchValue.value)
             : await getPrivateChatsLists(nextOffset);
-        const list = normalizeList(result);
-        console.log(list)
-        chats.value = mergeByUserId(reset ? [] : chats.value, list);
 
+        const list = normalizeList(result);
+
+        chats.value = mergeByUserId(
+            reset ? [] : chats.value,
+            list
+        );
 
         offset.value = nextOffset + list.length;
         hasMore.value = normalizeHasMore(result, list);
@@ -108,7 +136,9 @@ async function loadChats({ reset = false } = {}) {
         if (reset && chats.value.length) {
             if (props.targetUserId) {
                 const match = chats.value.find(
-                    (chat) => String(chat.UserID) === String(props.targetUserId)
+                    chat =>
+                        String(chat.UserID) ===
+                        String(props.targetUserId)
                 );
 
                 if (match) {
@@ -119,7 +149,11 @@ async function loadChats({ reset = false } = {}) {
             }
         }
     } catch (err) {
-        addNotification(err.message || "could not load chats", 'error');
+        addNotification(
+            err.message || 'could not load chats',
+            'error'
+        );
+
         console.error(err);
     } finally {
         loading.value = false;
@@ -133,7 +167,10 @@ function selectChat(chat) {
 }
 
 function handleKeydown(event) {
-    if (event.key === 'Escape' && chatsSidebarOpen.value) {
+    if (
+        event.key === 'Escape' &&
+        chatsSidebarOpen.value
+    ) {
         closeChatsSidebar();
     }
 }
@@ -144,7 +181,7 @@ function handleBreakpointChange(event) {
     }
 }
 
-watch(chatsSidebarOpen, (open) => {
+watch(chatsSidebarOpen, open => {
     if (!desktopQuery.matches) {
         document.body.style.overflow = open ? 'hidden' : '';
     }
@@ -152,9 +189,16 @@ watch(chatsSidebarOpen, (open) => {
 
 const handleScroll = throttle(() => {
     const el = listEl.value;
-    if (!el) return;
 
-    const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 120;
+    if (!el) {
+        return;
+    }
+
+    const nearBottom =
+        el.scrollTop +
+        el.clientHeight >=
+        el.scrollHeight - 120;
+
     if (nearBottom) {
         loadChats();
     }
@@ -167,32 +211,70 @@ const handleSearchInput = debounce(() => {
 
 onMounted(() => {
     loadChats({ reset: true });
-    listEl.value?.addEventListener('scroll', handleScroll);
-    window.addEventListener('keydown', handleKeydown);
-    desktopQuery.addEventListener('change', handleBreakpointChange);
+
+    listEl.value?.addEventListener(
+        'scroll',
+        handleScroll
+    );
+
+    window.addEventListener(
+        'keydown',
+        handleKeydown
+    );
+
+    desktopQuery.addEventListener(
+        'change',
+        handleBreakpointChange
+    );
 });
 
 onBeforeUnmount(() => {
-    listEl.value?.removeEventListener('scroll', handleScroll);
-    window.removeEventListener('keydown', handleKeydown);
-    desktopQuery.removeEventListener('change', handleBreakpointChange);
+    listEl.value?.removeEventListener(
+        'scroll',
+        handleScroll
+    );
+
+    window.removeEventListener(
+        'keydown',
+        handleKeydown
+    );
+
+    desktopQuery.removeEventListener(
+        'change',
+        handleBreakpointChange
+    );
+
     document.body.style.overflow = '';
     closeChatsSidebar();
 });
 </script>
 
 <template>
-    <div class="chat-overlay" :class="{ open: chatsSidebarOpen }" aria-hidden="true" @click="closeChatsSidebar"></div>
+    <div
+        class="chat-overlay"
+        :class="{ open: chatsSidebarOpen }"
+        aria-hidden="true"
+        @click="closeChatsSidebar"
+    ></div>
 
-    <aside id="chat-drawer" class="chat-sidebar" :class="{ open: chatsSidebarOpen }" aria-label="Chats">
-
+    <aside
+        id="chat-drawer"
+        class="chat-sidebar"
+        :class="{ open: chatsSidebarOpen }"
+        aria-label="Chats"
+    >
         <div class="sidebar-heading">
             <div>
                 <p class="eyebrow">MESSAGES</p>
                 <h2>Chats</h2>
             </div>
 
-            <button type="button" class="sidebar-close" aria-label="Close chats list" @click="closeChatsSidebar">
+            <button
+                type="button"
+                class="sidebar-close"
+                aria-label="Close chats list"
+                @click="closeChatsSidebar"
+            >
                 ×
             </button>
         </div>
@@ -200,72 +282,109 @@ onBeforeUnmount(() => {
         <div class="search">
             <span class="search-icon">⌕</span>
 
-            <input v-model="searchValue" type="text" placeholder="Search chats..." @input="handleSearchInput" />
+            <input
+                v-model="searchValue"
+                type="text"
+                placeholder="Search chats..."
+                @input="handleSearchInput"
+            />
 
-            <button v-if="searchValue" type="button" class="clear-search"
-                @click="searchValue = ''; handleSearchInput()">
+            <button
+                v-if="searchValue"
+                type="button"
+                class="clear-search"
+                @click="searchValue = ''; handleSearchInput()"
+            >
                 ×
             </button>
         </div>
 
-        <div ref="listEl" class="chat-list">
-
-            <button v-for="chat in chats" :key="chat.UserID" type="button" class="chat-item"
-                :class="{ active: activeChatId === chat.UserID }" @click="selectChat(chat)">
-
+        <div
+            ref="listEl"
+            class="chat-list"
+        >
+            <button
+                v-for="chat in chats"
+                :key="chat.UserID"
+                type="button"
+                class="chat-item"
+                :class="{
+                    active: activeChatId === chat.UserID
+                }"
+                @click="selectChat(chat)"
+            >
                 <div class="avatar">
-
-                    <img v-if="chat.Avatar" :src="`/uploads/${chat.Avatar}`" alt="" />
+                    <img
+                        v-if="chat.Avatar"
+                        :src="`/uploads/${chat.Avatar}`"
+                        alt=""
+                    />
 
                     <span v-else>
-                        {{ (chat.FirstName || '?').charAt(0).toUpperCase() }}
+                        {{
+                            (chat.FirstName || '?')
+                                .charAt(0)
+                                .toUpperCase()
+                        }}
                     </span>
-
-
                 </div>
 
                 <div class="chat-info">
-
                     <div class="chat-info-top">
-
                         <strong>
-                            {{ chat.FirstName }} {{ chat.LastName }}
+                            {{ chat.FirstName }}
+                            {{ chat.LastName }}
                         </strong>
 
-                        <span v-if="chat.UnreadCount" class="badge">
-                            {{ chat.UnreadCount > 99 ? '99+' : chat.UnreadCount }}
+                        <span
+                            v-if="chat.UnreadCount"
+                            class="badge"
+                        >
+                            {{
+                                chat.UnreadCount > 99
+                                    ? '99+'
+                                    : chat.UnreadCount
+                            }}
                         </span>
-
                     </div>
-
-
-
                 </div>
 
-                <span v-if="chat.LastMessageAt" class="time">
+                <span
+                    v-if="chat.LastMessageAt"
+                    class="time"
+                >
                     {{ chat.LastMessageAt }}
                 </span>
 
-                <span v-if="activeChatId === chat.UserID" class="active-arrow">
-                    ›
+                <span
+                    v-if="activeChatId === chat.UserID"
+                    class="active-arrow"
+                >
+                    >
                 </span>
-
             </button>
 
-            <p v-if="loading" class="status-text">
+            <p
+                v-if="loading"
+                class="status-text"
+            >
                 Loading chats...
             </p>
 
-            <p v-else-if="!chats.length" class="status-text">
+            <p
+                v-else-if="!chats.length"
+                class="status-text"
+            >
                 No chats found
             </p>
 
-            <p v-else-if="!hasMore" class="status-text">
+            <p
+                v-else-if="!hasMore"
+                class="status-text"
+            >
                 No more chats
             </p>
-
         </div>
-
     </aside>
 </template>
 

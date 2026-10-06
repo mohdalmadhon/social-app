@@ -1,0 +1,7 @@
+.git
+.vscode
+frontend
+db
+uploads/**/*.tmp
+*.md
+tests

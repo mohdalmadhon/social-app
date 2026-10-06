@@ -1,23 +1,15 @@
-# syntax=docker/dockerfile:1
-
-# ---------- Build stage ----------
-FROM node:20-alpine AS builder
-
+# ---------- Build the Vue app ----------
+FROM node:22-alpine AS build
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
 COPY . .
 RUN npm run build
 
-# ---------- Runtime stage ----------
+# ---------- Serve with nginx and proxy API / uploads / websocket ----------
 FROM nginx:1.27-alpine
-
-# Vite and Vue CLI both default to outputting into ./dist
-COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-
+COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
-
-CMD ["nginx", "-g", "daemon off;"]
