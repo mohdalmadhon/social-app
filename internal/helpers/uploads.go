@@ -71,6 +71,10 @@ func SaveUploads(file multipart.File, header *multipart.FileHeader, Type string)
 		return "avatars/" + filename, nil
 	}
 
+	if Type == "group/avatar" {
+		return "groups/avatars/" + filename, nil
+	}
+
 	return "posts/" + filename, nil
 }
 

@@ -209,7 +209,7 @@ onUnmounted(() => {
                     <div class="sticky-top">
                         <div class="header-wrapper">
                             <GroupHeader :name="group.title" :description="group.description"
-                                :avatar-path="group.avatarPath" :members-count="group.Count" :show-members="showMembers"
+                                :avatar-path="group.avatar" :members-count="group.Count" :show-members="showMembers"
                                 @toggle-members="toggleMembers" />
 
                             <GroupMembersPanel :show="showMembers" :isOwner="isOwner" :members="members"

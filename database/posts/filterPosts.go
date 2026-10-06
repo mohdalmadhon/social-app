@@ -14,27 +14,23 @@ func FilterPosts(db *sql.DB, posts *[]models.Post, userID, targetID int) ([]mode
 	var returnPosts []models.Post
 
 	for _, p := range *posts {
-		log.Println("groupID:", p.GroupId)
 		if p.GroupId == nil {
-			continue
-		}
-		if p.Public == 1 {
-			returnPosts = append(returnPosts, p)
-			continue
-		}
-		if p.Private == 1 {
-			isFollower, err := users.IsFollowing(db, userID, targetID)
-			if err != nil {
-				continue
-			}
-			if isFollower {
+			if p.Public == 1 {
 				returnPosts = append(returnPosts, p)
 				continue
 			}
-		}
 
-		if p.GroupId == nil {
-			returnPosts = append(returnPosts, p)
+			if p.Private == 1 {
+				isFollower, err := users.IsFollowing(db, userID, targetID)
+				if err != nil {
+					continue
+				}
+
+				if isFollower {
+					returnPosts = append(returnPosts, p)
+				}
+			}
+
 			continue
 		}
 

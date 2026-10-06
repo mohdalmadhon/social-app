@@ -43,7 +43,7 @@ function initials(name) {
         <div class="group-avatar">
             <img
                 v-if="avatarPath"
-                :src="avatarPath"
+                :src="`/uploads/${avatarPath}`"
                 :alt="name"
                 class="group-avatar-img"
             >

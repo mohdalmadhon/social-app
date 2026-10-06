@@ -111,7 +111,7 @@ async function requestToJoin(groupID) {
 <template>
     <article class="group-card">
         <div class="group-avatar">
-            <img v-if="avatar" :src="avatar" :alt="name" class="group-avatar-img">
+            <img v-if="avatarPath" :src="`/uploads/${avatarPath}`" :alt="name" class="group-avatar-img">
             <span v-else class="group-avatar-fallback">
                 {{ initials(name) }}
             </span>

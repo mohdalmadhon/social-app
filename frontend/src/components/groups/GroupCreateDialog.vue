@@ -92,6 +92,7 @@ async function handleSubmit() {
 
         addNotification('Group created!', 'success');
         emit('created', result.data);
+        creating.value = false;
         closeDialog();
     } catch (err) {
         addNotification(err.message || 'Could not create group', 'error');
