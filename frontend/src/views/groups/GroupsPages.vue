@@ -305,7 +305,8 @@ onUnmounted(() => {
                             <GroupCard v-for="group in currentGroups" :key="group.ID" :group-id="group.ID"
                                 :name="group.title" :description="group.description" :avatar-path="group.avatar"
                                 :members-count="group.Count || 0" :is-member="true"
-                                :typing-count="groupTypingCount(group.ID)" @open="openGroup" />
+                                :typing-count="groupTypingCount(group.ID)" :unread-count="group.unreadCount || 0"
+                                @open="openGroup" />
                         </div>
 
                         <div v-if="loadingCurrent && currentGroups.length" class="section-message">

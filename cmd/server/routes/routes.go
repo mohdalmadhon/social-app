@@ -96,6 +96,7 @@ func StartServer(db *sql.DB) *http.ServeMux {
 	mux.HandleFunc("POST /api/chats", app.AuthMiddleware(app.AddMessages))
 	mux.HandleFunc("GET /api/chats", app.AuthMiddleware(app.GetMessages))
 	mux.HandleFunc("GET /api/chats/ability", app.AuthMiddleware(app.CheckMessageAbility))
+	mux.HandleFunc("POST /api/chats/read", app.AuthMiddleware(app.MarkChatRead))
 	mux.HandleFunc("POST /api/chats/media", app.AuthMiddleware(app.SendChatMedia))
 	mux.HandleFunc("POST /api/chats/share", app.AuthMiddleware(app.SharePost))
 	mux.HandleFunc("POST /api/chats/share/profile", app.AuthMiddleware(app.ShareProfile))

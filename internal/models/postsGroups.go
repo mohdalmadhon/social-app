@@ -7,6 +7,7 @@ type Group struct {
 	UserID      int
 	Name        string `json:"name"`
 	Count       int
+	UnreadCount int `json:"unreadCount"`
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	Avatar      string `json:"avatar"`

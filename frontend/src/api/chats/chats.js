@@ -147,3 +147,16 @@ export function sendPost(userID = 0, postID = 0, recieverID = 0) {
         }
     });
 }
+export async function markChatRead(groupID) {
+    const resp = await fetch('/api/chats/read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ groupID: Number(groupID) })
+    });
+
+    if (!resp.ok) {
+        const result = await resp.json().catch(() => ({}));
+        throw new Error(result.message || 'could not mark chat as read');
+    }
+}

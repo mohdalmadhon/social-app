@@ -1227,3 +1227,57 @@ func (app *App) GetChatSuggestions(w http.ResponseWriter, r *http.Request) {
 		"data":   suggestions,
 	})
 }
+
+func (app *App) MarkChatRead(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("userID").(int)
+	if !ok {
+		helpers.WriteJson(w, http.StatusUnauthorized, map[string]any{
+			"status":  false,
+			"message": "could not authorize user",
+		})
+		return
+	}
+
+	var body struct {
+		GroupID int `json:"groupID"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.GroupID <= 0 {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": "invalid groupID",
+		})
+		return
+	}
+
+	inGroup, err := chats.UserInGroup(app.DB, userID, body.GroupID)
+	if err != nil {
+		log.Println(err)
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not verify group",
+		})
+		return
+	}
+
+	if !inGroup {
+		helpers.WriteJson(w, http.StatusForbidden, map[string]any{
+			"status":  false,
+			"message": "you are not a member of this chat",
+		})
+		return
+	}
+
+	if err := chats.MarkGroupRead(app.DB, userID, body.GroupID); err != nil {
+		log.Println(err)
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not mark chat as read",
+		})
+		return
+	}
+
+	helpers.WriteJson(w, http.StatusOK, map[string]any{
+		"status": true,
+	})
+}

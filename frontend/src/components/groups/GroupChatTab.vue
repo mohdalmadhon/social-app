@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { addNotification } from '@/data/notifications';
 import { sendWS } from '@/api/socket/socket';
-import { getMessages, sendChatMedia } from '@/api/chats/chats';
+import { getMessages, sendChatMedia, markChatRead } from '@/api/chats/chats';
 import { CHAT_MEDIA_ACCEPT, parseChatMedia, validateChatMedia } from '@/helpers/chatMedia';
 import { getGroupPost, insertPostReaction } from '@/api/posts/groups';
 import { activePage } from '@/data/chatState';
@@ -584,6 +584,8 @@ async function fetchChatMessages(groupID) {
         if (data.length < 20) {
             hasMore.value = false;
         }
+
+        markChatRead(groupID).catch(console.error);
     } catch (err) {
         if (currentRequestID !== requestID) {
             return;
@@ -761,6 +763,8 @@ function receiveMessage(event) {
     }
 
     messages.value.push(formatted);
+
+    markChatRead(props.groupID).catch(console.error);
 
     nextTick(() => {
         const container =

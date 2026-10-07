@@ -320,6 +320,21 @@ func GetGroupChats(db *sql.DB, userID, offset int) ([]models.Group, error) {
 				SELECT COUNT(*)
 				FROM groups_users gu2
 				WHERE gu2.group_id = g.id
+			),
+			(
+				SELECT COUNT(*)
+				FROM messages um
+				WHERE um.group_id = g.id
+				  AND um.sender_id <> ?
+				  AND um.id > COALESCE(
+					(
+						SELECT gu3.last_read_message_id
+						FROM groups_users gu3
+						WHERE gu3.group_id = g.id
+						  AND gu3.user_id = ?
+					),
+					0
+				)
 			)
 		FROM groups g
 		WHERE EXISTS (
@@ -341,7 +356,7 @@ func GetGroupChats(db *sql.DB, userID, offset int) ([]models.Group, error) {
 			) DESC,
 			g.id DESC
 		LIMIT 12 OFFSET ?
-	`, userID, offset)
+	`, userID, userID, userID, offset)
 
 	if err != nil {
 		return nil, err
@@ -356,6 +371,7 @@ func GetGroupChats(db *sql.DB, userID, offset int) ([]models.Group, error) {
 			&g.Title,
 			&g.Avatar,
 			&g.Count,
+			&g.UnreadCount,
 		); err != nil {
 			return nil, err
 		}

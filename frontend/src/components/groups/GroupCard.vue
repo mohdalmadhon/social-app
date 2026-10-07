@@ -33,6 +33,10 @@ const props = defineProps({
     typingCount: {
         type: Number,
         default: 0
+    },
+    unreadCount: {
+        type: Number,
+        default: 0
     }
 });
 
@@ -129,7 +133,7 @@ async function requestToJoin(groupID) {
 </script>
 
 <template>
-    <article class="group-card">
+    <article class="group-card" :class="{ 'has-unread': unreadCount > 0 }">
         <div class="group-avatar">
             <img v-if="avatarPath" :src="`/uploads/${avatarPath}`" :alt="name" class="group-avatar-img">
             <span v-else class="group-avatar-fallback">
@@ -140,6 +144,10 @@ async function requestToJoin(groupID) {
         <div class="group-info">
             <h3 class="group-name">
                 {{ name }}
+                <span v-if="unreadCount > 0" class="unread-badge"
+                    :aria-label="`${unreadCount} unread messages`">
+                    {{ unreadCount > 99 ? '99+' : unreadCount }}
+                </span>
             </h3>
 
             <p v-if="description" class="group-description">
@@ -238,6 +246,28 @@ async function requestToJoin(groupID) {
 
 .group-info {
     min-width: 0;
+}
+
+.unread-badge {
+    display: inline-block;
+    min-width: 20px;
+    margin-left: 8px;
+    padding: 1px 6px;
+
+    border-radius: 999px;
+    background: var(--input-focus);
+
+    color: #fff;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.group-card.has-unread {
+    border-color: var(--input-focus);
 }
 
 .group-name {
