@@ -161,6 +161,8 @@ const activeTab = ref('general');
 const selectedTheme = ref(getThemeCookie());
 const selectedChat = ref('following-followers');
 const savingChat = ref(false);
+const allowPreviousSenders = ref(false);
+const savingPreviousSenders = ref(false);
 const selectedGroupInvite = ref('following');
 const savingGroupInvite = ref(false);
 
@@ -204,6 +206,7 @@ onMounted(async () => {
     try {
         const prefs = await getPreferences();
         selectedChat.value = prefs.chat;
+        allowPreviousSenders.value = Boolean(prefs.allowPreviousSenders);
         selectedGroupInvite.value = prefs.groupInvite || 'following';
         privacy.value = {
             email: prefs.email,
@@ -262,6 +265,28 @@ async function selectChat(value) {
         addNotification(err.message || 'Could not update preferences', 'error');
     } finally {
         savingChat.value = false;
+    }
+}
+
+async function togglePreviousSenders() {
+    if (savingPreviousSenders.value) {
+        return;
+    }
+
+    const previous = allowPreviousSenders.value;
+    const next = !previous;
+
+    allowPreviousSenders.value = next;
+    savingPreviousSenders.value = true;
+
+    try {
+        await changePreferences('previoussenders', next ? '1' : '0');
+        addNotification('Chat preference updated', 'success');
+    } catch (err) {
+        allowPreviousSenders.value = previous;
+        addNotification(err.message || 'Could not update preferences', 'error');
+    } finally {
+        savingPreviousSenders.value = false;
     }
 }
 
@@ -469,6 +494,25 @@ async function confirmDeleteAccount() {
                                 </span>
                                 <span class="choice-name">{{ option.label }}</span>
                                 <span class="choice-desc">{{ option.description }}</span>
+                            </button>
+                        </div>
+
+                        <div class="switch-row">
+                            <div class="switch-text">
+                                <span class="switch-title">Let people who messaged me before message me again</span>
+                                <span class="switch-desc">Anyone who has already messaged you can keep messaging you, whatever your chat setting above is.</span>
+                            </div>
+
+                            <button
+                                type="button"
+                                role="switch"
+                                class="switch"
+                                :class="{ on: allowPreviousSenders }"
+                                :aria-checked="allowPreviousSenders"
+                                :disabled="savingPreviousSenders"
+                                @click="togglePreviousSenders"
+                            >
+                                <span class="switch-knob"></span>
                             </button>
                         </div>
                     </section>
@@ -718,6 +762,76 @@ async function confirmDeleteAccount() {
     background: var(--input-focus);
     color: #fff;
     box-shadow: 4px 4px var(--main-color);
+}
+
+.switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 18px;
+    padding: 16px;
+    border: 2px solid var(--main-color);
+    border-radius: 8px;
+    background: var(--bg-color);
+}
+
+.switch-text {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.switch-title {
+    color: var(--font-color);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.switch-desc {
+    color: var(--font-color-sub);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 9px;
+    line-height: 1.5;
+}
+
+.switch {
+    position: relative;
+    flex-shrink: 0;
+    width: 52px;
+    height: 28px;
+    padding: 0;
+    border: 2px solid var(--main-color);
+    border-radius: 999px;
+    background: var(--page-background);
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.switch.on {
+    background: var(--input-focus);
+}
+
+.switch:disabled {
+    cursor: not-allowed;
+    opacity: 0.75;
+}
+
+.switch-knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--main-color);
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.15s ease;
+}
+
+.switch.on .switch-knob {
+    transform: translateX(24px);
 }
 
 .choice-card:disabled {

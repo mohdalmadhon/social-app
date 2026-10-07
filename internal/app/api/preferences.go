@@ -28,6 +28,11 @@ var ALLOWED_GROUP_INVITE_PREFERENCES = []string{
 	"none",
 }
 
+var ALLOWED_TOGGLE_PREFERENCES = []string{
+	"0",
+	"1",
+}
+
 var ALLOWED_ADDITIONAL_INFO_PREFERENCES = []string{
 	"any",
 	"followers",
@@ -84,6 +89,8 @@ func (app *App) ChangePerferance(w http.ResponseWriter, r *http.Request) {
 		allowed = ALLOWED_ADDITIONAL_INFO_PREFERENCES
 	case "groupinvite":
 		allowed = ALLOWED_GROUP_INVITE_PREFERENCES
+	case "previoussenders":
+		allowed = ALLOWED_TOGGLE_PREFERENCES
 	default:
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,

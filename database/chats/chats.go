@@ -143,10 +143,11 @@ func CanSendMessage(db *sql.DB, userID, targetID int) (bool, error) {
 	}
 
 	var preference string
+	var allowPreviousSenders int
 
 	err := db.QueryRow(`
-		SELECT chat FROM user_preferences WHERE user_id = ?
-	`, targetID).Scan(&preference)
+		SELECT chat, allow_previous_senders FROM user_preferences WHERE user_id = ?
+	`, targetID).Scan(&preference, &allowPreviousSenders)
 
 	if err == sql.ErrNoRows {
 		return false, nil
@@ -154,6 +155,17 @@ func CanSendMessage(db *sql.DB, userID, targetID int) (bool, error) {
 
 	if err != nil {
 		return false, err
+	}
+
+	if allowPreviousSenders == 1 {
+		previouslyMessaged, err := HasMessagedUser(db, userID, targetID)
+		if err != nil {
+			return false, err
+		}
+
+		if previouslyMessaged {
+			return true, nil
+		}
 	}
 
 	switch preference {
@@ -195,6 +207,33 @@ func CanSendMessage(db *sql.DB, userID, targetID int) (bool, error) {
 	}
 
 	return false, nil
+}
+
+func HasMessagedUser(db *sql.DB, senderID, recipientID int) (bool, error) {
+	var exists int
+
+	err := db.QueryRow(`
+		SELECT 1
+		FROM messages m
+		JOIN groups g
+			ON g.id = m.group_id
+			AND g.is_private_chat = 1
+		JOIN groups_users gu
+			ON gu.group_id = g.id
+			AND gu.user_id = ?
+		WHERE m.sender_id = ?
+		LIMIT 1
+	`, recipientID, senderID).Scan(&exists)
+
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 func IsPrivateChat(db *sql.DB, groupID, userID int) (bool, int, error) {
