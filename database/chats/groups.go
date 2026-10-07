@@ -284,3 +284,94 @@ func GetGroupName(db *sql.DB, groupID int) (string, error) {
 
 	return name, err
 }
+
+func GetChatSuggestions(db *sql.DB, userID, limit int) ([]models.PrivateChat, error) {
+	suggestions := make([]models.PrivateChat, 0)
+
+	rows, err := db.Query(`
+		SELECT
+			u.id,
+			u.first_name,
+			u.last_name,
+			COALESCE(p.avatar_path, '')
+		FROM user u
+		LEFT JOIN profile p
+			ON p.user_id = u.id
+		WHERE u.id != ?
+			AND NOT EXISTS (
+				SELECT 1
+				FROM groups g
+				JOIN groups_users a
+					ON a.group_id = g.id
+					AND a.user_id = ?
+				JOIN groups_users b
+					ON b.group_id = g.id
+					AND b.user_id = u.id
+				WHERE g.is_private_chat = 1
+			)
+		ORDER BY
+			CASE
+				WHEN EXISTS (
+					SELECT 1
+					FROM user_followers uf
+					WHERE uf.status = 1
+						AND (
+							(uf.follower_id = ? AND uf.target_id = u.id)
+							OR (uf.target_id = ? AND uf.follower_id = u.id)
+						)
+				) THEN 0
+				ELSE 1
+			END,
+			u.id
+		LIMIT 100
+	`, userID, userID, userID, userID)
+
+	if err != nil {
+		return nil, err
+	}
+
+	candidates := make([]models.PrivateChat, 0)
+
+	for rows.Next() {
+		var candidate models.PrivateChat
+
+		if err := rows.Scan(
+			&candidate.UserID,
+			&candidate.FirstName,
+			&candidate.LastName,
+			&candidate.Avatar,
+		); err != nil {
+			rows.Close()
+			return nil, err
+		}
+
+		candidates = append(candidates, candidate)
+	}
+
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+
+	rows.Close()
+
+	for _, candidate := range candidates {
+		if len(suggestions) >= limit {
+			break
+		}
+
+		canMessage, err := CanSendMessage(db, userID, candidate.UserID)
+		if err != nil {
+			return nil, err
+		}
+
+		if !canMessage {
+			continue
+		}
+
+		candidate.CanMessage = true
+		suggestions = append(suggestions, candidate)
+	}
+
+	return suggestions, nil
+}

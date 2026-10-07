@@ -1,6 +1,5 @@
-```vue
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
 
 const props = defineProps({
     userId: {
@@ -42,10 +41,36 @@ const props = defineProps({
     hasLocation: {
         type: Boolean,
         default: false
+    },
+    canDelete: {
+        type: Boolean,
+        default: false
     }
 });
 
-const emit = defineEmits(['open-tags', 'open-location']);
+const emit = defineEmits(['open-tags', 'open-location', 'delete']);
+const menuOpen = ref(false);
+const menuRoot = ref(null);
+
+function requestDelete() {
+    menuOpen.value = false;
+    emit('delete');
+}
+
+function handleOutsideClick(event) {
+    if (menuOpen.value && menuRoot.value && !menuRoot.value.contains(event.target)) {
+        menuOpen.value = false;
+    }
+}
+
+onMounted(() => {
+    document.addEventListener('click', handleOutsideClick);
+});
+
+onBeforeUnmount(() => {
+    document.removeEventListener('click', handleOutsideClick);
+});
+
 
 function openTaggedPeople() {
     emit('open-tags');
@@ -105,11 +130,7 @@ const relativeTime = computed(() => {
     <header class="post-header">
         <div class="author">
             <a :href="`/user?id=${userId}`" class="avatar">
-                <img
-                    v-if="avatarPath"
-                    :src="`/uploads/${avatarPath}`"
-                    :alt="`${firstName} ${lastName}`"
-                >
+                <img v-if="avatarPath" :src="`/uploads/${avatarPath}`" :alt="`${firstName} ${lastName}`">
                 <span v-else>
                     {{ firstName?.charAt(0) }}
                 </span>
@@ -121,25 +142,16 @@ const relativeTime = computed(() => {
                         {{ firstName }} {{ lastName }}
                     </span>
 
-                    <span
-                        v-if="relationship === 'friend'"
-                        class="relationship-badge"
-                    >
+                    <span v-if="relationship === 'friend'" class="relationship-badge">
                         Friends
                     </span>
 
-                    <button
-                        v-else-if="relationship === 'following' || relationship === 'none'"
-                        class="follow-button"
-                        type="button"
-                    >
+                    <button v-else-if="relationship === 'following' || relationship === 'none'" class="follow-button"
+                        type="button">
                         Follow
                     </button>
 
-                    <span
-                        v-if="groupId != -1 && groupId != 0"
-                        class="visibility-text"
-                    >
+                    <span v-if="groupId != -1 && groupId != 0" class="visibility-text">
                         Visibility limited by the user
                     </span>
                 </div>
@@ -152,18 +164,10 @@ const relativeTime = computed(() => {
                     <template v-if="hasLocation">
                         <span class="meta-dot">•</span>
 
-                        <button
-                            class="location"
-                            type="button"
-                            @click="openLocationDialog"
-                        >
-                            <svg
-                                viewBox="0 0 24 24"
-                                aria-hidden="true"
-                            >
+                        <button class="location" type="button" @click="openLocationDialog">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
                                 <path
-                                    d="M12 21s7-6.1 7-13a7 7 0 1 0-14 0c0 6.9 7 13 7 13Zm0-10a3 3 0 1 1 0-6 3 3 0 0 1 0 6Z"
-                                />
+                                    d="M12 21s7-6.1 7-13a7 7 0 1 0-14 0c0 6.9 7 13 7 13Zm0-10a3 3 0 1 1 0-6 3 3 0 0 1 0 6Z" />
                             </svg>
                             {{ locationDisplay }}
                         </button>
@@ -172,13 +176,18 @@ const relativeTime = computed(() => {
             </div>
         </div>
 
-        <button
-            class="more-button"
-            type="button"
-            aria-label="Post options"
-        >
-            •••
-        </button>
+        <div v-if="canDelete" ref="menuRoot" class="post-options">
+            <button class="more-button" type="button" aria-label="Post options" aria-haspopup="true"
+                :aria-expanded="menuOpen" @click="menuOpen = !menuOpen">
+                •••
+            </button>
+
+            <div v-if="menuOpen" class="post-menu">
+                <button type="button" class="post-menu-item" @click="requestDelete">
+                    Delete post
+                </button>
+            </div>
+        </div>
     </header>
 </template>
 
@@ -359,6 +368,47 @@ const relativeTime = computed(() => {
     color: var(--main-color);
 }
 
+.post-options {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.more-button {
+    cursor: pointer;
+}
+
+.post-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    z-index: 20;
+    min-width: 140px;
+    margin-top: 4px;
+    overflow: hidden;
+    border: 2px solid var(--main-color);
+    border-radius: 6px;
+    background: var(--bg-color);
+    box-shadow: 3px 3px var(--main-color);
+}
+
+.post-menu-item {
+    display: block;
+    width: 100%;
+    padding: 10px 14px;
+    border: 0;
+    background: transparent;
+    color: #d9534f;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+}
+
+.post-menu-item:hover {
+    background: var(--page-background);
+}
+
 @media (max-width: 650px) {
     .post-header {
         padding: 14px;
@@ -370,4 +420,3 @@ const relativeTime = computed(() => {
     }
 }
 </style>
-

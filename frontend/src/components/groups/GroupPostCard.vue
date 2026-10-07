@@ -5,6 +5,10 @@ import GroupPostImage from './post/GroupPostImage.vue';
 import GroupPostReaction from './post/GroupPostReaction.vue';
 import GroupPostActions from './post/GroupPostActions.vue';
 import GroupPostComments from './post/GroupPostComments.vue';
+import ConfirmModal from '@/components/personalProfile/group/ConfirmModal.vue';
+import { deleteGroupPost } from '@/api/posts/groupComments';
+import { addNotification } from '@/data/notifications';
+import { sessionUserId } from '@/data/currentUser';
 
 const props = defineProps({
     post: {
@@ -17,7 +21,25 @@ const props = defineProps({
     }
 });
 
+const emit = defineEmits(['deleted']);
+
 const showComments = ref(false);
+const showDeleteConfirm = ref(false);
+const deleting = ref(false);
+const deleted = ref(false);
+
+const postOwnerId = computed(() => props.post.userId ?? props.post.userID ?? null);
+
+const canDelete = computed(() => {
+    const viewer = sessionUserId.value ?? props.currentUserId;
+
+    return (
+        viewer !== null &&
+        viewer !== undefined &&
+        postOwnerId.value !== null &&
+        Number(postOwnerId.value) === Number(viewer)
+    );
+});
 const commentCount = ref(Number(props.post.commentCount ?? 0));
 const likeCount = ref(Number(props.post.likeCount ?? 0));
 const dislikeCount = ref(Number(props.post.disLikeCount ?? 0));
@@ -28,6 +50,38 @@ const formattedDate = computed(() => {
     if (Number.isNaN(created.getTime())) return props.post.createdAt ?? '';
     return created.toLocaleString();
 });
+
+function openDeleteConfirm() {
+    showDeleteConfirm.value = true;
+}
+
+function closeDeleteConfirm() {
+    if (!deleting.value) {
+        showDeleteConfirm.value = false;
+    }
+}
+
+async function confirmDelete() {
+    if (deleting.value) {
+        return;
+    }
+
+    deleting.value = true;
+
+    try {
+        await deleteGroupPost(props.post.id);
+
+        showDeleteConfirm.value = false;
+        deleted.value = true;
+
+        addNotification('Post deleted', 'success');
+        emit('deleted', props.post.id);
+    } catch (err) {
+        addNotification(err.message || 'Could not delete post', 'error');
+    } finally {
+        deleting.value = false;
+    }
+}
 
 function toggleComments() {
     showComments.value = !showComments.value;
@@ -63,13 +117,15 @@ function handleDislike() {
 </script>
 
 <template>
-    <article class="post-card">
+    <article v-if="!deleted" class="post-card">
         <GroupPostHeader
             :user-id="post.userId ?? post.userID"
             :first-name="post.firstName"
             :last-name="post.lastName"
             :avatar-path="post.avatarPath"
             :formatted-date="formattedDate"
+            :can-delete="canDelete"
+            @delete="openDeleteConfirm"
         />
 
         <div v-if="post.content" class="post-content">
@@ -99,6 +155,7 @@ function handleDislike() {
             :show="showComments"
             :post-id="Number(post.id)"
             :current-user-id="currentUserId"
+            :post-owner-id="postOwnerId"
             :first-name="post.firstName || ''"
             :last-name="post.lastName || ''"
             :avatar-path="post.avatarPath || ''"
@@ -108,6 +165,18 @@ function handleDislike() {
             @close="closeComments"
             @count-changed="changeCommentCount"
         />
+
+        <ConfirmModal
+            v-if="showDeleteConfirm"
+            title="Delete this post?"
+            confirm-label="Delete"
+            cancel-label="Cancel"
+            :danger="true"
+            @confirm="confirmDelete"
+            @cancel="closeDeleteConfirm"
+        >
+            <p>This will permanently delete the post, its comments, and reactions. This cannot be undone.</p>
+        </ConfirmModal>
     </article>
 </template>
 

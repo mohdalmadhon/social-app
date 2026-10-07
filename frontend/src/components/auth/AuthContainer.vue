@@ -316,8 +316,7 @@ async function finishRegistration() {
 
         addNotification('Account created successfully.', 'success');
         
-        router.push("/home");
-        window.location.reload();
+        window.location.replace("/");
         return;
 
     } catch (error) {

@@ -120,3 +120,18 @@ export async function getGroupPosts(groupID, offset = 0) {
         userId: data.userId ?? null
     };
 }
+
+export async function deleteGroupPost(postID) {
+    const resp = await fetch(`/api/group/post?postId=${postID}`, {
+        method: 'DELETE',
+        credentials: 'include'
+    });
+
+    const result = await resp.json();
+
+    if (!resp.ok) {
+        throw new Error(result.message || 'could not delete post');
+    }
+
+    return result;
+}

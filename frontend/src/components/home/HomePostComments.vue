@@ -3,12 +3,14 @@ import { ref, computed, watch, nextTick } from 'vue';
 import { getComments, addComment, deleteComment, voteComment } from '@/api/posts/comments';
 import { Comment, createComment } from '@/models/posts';
 import { router } from '@/router/router';
+import { sessionUserId } from '@/data/currentUser';
 import { useCommentMedia, commentImageSrc, COMMENT_MEDIA_ACCEPT } from '@/helpers/commentMedia';
 
 const props = defineProps({
     show: { type: Boolean, default: false },
     postId: { type: Number, required: true },
     currentUserId: { type: [Number, String], default: null },
+    postOwnerId: { type: [Number, String], default: null },
     firstName: { type: String, default: '' },
     lastName: { type: String, default: '' },
     avatarPath: { type: String, default: '' },
@@ -93,7 +95,7 @@ function createTemporaryComment(content, replyTo = null, imagePath = '') {
     const comment = new Comment(
         `temporary-${Date.now()}`, content, props.postId, replyTo, 0,
         new Date().toISOString(),
-        { ID: Number(props.currentUserId), firstName: 'You', lastName: '', avatar: '' },
+        { ID: viewerId.value, firstName: 'You', lastName: '', avatar: '' },
         0
     );
     comment.pending = true;
@@ -199,8 +201,26 @@ function cancelReply() {
     clearMedia();
 }
 
+const viewerId = computed(() => {
+    const value = sessionUserId.value ?? props.currentUserId;
+
+    return value === null || value === undefined || value === '' ? null : Number(value);
+});
+
+const isPostOwner = computed(() => {
+    if (viewerId.value === null || props.postOwnerId === null || props.postOwnerId === undefined || props.postOwnerId === '') {
+        return false;
+    }
+
+    return Number(props.postOwnerId) === viewerId.value;
+});
+
 function isOwner(comment) {
-    return Number(comment.user?.ID ?? comment.user?.id) === Number(props.currentUserId);
+    return viewerId.value !== null && Number(comment.user?.ID ?? comment.user?.id) === viewerId.value;
+}
+
+function canDeleteComment(comment) {
+    return isPostOwner.value || isOwner(comment);
 }
 
 async function removeComment(comment) {
@@ -306,7 +326,7 @@ watch(() => props.show, value => { if (value) loadComments(); });
 
                                 <div class="comment-header">
                                     <strong>{{ comment.user?.firstName }} {{ comment.user?.lastName }}</strong>
-                                    <button v-if="isOwner(comment)" type="button" class="dots-button"
+                                    <button v-if="canDeleteComment(comment)" type="button" class="dots-button"
                                         @click="menuComment = menuComment === comment.ID ? null : comment.ID">⋯</button>
                                 </div>
 
@@ -343,7 +363,7 @@ watch(() => props.show, value => { if (value) loadComments(); });
                                                 <div class="comment-header">
                                                     <strong>{{ reply.user?.firstName }} {{ reply.user?.lastName
                                                         }}</strong>
-                                                    <button v-if="isOwner(reply)" type="button" class="dots-button"
+                                                    <button v-if="canDeleteComment(reply)" type="button" class="dots-button"
                                                         @click="menuComment = menuComment === reply.ID ? null : reply.ID">⋯</button>
                                                 </div>
 

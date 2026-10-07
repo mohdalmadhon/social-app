@@ -266,3 +266,26 @@ func InsertReaction(db *sql.DB, reaction models.Reaction) error {
 
 	return err
 }
+
+func DeleteGroupPost(db *sql.DB, postID, userID int) error {
+	result, err := db.Exec(`
+		DELETE FROM group_posts
+		WHERE id = ?
+		AND user_id = ?
+	`, postID, userID)
+
+	if err != nil {
+		return err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
+}

@@ -187,7 +187,7 @@ func GetComments(db *sql.DB, postID, replyTo, limit, offset, userID int, orderBy
 func DeleteComment(db *sql.DB, commentID, userID int) ([]string, error) {
 	imageRows, err := db.Query(`
 		WITH RECURSIVE tree(id) AS (
-			SELECT id FROM comments WHERE id = ? AND user_id = ?
+			SELECT id FROM comments WHERE id = ? AND (user_id = ? OR post_id IN (SELECT id FROM posts WHERE user_id = ?))
 			UNION ALL
 			SELECT c.id FROM comments c JOIN tree t ON c.reply_to = t.id
 		)
@@ -195,7 +195,7 @@ func DeleteComment(db *sql.DB, commentID, userID int) ([]string, error) {
 		WHERE id IN (SELECT id FROM tree)
 		AND image_path IS NOT NULL
 		AND image_path != ''
-	`, commentID, userID)
+	`, commentID, userID, userID)
 
 	if err != nil {
 		return nil, err
@@ -224,8 +224,8 @@ func DeleteComment(db *sql.DB, commentID, userID int) ([]string, error) {
 	result, err := db.Exec(`
 		DELETE FROM comments
 		WHERE id = ?
-		AND user_id = ?
-	`, commentID, userID)
+		AND (user_id = ? OR post_id IN (SELECT id FROM posts WHERE user_id = ?))
+	`, commentID, userID, userID)
 
 	if err != nil {
 		return nil, err

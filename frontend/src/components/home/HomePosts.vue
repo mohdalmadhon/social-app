@@ -8,7 +8,10 @@ import HomePostAction from './HomePostAction.vue';
 import HomePostComments from './HomePostComments.vue';
 import LocationDialouge from './LocationDialouge.vue';
 import TaggedPeopleDialoug from './TaggedPeopleDialoug.vue';
-import { viewPost } from '@/api/posts/posts.js';
+import ConfirmModal from '@/components/personalProfile/group/ConfirmModal.vue';
+import { viewPost, deletePost } from '@/api/posts/posts.js';
+import { addNotification } from '@/data/notifications';
+import { sessionUserId } from '@/data/currentUser';
 
 const props = defineProps({
     currentUserId: {
@@ -101,6 +104,10 @@ const props = defineProps({
     visibilityUser: {
         type: String,
         default: ''
+    },
+    deletable: {
+        type: Boolean,
+        default: true
     }
 });
 
@@ -109,7 +116,8 @@ const emit = defineEmits([
     'dislike',
     'comment',
     'open-comments',
-    'open-tags'
+    'open-tags',
+    'deleted'
 ]);
 
 const postElement = ref(null);
@@ -117,6 +125,27 @@ const postElement = ref(null);
 const showComments = ref(false);
 const showLocationDialog = ref(false);
 const showTaggedDialog = ref(false);
+const showDeleteConfirm = ref(false);
+const deleting = ref(false);
+const deleted = ref(false);
+
+const viewerId = computed(() => {
+    const value = sessionUserId.value ?? props.currentUserId;
+
+    return value === null || value === undefined || value === '' ? null : Number(value);
+});
+
+const canDelete = computed(() => {
+    if (!props.deletable || viewerId.value === null) {
+        return false;
+    }
+
+    if (props.userId === null || props.userId === undefined || props.userId === '') {
+        return false;
+    }
+
+    return Number(props.userId) === viewerId.value;
+});
 
 let observer;
 let seen = false;
@@ -247,6 +276,38 @@ function closeTaggedDialog() {
     showTaggedDialog.value = false;
 }
 
+function openDeleteConfirm() {
+    showDeleteConfirm.value = true;
+}
+
+function closeDeleteConfirm() {
+    if (!deleting.value) {
+        showDeleteConfirm.value = false;
+    }
+}
+
+async function confirmDelete() {
+    if (deleting.value) {
+        return;
+    }
+
+    deleting.value = true;
+
+    try {
+        await deletePost(props.postId);
+
+        showDeleteConfirm.value = false;
+        deleted.value = true;
+
+        addNotification('Post deleted', 'success');
+        emit('deleted', props.postId);
+    } catch (err) {
+        addNotification(err.message || 'Could not delete post', 'error');
+    } finally {
+        deleting.value = false;
+    }
+}
+
 function openLocationDialog() {
     if (mapEmbedUrl.value) {
         showLocationDialog.value = true;
@@ -305,11 +366,12 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <article ref="postElement" class="post-card">
+    <article v-if="!deleted" ref="postElement" class="post-card">
         <HomePostHeader :user-id="userId" :group-id="groupId" :first-name="firstName" :last-name="lastName"
             :avatar-path="avatarPath" :relationship="relationship" :tagged-people="normalizedTaggedPeople"
             :formatted-date="formattedDate" :location-display="locationParts?.display" :has-location="!!location"
-            @open-tags="openTaggedPeople" @open-location="openLocationDialog" />
+            :can-delete="canDelete" @open-tags="openTaggedPeople" @open-location="openLocationDialog"
+            @delete="openDeleteConfirm" />
 
         <div v-if="content" class="post-content">
             {{ content }}
@@ -326,12 +388,17 @@ onBeforeUnmount(() => {
 
         <HomePostComments :show="showComments" :post-id="postId" :current-user-id="currentUserId"
             :first-name="firstName" :last-name="lastName" :avatar-path="avatarPath" :created-at="createdAt"
-            :content="content" :image-path="imagePath" @close="showComments = false" />
+            :content="content" :image-path="imagePath" :post-owner-id="userId" @close="showComments = false" />
 
         <LocationDialouge :show="showLocationDialog" :display="locationParts?.display" :embed-url="mapEmbedUrl"
             :external-url="mapExternalUrl" @close="closeLocationDialog" />
 
         <TaggedPeopleDialoug :show="showTaggedDialog" :people="normalizedTaggedPeople" @close="closeTaggedDialog" />
+
+        <ConfirmModal v-if="showDeleteConfirm" title="Delete this post?" confirm-label="Delete" cancel-label="Cancel"
+            :danger="true" @confirm="confirmDelete" @cancel="closeDeleteConfirm">
+            <p>This will permanently delete the post, its comments, and reactions. This cannot be undone.</p>
+        </ConfirmModal>
     </article>
 </template>
 

@@ -8,6 +8,7 @@ import {
 } from '@/api/posts/groupComments';
 import { GroupComment, createGroupComment } from '@/models/groupPosts';
 import { router } from '@/router/router';
+import { sessionUserId } from '@/data/currentUser';
 import { useCommentMedia, commentImageSrc, COMMENT_MEDIA_ACCEPT } from '@/helpers/commentMedia';
 import GroupCommentItem from './GroupCommentItem.vue';
 
@@ -15,6 +16,7 @@ const props = defineProps({
     show: { type: Boolean, default: false },
     postId: { type: Number, required: true },
     currentUserId: { type: [Number, String], default: null },
+    postOwnerId: { type: [Number, String], default: null },
     firstName: { type: String, default: '' },
     lastName: { type: String, default: '' },
     avatarPath: { type: String, default: '' },
@@ -57,7 +59,7 @@ const replyingToName = computed(() => {
 const inputPlaceholder = computed(() =>
     replyingTo.value ? `Reply to ${replyingToName.value}...` : 'Write a comment...'
 );
-const activeUserId = computed(() => props.currentUserId ?? resolvedUserId.value);
+const activeUserId = computed(() => props.currentUserId ?? sessionUserId.value ?? resolvedUserId.value);
 
 function convertComments(data) {
     return data.map(comment => createGroupComment(comment));
@@ -207,6 +209,17 @@ function cancelReply() {
     clearMedia();
 }
 
+const isPostOwner = computed(() => {
+    const userId = activeUserId.value;
+    if (userId === null || userId === undefined) return false;
+    if (props.postOwnerId === null || props.postOwnerId === undefined || props.postOwnerId === '') return false;
+    return Number(props.postOwnerId) === Number(userId);
+});
+
+function canDeleteComment(comment) {
+    return isPostOwner.value || isOwner(comment);
+}
+
 function isOwner(comment) {
     const userId = activeUserId.value;
     if (userId === null || userId === undefined) return false;
@@ -318,7 +331,7 @@ watch(
                         v-for="comment in comments"
                         :key="comment.ID"
                         :comment="comment"
-                        :is-owner="isOwner(comment)"
+                        :is-owner="canDeleteComment(comment)"
                         :is-active="replyingTo && replyingTo.ID === comment.ID"
                         :menu-open="menuComment === comment.ID"
                         :replies-loading="!!loadingReplies[comment.ID]"
@@ -338,7 +351,7 @@ watch(
                                     :key="reply.ID"
                                     :comment="reply"
                                     is-reply
-                                    :is-owner="isOwner(reply)"
+                                    :is-owner="canDeleteComment(reply)"
                                     :menu-open="menuComment === reply.ID"
                                     :formatted-date="formatDate(reply.createdAt)"
                                     @open-profile="takeToProfile"

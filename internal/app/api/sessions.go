@@ -86,12 +86,15 @@ func (app *App) LoggingUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) AuthorizeSession(w http.ResponseWriter, r *http.Request) {
+	userID, _ := r.Context().Value("userID").(int)
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
 	json.NewEncoder(w).Encode(map[string]any{
 		"status":  true,
 		"message": "valid session",
+		"userID":  userID,
 	})
 }
 

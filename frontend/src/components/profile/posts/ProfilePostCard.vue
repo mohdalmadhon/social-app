@@ -11,6 +11,7 @@ import TaggedPeopleDialoug from '@/components/home/TaggedPeopleDialoug.vue';
 import ConfirmModal from '@/components/personalProfile/group/ConfirmModal.vue';
 import { deletePost } from '@/api/posts/posts';
 import { addNotification } from '@/data/notifications';
+import { sessionUserId } from '@/data/currentUser';
 
 const props = defineProps({
     post: {
@@ -33,10 +34,12 @@ const showDeleteConfirm = ref(false);
 const deleting = ref(false);
 
 const canDelete = computed(() => {
+    const viewer = sessionUserId.value ?? props.currentUserId;
+
     return (
-        props.currentUserId !== null &&
-        props.currentUserId !== undefined &&
-        String(props.post.userId) === String(props.currentUserId)
+        viewer !== null &&
+        viewer !== undefined &&
+        String(props.post.userId) === String(viewer)
     );
 });
 
@@ -172,21 +175,12 @@ async function confirmDelete() {
     <article class="profile-post-card">
         <ProfilePostGroupBadge :group-id="post.groupId" :group-name="post.groupName" />
 
-        <button
-            v-if="canDelete"
-            type="button"
-            class="delete-post-btn"
-            title="Delete post"
-            @click="openDeleteConfirm"
-        >
-            🗑
-        </button>
-
         <HomePostHeader :user-id="post.userId" :group-id="post.groupId" :first-name="post.firstName"
             :last-name="post.lastName" :avatar-path="post.avatarPath" :relationship="post.relationship"
             :tagged-people="post.taggedPeople" :formatted-date="formattedDate"
             :location-display="locationParts?.display" :has-location="!!post.location"
-            @open-tags="openTaggedPeople" @open-location="openLocationDialog" />
+            :can-delete="canDelete" @open-tags="openTaggedPeople" @open-location="openLocationDialog"
+            @delete="openDeleteConfirm" />
 
         <div v-if="post.content" class="post-content">
             {{ post.content }}
@@ -204,7 +198,7 @@ async function confirmDelete() {
         <HomePostComments :show="showComments" :post-id="post.id" :current-user-id="currentUserId"
             :first-name="post.firstName" :last-name="post.lastName" :avatar-path="post.avatarPath"
             :created-at="post.createdAt" :content="post.content" :image-path="post.imagePath"
-            @close="showComments = false" />
+            :post-owner-id="post.userId" @close="showComments = false" />
 
         <LocationDialouge :show="showLocationDialog" :display="locationParts?.display" :embed-url="mapEmbedUrl"
             :external-url="mapExternalUrl" @close="closeLocationDialog" />
@@ -239,41 +233,6 @@ async function confirmDelete() {
 
     background: var(--bg-color);
     box-shadow: 7px 7px var(--main-color);
-}
-
-.delete-post-btn {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    z-index: 2;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 30px;
-    height: 30px;
-
-    border: 2px solid var(--main-color);
-    border-radius: 50%;
-
-    background: var(--bg-color);
-    color: var(--font-color);
-
-    font-size: 14px;
-    line-height: 1;
-    cursor: pointer;
-
-    box-shadow: 3px 3px var(--main-color);
-    transition:
-        transform 0.15s ease,
-        box-shadow 0.15s ease,
-        border-color 0.15s ease;
-}
-
-.delete-post-btn:hover {
-    border-color: #c0392b;
-    transform: translate(-1px, -1px);
-    box-shadow: 4px 4px var(--main-color);
 }
 
 .post-content {

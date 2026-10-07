@@ -1554,6 +1554,7 @@ onUnmounted(() => {
 
                 <HomePosts v-else-if="selectedPost" :key="selectedPost.postId"
                     :current-user-id="userID"
+                    :deletable="false"
                     :post-id="selectedPost.postId"
                     :user-id="selectedPost.userId"
                     :first-name="selectedPost.firstName"

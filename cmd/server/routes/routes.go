@@ -108,6 +108,7 @@ func StartServer(db *sql.DB) *http.ServeMux {
 	mux.HandleFunc("GET /api/group/search", app.AuthMiddleware(app.SearchMembers))
 	mux.HandleFunc("POST /api/group/posts", app.AuthMiddleware(app.AddGroupPost))
 	mux.HandleFunc("GET /api/group/post", app.AuthMiddleware(app.GetGroupPost))
+	mux.HandleFunc("DELETE /api/group/post", app.AuthMiddleware(app.DeleteGroupPost))
 	mux.HandleFunc("POST /api/group/post/reaction", app.AuthMiddleware(app.InsertGroupPostReaction))
 	mux.HandleFunc("GET /api/group/posts", app.AuthMiddleware(app.GetGroupPosts))
 	mux.HandleFunc("POST /api/group/invite", app.AuthMiddleware(app.InviteMember))

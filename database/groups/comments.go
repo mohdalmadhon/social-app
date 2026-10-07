@@ -225,7 +225,7 @@ func CountGroupComments(db *sql.DB, postID int) (int, error) {
 func DeleteGroupComment(db *sql.DB, commentID, userID int) ([]string, error) {
 	imageRows, err := db.Query(`
 		WITH RECURSIVE tree(id) AS (
-			SELECT id FROM group_comments WHERE id = ? AND user_id = ?
+			SELECT id FROM group_comments WHERE id = ? AND (user_id = ? OR post_id IN (SELECT id FROM group_posts WHERE user_id = ?))
 			UNION ALL
 			SELECT c.id FROM group_comments c JOIN tree t ON c.reply_to = t.id
 		)
@@ -233,7 +233,7 @@ func DeleteGroupComment(db *sql.DB, commentID, userID int) ([]string, error) {
 		WHERE id IN (SELECT id FROM tree)
 		AND image_path IS NOT NULL
 		AND image_path != ''
-	`, commentID, userID)
+	`, commentID, userID, userID)
 
 	if err != nil {
 		return nil, err
@@ -262,8 +262,8 @@ func DeleteGroupComment(db *sql.DB, commentID, userID int) ([]string, error) {
 	result, err := db.Exec(`
 		DELETE FROM group_comments
 		WHERE id = ?
-		AND user_id = ?
-	`, commentID, userID)
+		AND (user_id = ? OR post_id IN (SELECT id FROM group_posts WHERE user_id = ?))
+	`, commentID, userID, userID)
 
 	if err != nil {
 		return nil, err

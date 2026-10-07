@@ -1201,3 +1201,29 @@ func (app *App) CheckMessageAbility(w http.ResponseWriter, r *http.Request) {
 		"canMessage": canMessage,
 	})
 }
+
+func (app *App) GetChatSuggestions(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("userID").(int)
+	if !ok {
+		helpers.WriteJson(w, http.StatusUnauthorized, map[string]any{
+			"status":  false,
+			"message": "could not authorize user",
+		})
+		return
+	}
+
+	suggestions, err := chats.GetChatSuggestions(app.DB, userID, 5)
+	if err != nil && err != sql.ErrNoRows {
+		log.Println(err)
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not get suggestions",
+		})
+		return
+	}
+
+	helpers.WriteJson(w, http.StatusOK, map[string]any{
+		"status": true,
+		"data":   suggestions,
+	})
+}

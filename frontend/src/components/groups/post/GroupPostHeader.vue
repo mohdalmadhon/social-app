@@ -1,4 +1,6 @@
 <script setup>
+import { ref, onMounted, onBeforeUnmount } from 'vue';
+
 defineProps({
     userId: {
         type: [Number, String],
@@ -23,8 +25,38 @@ defineProps({
     formattedDate: {
         type: String,
         default: ''
+    },
+
+    canDelete: {
+        type: Boolean,
+        default: false
     }
 });
+
+const emit = defineEmits(['delete']);
+
+const menuOpen = ref(false);
+const menuRoot = ref(null);
+
+function requestDelete() {
+    menuOpen.value = false;
+    emit('delete');
+}
+
+function handleOutsideClick(event) {
+    if (menuOpen.value && menuRoot.value && !menuRoot.value.contains(event.target)) {
+        menuOpen.value = false;
+    }
+}
+
+onMounted(() => {
+    document.addEventListener('click', handleOutsideClick);
+});
+
+onBeforeUnmount(() => {
+    document.removeEventListener('click', handleOutsideClick);
+});
+
 </script>
 
 <template>
@@ -51,9 +83,18 @@ defineProps({
             </div>
         </div>
 
-        <button class="more-button" type="button" aria-label="Post options">
-            •••
-        </button>
+        <div v-if="canDelete" ref="menuRoot" class="post-options">
+            <button class="more-button" type="button" aria-label="Post options" aria-haspopup="true"
+                :aria-expanded="menuOpen" @click="menuOpen = !menuOpen">
+                •••
+            </button>
+
+            <div v-if="menuOpen" class="post-menu">
+                <button type="button" class="post-menu-item" @click="requestDelete">
+                    Delete post
+                </button>
+            </div>
+        </div>
     </header>
 </template>
 
@@ -180,5 +221,46 @@ defineProps({
         width: 42px;
         height: 42px;
     }
+}
+
+.post-options {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.more-button {
+    cursor: pointer;
+}
+
+.post-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    z-index: 20;
+    min-width: 140px;
+    margin-top: 4px;
+    overflow: hidden;
+    border: 2px solid var(--main-color);
+    border-radius: 6px;
+    background: var(--bg-color);
+    box-shadow: 3px 3px var(--main-color);
+}
+
+.post-menu-item {
+    display: block;
+    width: 100%;
+    padding: 10px 14px;
+    border: 0;
+    background: transparent;
+    color: #d9534f;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+}
+
+.post-menu-item:hover {
+    background: var(--page-background);
 }
 </style>

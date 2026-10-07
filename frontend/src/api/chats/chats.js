@@ -28,6 +28,20 @@ export async function searchChats(offset, searchValue) {
     return result;
 }
 
+export async function getChatSuggestions() {
+    const resp = await fetch(`/api/chats/suggestions`, {
+        method: "GET",
+        credentials: 'include'
+    });
+
+    const result = await resp.json();
+    if (!resp.ok) {
+        throw new Error(result.message || "could not get suggestions")
+    }
+
+    return result;
+}
+
 export async function sendMessage(data) {
     const resp = await fetch(`/api/chats`, {
         method: "POST",

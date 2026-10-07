@@ -12,11 +12,13 @@ import GroupChatPage from '@/views/groups/GroupChatPage.vue'
 import SearchPage from '@/views/search/SearchPage.vue'
 import Settings from '@/views/Settings.vue'
 import ErrorPage from '@/views/errors/error_page.vue'
+import Welcome from '@/views/Welcome.vue'
+import { setSessionUserId } from '@/data/currentUser'
 
 const routes = [
     {
         path: '/',
-        redirect: '/home'
+        component: Welcome
     },
     {
         path: '/login',
@@ -80,4 +82,41 @@ const routes = [
 export const router = createRouter({
     history: createWebHistory(),
     routes
+})
+
+const PUBLIC_PATHS = ['/', '/login', '/error']
+
+async function hasValidSession() {
+    try {
+        const resp = await fetch('/api/session', {
+            method: 'GET',
+            credentials: 'include'
+        })
+
+        if (!resp.ok) {
+            setSessionUserId(null)
+            return false
+        }
+
+        const result = await resp.json()
+
+        setSessionUserId(result.userID)
+
+        return true
+    } catch {
+        setSessionUserId(null)
+        return false
+    }
+}
+
+router.beforeEach(async (to) => {
+    if (PUBLIC_PATHS.includes(to.path)) {
+        return true
+    }
+
+    if (await hasValidSession()) {
+        return true
+    }
+
+    return { path: '/login', replace: true }
 })

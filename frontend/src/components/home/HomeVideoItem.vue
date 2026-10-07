@@ -651,6 +651,7 @@ onBeforeUnmount(() => {
             :created-at="post.createdAt || ''"
             :content="post.content || ''"
             image-path=""
+            :post-owner-id="post.userId"
             @close="showComments = false"
         />
 
