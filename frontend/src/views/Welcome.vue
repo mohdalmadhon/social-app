@@ -95,6 +95,10 @@ const reducedMotion =
     typeof window !== 'undefined' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+const canHover =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+
 const activeTab = ref('about');
 const sessionState = ref('checking');
 const currentTheme = ref(getThemeCookie());
@@ -188,7 +192,7 @@ function tickType() {
 }
 
 function onHeroMove(event) {
-    if (reducedMotion || mouseFrame) {
+    if (reducedMotion || !canHover || mouseFrame) {
         return;
     }
 
@@ -318,7 +322,7 @@ function burst(event, count = 24) {
 }
 
 function onTilt(event) {
-    if (reducedMotion) {
+    if (reducedMotion || !canHover) {
         return;
     }
 
@@ -754,14 +758,19 @@ onBeforeUnmount(() => {
     min-height: 100dvh;
     display: flex;
     flex-direction: column;
-    overflow-x: hidden;
+    overflow-x: clip;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
     background: var(--page-background);
     color: var(--font-color);
 }
 
 .confetti-layer {
     position: fixed;
-    inset: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
     z-index: 100;
     pointer-events: none;
     overflow: hidden;
@@ -794,6 +803,9 @@ onBeforeUnmount(() => {
     justify-content: space-between;
     gap: 16px;
     padding: 14px clamp(16px, 4vw, 40px);
+    padding-top: max(14px, env(safe-area-inset-top));
+    padding-right: max(clamp(16px, 4vw, 40px), env(safe-area-inset-right));
+    padding-left: max(clamp(16px, 4vw, 40px), env(safe-area-inset-left));
     border-bottom: 2px solid var(--main-color);
     background: var(--bg-color);
 }
@@ -823,7 +835,9 @@ onBeforeUnmount(() => {
 
 .top-actions {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
+    justify-content: flex-end;
     gap: 16px;
 }
 
@@ -910,6 +924,9 @@ onBeforeUnmount(() => {
     box-sizing: border-box;
     margin: 0 auto;
     padding: clamp(24px, 5vw, 56px) clamp(16px, 4vw, 40px) 64px;
+    padding-left: max(clamp(16px, 4vw, 40px), env(safe-area-inset-left));
+    padding-right: max(clamp(16px, 4vw, 40px), env(safe-area-inset-right));
+    padding-bottom: max(64px, calc(env(safe-area-inset-bottom) + 32px));
 }
 
 .hero {
@@ -920,7 +937,10 @@ onBeforeUnmount(() => {
 
 .shapes {
     position: absolute;
-    inset: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
     pointer-events: none;
 }
 
@@ -1432,7 +1452,7 @@ onBeforeUnmount(() => {
 .author-photo {
     flex-shrink: 0;
     width: clamp(120px, 20vw, 180px);
-    aspect-ratio: 1;
+    height: clamp(120px, 20vw, 180px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1465,7 +1485,7 @@ onBeforeUnmount(() => {
 
 .features {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
     gap: 24px;
 }
 
@@ -1594,8 +1614,8 @@ onBeforeUnmount(() => {
     }
 
     .author-photo {
-        width: 100%;
-        max-width: 200px;
+        width: 160px;
+        height: 160px;
     }
 
     .tab {
@@ -1605,6 +1625,205 @@ onBeforeUnmount(() => {
 
     .hero-actions .btn {
         flex: 1;
+    }
+}
+
+button,
+.btn,
+.tab,
+.swatch {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.brand {
+    min-width: 0;
+}
+
+@media (min-width: 1400px) {
+    .welcome-main {
+        width: min(1240px, 100%);
+    }
+
+    .hero h1 {
+        max-width: 880px;
+    }
+}
+
+@media (max-width: 640px) {
+    .tabs {
+        scroll-margin-top: 110px;
+    }
+
+    .hero h1 {
+        min-height: 3.6em;
+    }
+
+    .card {
+        box-shadow: 4px 4px var(--main-color);
+    }
+
+    .author-card:hover {
+        box-shadow: 4px 4px var(--main-color);
+    }
+}
+
+@media (max-width: 480px) {
+    .welcome-top {
+        gap: 10px;
+    }
+
+    .brand {
+        font-size: 18px;
+    }
+
+    .hero h1 {
+        min-height: 4.8em;
+    }
+
+    .shape.circle {
+        top: 0;
+        right: 4%;
+        width: 44px;
+        height: 44px;
+    }
+
+    .shape.square {
+        display: none;
+    }
+
+    .stats {
+        gap: 8px;
+    }
+
+    .stat {
+        padding: 12px 4px;
+        text-align: center;
+    }
+
+    .stat span {
+        font-size: 8px;
+        letter-spacing: 0;
+    }
+
+    .about-card,
+    .author-card,
+    .feature-card {
+        padding: 18px;
+    }
+
+    .demo-body {
+        min-height: 170px;
+    }
+
+    .label {
+        min-width: 56px;
+    }
+}
+
+@media (max-width: 420px) {
+    .top-actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+}
+
+@media (pointer: coarse) {
+    .btn,
+    .tab,
+    .brand {
+        min-height: 44px;
+    }
+
+    .btn.small {
+        min-height: 40px;
+    }
+
+    .swatch {
+        width: 30px;
+        height: 30px;
+    }
+
+    .theme-switch {
+        gap: 10px;
+    }
+
+    .copy {
+        padding: 8px 14px;
+        font-size: 10px;
+    }
+}
+
+@media (hover: none) {
+    .brand:hover .brand-mark {
+        transform: none;
+    }
+
+    .swatch:hover {
+        transform: none;
+    }
+
+    .swatch.active:hover {
+        transform: scale(1.2);
+    }
+
+    .btn:not(.placeholder):hover {
+        transform: none;
+        box-shadow: 3px 3px var(--main-color);
+    }
+
+    .stat:hover {
+        transform: none;
+    }
+
+    .tab:hover {
+        transform: none;
+        box-shadow: 3px 3px var(--main-color);
+    }
+
+    .tab.active:hover {
+        transform: translate(3px, 3px);
+        box-shadow: none;
+    }
+
+    .chip:hover {
+        background: var(--page-background);
+        color: inherit;
+        transform: none;
+    }
+
+    .author-card:hover {
+        box-shadow: 6px 6px var(--main-color);
+    }
+
+    .author-photo:hover {
+        transform: none;
+    }
+
+    .feature-card:hover {
+        transform: none;
+        box-shadow: 6px 6px var(--main-color);
+    }
+
+    .feature-card:hover .feature-icon {
+        background: var(--page-background);
+        color: var(--input-focus);
+        animation: none;
+    }
+
+    .copy:not(.done):hover {
+        background: var(--bg-color);
+        color: var(--font-color);
+    }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+    .welcome-top {
+        position: static;
+    }
+
+    .tabs {
+        scroll-margin-top: 16px;
     }
 }
 

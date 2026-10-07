@@ -49,6 +49,14 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['open-tags', 'open-location', 'delete']);
+const isSelectedUsersPost = computed(() => {
+    if (props.groupId === null || props.groupId === undefined || props.groupId === '') {
+        return false;
+    }
+
+    return Number(props.groupId) > 0;
+});
+
 const menuOpen = ref(false);
 const menuRoot = ref(null);
 
@@ -151,7 +159,7 @@ const relativeTime = computed(() => {
                         Follow
                     </button>
 
-                    <span v-if="groupId != -1 && groupId != 0" class="visibility-text">
+                    <span v-if="isSelectedUsersPost" class="visibility-text">
                         Visibility limited by the user
                     </span>
                 </div>

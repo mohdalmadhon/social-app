@@ -25,7 +25,7 @@ const allCards = computed(() =>
         return {
             raw: group,
             id: group.ID,
-            name: group.Name,
+            name: group.name,
             firstName: fullName(users[0]),
             lastName: users.length > 1 ? fullName(users[users.length - 1]) : '',
             extraCount: users.length > 2 ? users.length - 2 : 0

@@ -10,8 +10,8 @@ services:
       - EMAIL_ADDRESS=${EMAIL_ADDRESS:-}
       - EMAIL_PASSWORD=${EMAIL_PASSWORD:-}
     volumes:
-      - ./db:/app/db            # SQLite database + token signature
-      - ./uploads:/app/uploads  # user uploads (avatars, posts, chats, ...)
+      - ./db:/app/db           
+      - ./uploads:/app/uploads  
     expose:
       - "4000"
 
