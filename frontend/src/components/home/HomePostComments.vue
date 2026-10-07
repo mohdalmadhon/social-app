@@ -93,7 +93,7 @@ function createTemporaryComment(content, replyTo = null, imagePath = '') {
     const comment = new Comment(
         `temporary-${Date.now()}`, content, props.postId, replyTo, 0,
         new Date().toISOString(),
-        { id: Number(props.currentUserId), firstName: 'You', lastName: '', avatarPath: '' },
+        { ID: Number(props.currentUserId), firstName: 'You', lastName: '', avatar: '' },
         0
     );
     comment.pending = true;
@@ -200,7 +200,7 @@ function cancelReply() {
 }
 
 function isOwner(comment) {
-    return Number(comment.user?.id) === Number(props.currentUserId);
+    return Number(comment.user?.ID ?? comment.user?.id) === Number(props.currentUserId);
 }
 
 async function removeComment(comment) {
@@ -333,8 +333,9 @@ watch(() => props.show, value => { if (value) loadComments(); });
                                 <div v-if="comment.showReplies" class="replies">
                                     <div v-for="reply in comment.loadedReplies" :key="reply.ID" class="comment reply">
                                         <div class="comment-row">
-                                            <img v-if="reply.user?.avatarPath"
-                                                :src="`/uploads/${reply.user.avatarPath}`" class="comment-avatar">
+                                            <img v-if="reply.user?.avatar"
+                                                :src="`/uploads/${reply.user.avatar}`" class="comment-avatar"
+                                                @click="takeToProfile(reply.user.ID)">
                                             <div v-else class="comment-avatar avatar-fallback">{{
                                                 reply.user?.firstName?.charAt(0) }}</div>
                                             <div class="comment-main">

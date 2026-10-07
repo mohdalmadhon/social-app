@@ -25,7 +25,6 @@ export async function searchChats(offset, searchValue) {
         throw new Error(result.message || "coud not get data")
     }
 
-    console.log(result)
     return result;
 }
 
@@ -41,7 +40,6 @@ export async function sendMessage(data) {
         throw new Error(result.message || "coud not get data")
     }
 
-    console.log(result)
     return result;
 }
 
@@ -69,6 +67,20 @@ export async function sendChatMedia(file, { userID = -1, groupID = -1 } = {}) {
     }
 
     return result;
+}
+
+export async function checkMessageAbility(targetID) {
+    const resp = await fetch(`/api/chats/ability?targetID=${encodeURIComponent(targetID)}`, {
+        method: "GET",
+        credentials: 'include'
+    });
+
+    const result = await resp.json();
+    if (!resp.ok) {
+        throw new Error(result.message || "could not check message permission")
+    }
+
+    return Boolean(result.canMessage);
 }
 
 export async function getMessages(groupID, offset = 0, userID = 0) {

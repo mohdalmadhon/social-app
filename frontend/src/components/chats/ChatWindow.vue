@@ -5,7 +5,7 @@ import { chatsSidebarOpen, toggleChatsSidebar } from '@/data/chatState';
 import { Message } from '@/models/chats';
 import { sendWS } from '@/api/socket/socket';
 import { isUserTyping } from '@/data/typingState';
-import { getMessages, sendChatMedia } from '@/api/chats/chats';
+import { checkMessageAbility, getMessages, sendChatMedia } from '@/api/chats/chats';
 import { router } from '@/router/router';
 import { CHAT_MEDIA_ACCEPT, parseChatMedia, validateChatMedia } from '@/helpers/chatMedia';
 import HomePosts from '../home/HomePosts.vue';
@@ -150,6 +150,37 @@ function announceActivity(groupID) {
 
 const postCache = new Map();
 
+let abilityRequestID = 0;
+
+async function resolveNewChatAbility(userID) {
+    const current = ++abilityRequestID;
+
+    if (!userID) {
+        return;
+    }
+
+    try {
+        const allowed = await checkMessageAbility(userID);
+
+        if (current !== abilityRequestID || props.userID !== userID) {
+            return;
+        }
+
+        if (allowed) {
+            canMessage.value = true;
+        }
+    } catch (err) {
+        if (current !== abilityRequestID) {
+            return;
+        }
+
+        addNotification(
+            err.message || 'Could not check message permission',
+            'error'
+        );
+    }
+}
+
 function getSidebarCanMessage() {
     return Boolean(props.chat?.canMessage);
 }
@@ -214,7 +245,6 @@ function closeImage() {
 
 function sendToProfile() {
     router.push(`/user?id=${props.userID}`);
-    window.location.reload();
 }
 
 function parseInvite(content) {
@@ -654,7 +684,6 @@ async function fetchChatMessages(groupID) {
             0,
             props.userID
         );
-        console.log(result)
         if (currentRequestID !== requestID) {
             return;
         }
@@ -745,7 +774,6 @@ async function fetchOlderMessages() {
             offset.value,
             props.userID
         );
-
         if (currentRequestID !== requestID) {
             return;
         }
@@ -1159,6 +1187,14 @@ watch(
     (newID, oldID) => {
         if (newID !== oldID) {
             stopTyping();
+
+            if (
+                newID &&
+                (props.groupID === null || props.groupID === undefined)
+            ) {
+                canMessage.value = getSidebarCanMessage();
+                resolveNewChatAbility(newID);
+            }
         }
     }
 );
@@ -1198,6 +1234,7 @@ watch(
             newGroupID === undefined
         ) {
             loading.value = false;
+            resolveNewChatAbility(props.userID);
             return;
         }
 
@@ -1250,6 +1287,8 @@ function handleMessageSendError(event) {
 }
 
 onMounted(() => {
+
+
     window.addEventListener(
         'chat-message',
         receiveMessage
@@ -1259,6 +1298,8 @@ onMounted(() => {
         'message-send-error',
         handleMessageSendError
     );
+
+    
 });
 
 onUnmounted(() => {
@@ -1287,6 +1328,7 @@ onUnmounted(() => {
     }
 
     requestID++;
+    abilityRequestID++;
 });
 </script>
 

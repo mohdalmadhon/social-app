@@ -11,8 +11,13 @@ import GroupsPages from '@/views/groups/GroupsPages.vue'
 import GroupChatPage from '@/views/groups/GroupChatPage.vue'
 import SearchPage from '@/views/search/SearchPage.vue'
 import Settings from '@/views/Settings.vue'
+import ErrorPage from '@/views/errors/error_page.vue'
 
 const routes = [
+    {
+        path: '/',
+        redirect: '/home'
+    },
     {
         path: '/login',
         component: Auth
@@ -60,6 +65,15 @@ const routes = [
     {
         path: '/settings',
         component: Settings
+    },
+    {
+        path: '/error',
+        component: ErrorPage
+    },
+    {
+        path: '/:pathMatch(.*)*',
+        component: ErrorPage,
+        props: { code: 404 }
     }
 ]
 

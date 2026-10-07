@@ -9,9 +9,7 @@ import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 
 const route = useRoute();
-
 activePage.value = 'chat:';
-
 const activeChat = ref(null);
 
 const targetUserId = computed(

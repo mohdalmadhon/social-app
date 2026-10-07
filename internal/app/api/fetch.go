@@ -234,6 +234,7 @@ func (app *App) SearchFollows(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+
 func (app *App) SearchFollowing(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value("userID").(int)
 

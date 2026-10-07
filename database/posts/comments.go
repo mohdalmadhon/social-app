@@ -33,12 +33,18 @@ func InsertComment(db *sql.DB, comment models.Comment) (models.Comment, error) {
 	}
 
 	err = db.QueryRow(`
-		SELECT first_name, last_name
-		FROM user
-		WHERE id = ?
+		SELECT
+			u.first_name,
+			u.last_name,
+			COALESCE(p.avatar_path, '')
+		FROM user u
+		LEFT JOIN profile p
+			ON p.user_id = u.id
+		WHERE u.id = ?
 	`, comment.User.ID).Scan(
 		&comment.User.FirstName,
 		&comment.User.LastName,
+		&comment.User.Avatar,
 	)
 
 	if err != nil {
