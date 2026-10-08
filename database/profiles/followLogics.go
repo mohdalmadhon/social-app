@@ -343,7 +343,7 @@ func AcceptFollowRequest(db *sql.DB, requesterID int, targetID int) error {
 		WHERE nt.follow_request_user_id = ?
 		AND n.user_id = ?
 	`, requesterID, targetID).Scan(&notificationID)
-	
+
 	if err != nil {
 		return err
 	}

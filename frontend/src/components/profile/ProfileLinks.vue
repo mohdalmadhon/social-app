@@ -1,4 +1,6 @@
 <script setup>
+import { safeHref } from '@/helpers/links';
+
 defineProps({
     about: {
         type: Object,
@@ -17,46 +19,46 @@ defineProps({
         <div class="links-list">
             <a
                 v-if="about.Website"
-                :href="about.Website"
+                :href="safeHref('website', about.Website)"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="link-item"
             >
                 <span>Website</span>
-                <p>{{ about.Website }}</p>
+                <p class="user-text">{{ about.Website }}</p>
             </a>
 
             <a
                 v-if="about.Linkedin"
-                :href="about.Linkedin"
+                :href="safeHref('linkedin', about.Linkedin)"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="link-item"
             >
                 <span>LinkedIn</span>
-                <p>{{ about.Linkedin }}</p>
+                <p class="user-text">{{ about.Linkedin }}</p>
             </a>
 
             <a
                 v-if="about.Twitter"
-                :href="about.Twitter"
+                :href="safeHref('twitter', about.Twitter)"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="link-item"
             >
                 <span>Twitter / X</span>
-                <p>{{ about.Twitter }}</p>
+                <p class="user-text">{{ about.Twitter }}</p>
             </a>
 
             <a
                 v-if="about.Instgram"
-                :href="about.Instgram"
+                :href="safeHref('instagram', about.Instgram)"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="link-item"
             >
                 <span>Instagram</span>
-                <p>{{ about.Instgram }}</p>
+                <p class="user-text">{{ about.Instgram }}</p>
             </a>
 
             <p

@@ -1,7 +1,5 @@
 package models
 
-// group id == 0 (PUBLIC)
-// group id == -1 (PRIVATE)
 type RegsiterPost struct {
 	UserID        int
 	GroupID       int    `json:"groupID"`

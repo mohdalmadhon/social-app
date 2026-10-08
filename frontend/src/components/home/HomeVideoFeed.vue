@@ -82,9 +82,6 @@ async function loadMore() {
     }
 }
 
-/*
- * Only one video can be active at a time.
- */
 function handleVisible(id) {
     if (activeId.value === id) {
         return;
@@ -93,13 +90,6 @@ function handleVisible(id) {
     activeId.value = id;
 }
 
-/*
- * Extra safety:
- * pause every video except the currently active video.
- *
- * This prevents multiple videos from playing if
- * the browser or another component starts playback.
- */
 function pauseOtherVideos(activeVideoId) {
     document
         .querySelectorAll('.video-item video')

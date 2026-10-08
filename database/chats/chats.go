@@ -286,7 +286,6 @@ func GetChatMeta(db *sql.DB, groupID int) (bool, string, error) {
 	return isPrivate == 1, name.String, nil
 }
 
-// MarkGroupRead marks every message currently in the chat as read for the user.
 func MarkGroupRead(db *sql.DB, userID, groupID int) error {
 	_, err := db.Exec(`
 		UPDATE groups_users

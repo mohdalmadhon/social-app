@@ -1,4 +1,5 @@
 <script setup>
+import { LIMITS } from '@/helpers/limits';
 const props = defineProps({
     modelValue: {
         type: String,
@@ -37,6 +38,7 @@ function clear() {
 
         <input
             :value="modelValue"
+            :maxlength="LIMITS.search"
             type="text"
             :placeholder="placeholder"
             class="search-input"

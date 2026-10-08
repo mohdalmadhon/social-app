@@ -1,4 +1,5 @@
 <script setup>
+import { LIMITS, cleanText, validateEventTitle, validateEventDescription } from '@/helpers/limits';
 import { ref, watch } from 'vue';
 import { createGroupEvent } from '@/api/groups/events';
 
@@ -45,11 +46,20 @@ async function submitEvent() {
     if (submitting.value) return;
 
     const eventTitle = title.value.trim();
-    const eventDescription = description.value.trim();
+    const eventDescription = cleanText(description.value);
     const eventDate = eventTime.value;
 
-    if (!eventTitle) {
-        formError.value = 'Title is required';
+    const titleError = validateEventTitle(eventTitle);
+
+    if (titleError) {
+        formError.value = titleError;
+        return;
+    }
+
+    const descriptionError = validateEventDescription(eventDescription);
+
+    if (descriptionError) {
+        formError.value = descriptionError;
         return;
     }
 
@@ -103,12 +113,12 @@ watch(
                 <form class="event-dialog-form" @submit.prevent="submitEvent">
                     <label class="event-field">
                         <span>Title</span>
-                        <input v-model="title" type="text" maxlength="100" placeholder="Event title">
+                        <input v-model="title" type="text" :maxlength="LIMITS.eventTitle" placeholder="Event title">
                     </label>
 
                     <label class="event-field">
                         <span>Description</span>
-                        <textarea v-model="description" maxlength="1000" rows="4"
+                        <textarea v-model="description" :maxlength="LIMITS.eventDescription" rows="4"
                             placeholder="What is this event about?"></textarea>
                     </label>
 

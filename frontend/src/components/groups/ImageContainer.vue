@@ -1,4 +1,5 @@
 <script setup>
+import { LIMITS } from '@/helpers/limits';
 import { ref, watch } from 'vue';
 import { addNotification } from '@/data/notifications';
 
@@ -40,10 +41,12 @@ function handleFileChange(event) {
 
         if (
             !allowedTypes.includes(file.type) ||
-            !allowedExtensions.includes(extension)
+            !allowedExtensions.includes(extension) ||
+            file.size <= 0 ||
+            file.size > LIMITS.avatarSize
         ) {
             addNotification(
-                'Please upload a PNG, JPG or GIF image',
+                'Please upload a PNG, JPG or GIF image under 5MB',
                 'error'
             );
             emit('update:modelValue', null);

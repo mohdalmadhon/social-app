@@ -17,6 +17,9 @@ type ValidationResult struct {
 }
 
 func ValidatePost(data *models.RegsiterPost, image *multipart.FileHeader) ValidationResult {
+	data.Content = CleanText(data.Content)
+	data.Location = strings.TrimSpace(data.Location)
+
 	if data.Content == "" {
 		return ValidationResult{
 			Field:   "content",
@@ -24,10 +27,24 @@ func ValidatePost(data *models.RegsiterPost, image *multipart.FileHeader) Valida
 		}
 	}
 
-	if len([]rune(data.Content)) > 1000 {
+	if err := ValidateMultiline("content", data.Content, 1, MaxPostContent, 0); err != nil {
 		return ValidationResult{
 			Field:   "content",
-			Message: "content cannot be more than 1000 characters",
+			Message: err.Error(),
+		}
+	}
+
+	if len(data.PeopleTagged) > MaxPostTags {
+		return ValidationResult{
+			Field:   "tags",
+			Message: "too many tagged people",
+		}
+	}
+
+	if RuneLen(data.Location) > MaxPostLocation {
+		return ValidationResult{
+			Field:   "location",
+			Message: "location is too long",
 		}
 	}
 
@@ -105,6 +122,13 @@ func ValidatePost(data *models.RegsiterPost, image *multipart.FileHeader) Valida
 			return ValidationResult{
 				Field:   "image",
 				Message: "invalid image",
+			}
+		}
+
+		if image.Size > MaxPostMediaSize {
+			return ValidationResult{
+				Field:   "image",
+				Message: "file is too large",
 			}
 		}
 

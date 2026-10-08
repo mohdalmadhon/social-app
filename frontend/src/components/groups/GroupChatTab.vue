@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { addNotification } from '@/data/notifications';
 import { sendWS } from '@/api/socket/socket';
 import { getMessages, sendChatMedia, markChatRead } from '@/api/chats/chats';
@@ -12,6 +12,8 @@ import GroupEventDialog from '@/components/groups/GroupEventDialog.vue';
 import GroupEventVotesDialog from '@/components/groups/GroupEventVotesDialog.vue';
 import { fetchGroupEvent, respondGroupEvent } from '@/api/groups/events';
 import { searchGroupMentions } from '@/api/groups/mentions';
+import { LIMITS, charCount, cleanText, validateChatMessage } from '@/helpers/limits';
+import { resizeTextarea, resetTextarea, handleEnterKey, enforceLines } from '@/helpers/multilineInput';
 
 const props = defineProps({
     groupID: {
@@ -64,6 +66,15 @@ const respondingEventID = ref(null);
 const votesEvent = ref(null);
 const loadingEventIDs = new Set();
 const messageInput = ref(null);
+const messageError = ref('');
+const messageCount = computed(() => charCount(message.value));
+
+function onMessageInput(event) {
+    message.value = enforceLines(event, LIMITS.chatLines);
+    messageError.value = '';
+    resizeTextarea(messageInput.value);
+    updateMentionState();
+}
 const mentionOpen = ref(false);
 const mentionResults = ref([]);
 const mentionIndex = ref(0);
@@ -796,6 +807,11 @@ function insertEmoji(emoji) {
 
     const input = messageInput.value;
     const current = message.value;
+
+    if (charCount(current) + charCount(emoji) > LIMITS.chatMessage) {
+        return;
+    }
+
     const start = input?.selectionStart ?? current.length;
     const end = input?.selectionEnd ?? start;
 
@@ -815,8 +831,16 @@ function insertEmoji(emoji) {
 
 async function send() {
     const content =
-        message.value.trim();
+        cleanText(message.value);
     const file = pendingFile.value;
+
+    const contentError =
+        content ? validateChatMessage(content) : '';
+
+    if (contentError) {
+        messageError.value = contentError;
+        return;
+    }
 
     if (
         (!content && !file) ||
@@ -892,6 +916,8 @@ async function send() {
             });
 
             message.value = '';
+            messageError.value = '';
+            resetTextarea(messageInput.value);
             closeMentions();
 
             scrollToBottom();
@@ -1130,13 +1156,7 @@ function handleKeydown(event) {
         }
     }
 
-    if (
-        event.key === 'Enter' &&
-        !event.shiftKey
-    ) {
-        event.preventDefault();
-        send();
-    }
+    handleEnterKey(event, send);
 }
 
 watch(
@@ -1522,9 +1542,16 @@ onUnmounted(() => {
                 </li>
             </ul>
 
-            <input ref="messageInput" v-model="message" type="text" placeholder="Type a message..."
-                :disabled="loading" autocomplete="off" @keydown="handleKeydown" @input="updateMentionState"
-                @keyup="onMessageKeyup" @click="updateMentionState" @blur="closeMentions" />
+            <textarea ref="messageInput" v-model="message" rows="1" :maxlength="LIMITS.chatMessage"
+                placeholder="Type a message..." :disabled="loading" autocomplete="off" @keydown="handleKeydown"
+                @input="onMessageInput" @keyup="onMessageKeyup" @click="updateMentionState"
+                @blur="closeMentions"></textarea>
+
+            <span v-if="messageError" class="composer-error">{{ messageError }}</span>
+
+            <span v-else-if="messageCount > LIMITS.chatMessage * 0.8" class="composer-count">
+                {{ messageCount }}/{{ LIMITS.chatMessage }}
+            </span>
 
             <button type="submit" :disabled="sending ||
                 loading ||
@@ -1735,6 +1762,7 @@ onUnmounted(() => {
     display: flex;
     align-items: flex-end;
     gap: 8px;
+    min-width: 0;
     max-width: 60%;
     font-size: 13px;
     line-height: 1.5;
@@ -1766,11 +1794,16 @@ onUnmounted(() => {
     padding: 11px 15px;
     border: 2px solid var(--main-color);
     border-radius: 10px;
+    max-width: 100%;
     overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .message-body p {
     margin: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .message-sender-name {
@@ -1999,16 +2032,35 @@ onUnmounted(() => {
     position: relative;
     flex: 0 0 auto;
     display: flex;
+    align-items: flex-end;
     gap: 10px;
     padding: 14px 20px;
     border-top: 2px solid var(--page-background);
 }
 
-.composer input {
+.composer-count,
+.composer-error {
+    position: absolute;
+    top: -2px;
+    right: 22px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 9px;
+    color: var(--font-color-sub);
+}
+
+.composer-error {
+    color: #d93025;
+}
+
+.composer textarea {
     flex: 1;
     min-width: 0;
     height: 42px;
-    padding: 0 14px;
+    max-height: 140px;
+    padding: 10px 14px;
+    resize: none;
+    overflow-y: hidden;
+    line-height: 1.4;
     border: 2px solid var(--main-color);
     border-radius: 5px;
     background: var(--page-background);
@@ -2018,13 +2070,14 @@ onUnmounted(() => {
     box-sizing: border-box;
 }
 
-.composer input:disabled {
+.composer textarea:disabled {
     opacity: 0.6;
     cursor: not-allowed;
 }
 
 .composer button {
     flex-shrink: 0;
+    height: 42px;
     padding: 0 18px;
     border: 2px solid var(--main-color);
     border-radius: 5px;
@@ -2296,7 +2349,7 @@ onUnmounted(() => {
         padding: 12px 14px;
     }
 
-    .composer input {
+    .composer textarea {
         flex: 1 1 100%;
         order: 1;
     }

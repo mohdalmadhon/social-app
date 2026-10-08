@@ -1,4 +1,5 @@
 <script setup>
+import { LIMITS } from '@/helpers/limits';
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { getPrivateChatsLists, searchChats, getChatSuggestions } from '@/api/chats/chats';
 import { addNotification } from '@/data/notifications';
@@ -378,7 +379,7 @@ onBeforeUnmount(() => {
         <div class="search">
             <span class="search-icon">⌕</span>
 
-            <input v-model="searchValue" type="text" placeholder="Search chats..." @input="handleSearchInput" />
+            <input v-model="searchValue" type="text" :maxlength="LIMITS.search" placeholder="Search chats..." @input="handleSearchInput" />
 
             <button v-if="searchValue" type="button" class="clear-search"
                 @click="searchValue = ''; handleSearchInput()">

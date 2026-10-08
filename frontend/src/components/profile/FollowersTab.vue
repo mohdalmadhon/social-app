@@ -1,4 +1,5 @@
 <script setup>
+import { LIMITS } from '@/helpers/limits';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
@@ -431,6 +432,7 @@ onUnmounted(() => {
 
                         <input
                             v-model="searchQuery"
+                            :maxlength="LIMITS.search"
                             type="text"
                             placeholder="Search by name..."
                             class="group-search-input"

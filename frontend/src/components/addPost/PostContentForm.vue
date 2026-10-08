@@ -1,4 +1,5 @@
 <script setup>
+import { LIMITS } from '@/helpers/limits';
 defineProps({
     title: {
         type: String,
@@ -9,7 +10,6 @@ defineProps({
         default: ''
     }
 });
-
 
 defineEmits(['update:title', 'update:description']);
 </script>
@@ -22,7 +22,7 @@ defineEmits(['update:title', 'update:description']);
 
             <textarea
                 id="post-description"
-                maxlength="1000"
+                :maxlength="LIMITS.postContent"
                 placeholder="post content"
                 required
                 :value="description"

@@ -150,7 +150,7 @@ async function requestToJoin(groupID) {
                 </span>
             </h3>
 
-            <p v-if="description" class="group-description">
+            <p v-if="description" class="group-description user-text">
                 {{ description }}
             </p>
 

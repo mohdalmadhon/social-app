@@ -10,6 +10,7 @@ import (
 	"social/database/users"
 	"social/internal/helpers"
 	"social/internal/models"
+	"social/internal/validation"
 )
 
 const maxShareRecipients = 30
@@ -91,11 +92,17 @@ func (app *App) SharePost(w http.ResponseWriter, r *http.Request) {
 		PostID  int   `json:"postID"`
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, validation.MaxJSONBody)
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PostID <= 0 || len(req.UserIds) == 0 {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
 			"message": "invalid data",
 		})
+		return
+	}
+
+	if !readIDList(w, "share list", req.UserIds) {
 		return
 	}
 
@@ -151,6 +158,8 @@ func (app *App) ShareProfile(w http.ResponseWriter, r *http.Request) {
 		ProfileID int   `json:"profileID"`
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, validation.MaxJSONBody)
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
@@ -164,6 +173,10 @@ func (app *App) ShareProfile(w http.ResponseWriter, r *http.Request) {
 			"status":  false,
 			"message": "invalid data",
 		})
+		return
+	}
+
+	if !readIDList(w, "share list", req.UserIds) {
 		return
 	}
 

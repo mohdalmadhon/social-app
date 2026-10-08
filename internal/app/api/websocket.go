@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"golang.org/x/net/websocket"
+	"social/internal/validation"
 )
 
 func (app *App) HandleWS(ws *websocket.Conn) {
@@ -226,9 +227,13 @@ func (app *App) handleMessage(userID int, data json.RawMessage, Type string) {
 		return
 	}
 
-	if msg.Content == "" {
+	cleanedContent, err := validation.ValidateChatMessage(msg.Content)
+	if err != nil {
+		app.sendMessageError(userID, msg.ClientID, err.Error())
 		return
 	}
+
+	msg.Content = cleanedContent
 
 	groupID := msg.GroupID
 
@@ -341,7 +346,7 @@ func (app *App) handleMessage(userID int, data json.RawMessage, Type string) {
 	}
 }
 
-func (app *App) sendToUsers(msg models.Message, groupID int, userID int, forceSilent ...bool,) {
+func (app *App) sendToUsers(msg models.Message, groupID int, userID int, forceSilent ...bool) {
 	silentOnly := len(forceSilent) > 0 && forceSilent[0]
 
 	log.Println(groupID)

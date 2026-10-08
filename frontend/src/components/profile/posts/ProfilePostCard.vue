@@ -245,6 +245,8 @@ async function confirmDelete() {
 
     white-space: pre-wrap;
     word-break: break-word;
+    overflow-wrap: anywhere;
+    max-width: 100%;
 }
 
 @media (max-width: 650px) {

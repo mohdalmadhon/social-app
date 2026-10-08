@@ -53,7 +53,7 @@ const members = computed(() => {
                 {{ group.name }}
             </h3>
 
-            <p v-if="group.description" class="group-description">
+            <p v-if="group.description" class="group-description user-text">
                 {{ group.description }}
             </p>
 

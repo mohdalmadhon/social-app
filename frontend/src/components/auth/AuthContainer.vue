@@ -23,10 +23,20 @@ import {
 } from '@/helpers/validators/registration.js'
 
 import InputHolder from './InputHolder.vue'
+import { LIMITS, validateText } from '@/helpers/limits.js'
 import { router } from '@/router/router.js'
 import { addNotification } from '@/data/notifications.js'
 
 const toggleInput = ref(null)
+
+function yearsAgo(years) {
+    const date = new Date()
+    date.setFullYear(date.getFullYear() - years)
+    return date.toISOString().slice(0, 10)
+}
+
+const dobMin = yearsAgo(120)
+const dobMax = yearsAgo(12)
 const signupForm = ref(null)
 
 const loginErrors = reactive({
@@ -315,7 +325,7 @@ async function finishRegistration() {
         }
 
         addNotification('Account created successfully.', 'success');
-        
+
         window.location.replace("/");
         return;
 
@@ -422,19 +432,23 @@ async function loggUser(event) {
     const identifier = formData.get('Identifier')
     const password = formData.get('Pass')
 
-    if (!identifier) {
-        loginErrors.identifier = 'Email or username is required'
-    }
+    loginErrors.identifier = validateText('Email or username', String(identifier || '').trim(), {
+        min: 1,
+        max: LIMITS.identifier,
+        singleLine: true,
+    })
 
-    if (!password) {
-        loginErrors.password = 'Password is required'
-    }
+    loginErrors.password = validateText('Password', String(password || ''), {
+        min: 1,
+        max: LIMITS.password,
+        singleLine: true,
+    })
 
     if (loginErrors.identifier || loginErrors.password) return
 
     try {
         const result = await loggingSession({
-            Identifier: identifier,
+            Identifier: String(identifier).trim(),
             Pass: password,
         })
 
@@ -488,7 +502,7 @@ async function loggUser(event) {
                                     </label>
 
                                     <InputHolder id="login-password" type="password" name="Pass" :minLength="8"
-                                        :maxLength="100" placeHolder="Password" autocomplete="current-password"
+                                        :maxLength="75" placeHolder="Password" autocomplete="current-password"
                                         required />
 
                                     <span v-if="loginErrors.password" class="input-error-message">
@@ -578,7 +592,7 @@ async function loggUser(event) {
                                             Date of birth
                                         </label>
 
-                                        <InputHolder id="dob" type="date" name="dob" :class="inputClass('dob')"
+                                        <InputHolder id="dob" type="date" name="dob" :min="dobMin" :max="dobMax" :class="inputClass('dob')"
                                             @input="validateField('dob', $event.target.value)" required />
 
                                         <span v-if="touched.dob && errors.dob" class="input-error-message">
@@ -625,7 +639,7 @@ async function loggUser(event) {
                                         About
                                     </label>
 
-                                    <textarea id="about" name="About" maxlength="1000"
+                                    <textarea id="about" name="About" :maxlength="LIMITS.about"
                                         placeholder="Tell us a little about yourself..." :class="inputClass('about')"
                                         @input="validateField('about', $event.target.value)"></textarea>
 

@@ -4,7 +4,6 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"social/database/groups"
 	"social/internal/helpers"
@@ -51,7 +50,10 @@ func (app *App) GetGroupMentions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	search := strings.TrimSpace(r.URL.Query().Get("search"))
+	search, searchOK := readSearch(w, r)
+	if !searchOK {
+		return
+	}
 
 	members, err := groups.SearchMentionable(app.DB, groupID, userID, search, 8)
 

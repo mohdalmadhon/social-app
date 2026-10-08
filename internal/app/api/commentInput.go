@@ -26,6 +26,8 @@ type commentInput struct {
 
 func readCommentInput(w http.ResponseWriter, r *http.Request) (*commentInput, error) {
 	if !strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+		r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+
 		var body struct {
 			PostID  int    `json:"postId"`
 			Content string `json:"content"`

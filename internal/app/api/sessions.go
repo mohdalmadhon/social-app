@@ -9,11 +9,14 @@ import (
 	"social/internal/app/tokens"
 	"social/internal/helpers"
 	"social/internal/models"
+	"social/internal/validation"
 	"time"
 )
 
 func (app *App) LoggingUser(w http.ResponseWriter, r *http.Request) {
 	var logger models.UserLogger
+
+	r.Body = http.MaxBytesReader(w, r.Body, 4<<10)
 
 	if err := json.NewDecoder(r.Body).Decode(&logger); err != nil {
 		log.Println(err)
@@ -23,6 +26,17 @@ func (app *App) LoggingUser(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	identifier, err := validation.ValidateLogin(logger.Identifier, logger.Pass)
+	if err != nil {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	logger.Identifier = identifier
 
 	hashedPassword, err := users.GetHashedPassowrd(app.DB, logger.Identifier)
 	if err != nil {
@@ -40,7 +54,7 @@ func (app *App) LoggingUser(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	
+
 	if match := helpers.AuthonticateUser(logger.Pass, hashedPassword); !match {
 		helpers.WriteJson(w, http.StatusUnauthorized, map[string]any{
 			"status":  false,

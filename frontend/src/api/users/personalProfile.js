@@ -46,7 +46,6 @@ export async function getUserData() {
         data.Friends
     );
 
-    
     const userData = new Users(
         user.ID,
         user.firstName,

@@ -10,6 +10,8 @@ import { router } from '@/router/router';
 import { CHAT_MEDIA_ACCEPT, parseChatMedia, validateChatMedia } from '@/helpers/chatMedia';
 import HomePosts from '../home/HomePosts.vue';
 import EmojiPicker from './EmojiPicker.vue';
+import { LIMITS, charCount, cleanText, validateChatMessage, clampText } from '@/helpers/limits';
+import { resizeTextarea, resetTextarea, handleEnterKey, enforceLines } from '@/helpers/multilineInput';
 
 const props = defineProps({
     chat: {
@@ -42,6 +44,18 @@ const emit = defineEmits(['chat-resolved']);
 
 const message = ref('');
 const messageInput = ref(null);
+const messageError = ref('');
+const messageCount = computed(() => charCount(message.value));
+
+function onMessageInput(event) {
+    message.value = enforceLines(event, LIMITS.chatLines);
+    messageError.value = '';
+    resizeTextarea(messageInput.value);
+}
+
+function onMessageKeydown(event) {
+    handleEnterKey(event, send);
+}
 const messages = ref([]);
 const fileInput = ref(null);
 const pendingFile = ref(null);
@@ -993,6 +1007,10 @@ function insertEmoji(emoji) {
     const input = messageInput.value;
     const current = message.value;
 
+    if (charCount(current) + charCount(emoji) > LIMITS.chatMessage) {
+        return;
+    }
+
     const start =
         input?.selectionStart ??
         current.length;
@@ -1024,7 +1042,15 @@ function insertEmoji(emoji) {
 
 async function send() {
     const content =
-        message.value.trim();
+        cleanText(message.value);
+
+    const contentError =
+        content ? validateChatMessage(content) : '';
+
+    if (contentError) {
+        messageError.value = contentError;
+        return;
+    }
 
     const file =
         pendingFile.value;
@@ -1155,6 +1181,8 @@ async function send() {
             });
 
             message.value = '';
+            messageError.value = '';
+            resetTextarea(messageInput.value);
 
             await scrollToBottom();
         }
@@ -1288,7 +1316,6 @@ function handleMessageSendError(event) {
 
 onMounted(() => {
 
-
     window.addEventListener(
         'chat-message',
         receiveMessage
@@ -1299,7 +1326,6 @@ onMounted(() => {
         handleMessageSendError
     );
 
-    
 });
 
 onUnmounted(() => {
@@ -1785,10 +1811,11 @@ onUnmounted(() => {
                     @select="insertEmoji"
                 />
 
-                <input
+                <textarea
                     ref="messageInput"
                     v-model="message"
-                    type="text"
+                    rows="1"
+                    :maxlength="LIMITS.chatMessage"
                     :placeholder="
                         canMessage
                             ? 'Type a message...'
@@ -1798,7 +1825,23 @@ onUnmounted(() => {
                         loading ||
                         !canMessage
                     "
-                />
+                    @input="onMessageInput"
+                    @keydown="onMessageKeydown"
+                ></textarea>
+
+                <span
+                    v-if="messageError"
+                    class="composer-error"
+                >
+                    {{ messageError }}
+                </span>
+
+                <span
+                    v-else-if="messageCount > LIMITS.chatMessage * 0.8"
+                    class="composer-count"
+                >
+                    {{ messageCount }}/{{ LIMITS.chatMessage }}
+                </span>
 
                 <button
                     type="submit"
@@ -2201,6 +2244,7 @@ onUnmounted(() => {
     display: flex;
     align-items: flex-end;
     gap: 8px;
+    min-width: 0;
     max-width: 60%;
     font-size: 13px;
     line-height: 1.5;
@@ -2228,6 +2272,10 @@ onUnmounted(() => {
 }
 
 .message-body {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
     padding: 11px 15px;
     border: 2px solid var(--main-color);
     border-radius: 10px;
@@ -2235,6 +2283,9 @@ onUnmounted(() => {
 
 .message-body p {
     margin: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .message-sender-name {
@@ -2561,15 +2612,22 @@ onUnmounted(() => {
     position: relative;
     flex-shrink: 0;
     display: flex;
+    align-items: flex-end;
     gap: 10px;
     padding: 14px 20px;
     border-top: 2px solid var(--page-background);
 }
 
-.composer input {
+.composer textarea {
     flex: 1;
+    min-width: 0;
     height: 42px;
-    padding: 0 14px;
+    max-height: 140px;
+    padding: 10px 14px;
+    resize: none;
+    overflow-y: hidden;
+    line-height: 1.4;
+    box-sizing: border-box;
     border: 2px solid var(--main-color);
     border-radius: 5px;
     background: var(--page-background);
@@ -2578,12 +2636,27 @@ onUnmounted(() => {
     font-size: 11px;
 }
 
-.composer input:disabled {
+.composer-count,
+.composer-error {
+    position: absolute;
+    top: -2px;
+    right: 22px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 9px;
+    color: var(--font-color-sub);
+}
+
+.composer-error {
+    color: #d93025;
+}
+
+.composer textarea:disabled {
     opacity: 0.6;
     cursor: not-allowed;
 }
 
 .composer button {
+    height: 42px;
     padding: 0 18px;
     border: 2px solid var(--main-color);
     border-radius: 5px;
@@ -2671,7 +2744,7 @@ onUnmounted(() => {
         padding: 12px 14px;
     }
 
-    .composer input[type="text"] {
+    .composer textarea {
         flex: 1 1 100%;
         order: -1;
     }

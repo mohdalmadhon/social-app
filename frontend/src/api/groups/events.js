@@ -95,7 +95,6 @@ export async function fetchGroupEventVotes(eventId, response, offset = 0, limit 
     return result.data || [];
 }
 
-
 export async function fetchGroupEvent(eventId) {
     const response = await fetch(`/api/group/event?eventID=${Number(eventId)}`, {
         method: 'GET',

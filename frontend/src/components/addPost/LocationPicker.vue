@@ -1,4 +1,5 @@
 <script setup>
+import { LIMITS } from '@/helpers/limits';
 import { getSuggestedLocations } from '@/api/common/location';
 import { getLocationData } from '@/helpers/common/locationHelpers';
 import { onBeforeUnmount, ref } from 'vue';
@@ -196,6 +197,7 @@ onBeforeUnmount(() => {
                     type="text"
                     placeholder="Search a city, state, country or place"
                     autocomplete="off"
+                    :maxlength="LIMITS.search"
                     v-model="search"
                     @input="handleLocationSearch"
                     @keydown="handleKeydown"

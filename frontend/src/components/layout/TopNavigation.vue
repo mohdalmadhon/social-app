@@ -1,4 +1,5 @@
 <script setup>
+import { LIMITS } from '@/helpers/limits';
 import { getUserData } from '@/api/users/personalProfile';
 import { addNotification } from '@/data/notifications';
 import { useSearchBox } from '@/helpers/search/useSearchBox';
@@ -41,6 +42,7 @@ onMounted(getData)
                 <button class="search-submit" type="submit" aria-label="Search">⌕</button>
                 <input
                     v-model="searchQuery"
+                    :maxlength="LIMITS.search"
                     type="text"
                     placeholder="Search"
                     aria-label="Search groups, users and posts"

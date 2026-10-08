@@ -23,10 +23,6 @@ type payLoad struct {
 	Created_at int64  `json:"iat"`
 }
 
-/*
-this function is used to authorize a user by giving them a JWt token
-this function generate a header, body and a signature can be found in ./db/tokens-signature.txt and combine them
-*/
 func GenerateToken(userID int) (string, error) {
 	header := header{
 		Alg: "HS256",
@@ -79,9 +75,6 @@ func readTokenSecret() ([]byte, error) {
 	return os.ReadFile("./db/tokens-signature.txt")
 }
 
-/*
-this function verify a jwt token by seperating checking the signature and checking the expiration data
-*/
 func VerifyToken(token string) (*payLoad, error) {
 	parts := strings.Split(token, ".")
 

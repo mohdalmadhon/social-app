@@ -34,6 +34,11 @@ const videosLoading = ref(false);
 const videosHasMore = ref(true);
 const videosError = ref('');
 
+const taggedOffset = ref(0);
+const taggedLoading = ref(false);
+const taggedHasMore = ref(true);
+const taggedError = ref('');
+
 const sentinel = ref(null);
 
 let observer = null;
@@ -136,11 +141,43 @@ async function loadMoreVideos() {
     }
 }
 
+async function loadMoreTagged() {
+    if (taggedLoading.value || !taggedHasMore.value || activeTab.value !== 'tagged') {
+        return;
+    }
+
+    taggedLoading.value = true;
+    taggedError.value = '';
+
+    try {
+        const targetID = getTargetID();
+        const response = await getUserPosts(targetID, taggedOffset.value, BATCH_SIZE, 'tagged');
+        const rawPosts = response?.data || [];
+        const normalized = rawPosts.map(normalizeProfilePost);
+
+        const knownIds = new Set(taggedPosts.value.map(post => post.id));
+        taggedPosts.value.push(...normalized.filter(post => !knownIds.has(post.id)));
+        taggedOffset.value += BATCH_SIZE;
+
+        if (typeof response?.hasMore === 'boolean') {
+            taggedHasMore.value = response.hasMore;
+        } else if (rawPosts.length < BATCH_SIZE) {
+            taggedHasMore.value = false;
+        }
+    } catch (err) {
+        taggedError.value = err.message || 'Failed to load tagged posts';
+    } finally {
+        taggedLoading.value = false;
+    }
+}
+
 function loadMoreActive() {
     if (activeTab.value === 'posts') {
         loadMorePosts();
     } else if (activeTab.value === 'videos') {
         loadMoreVideos();
+    } else if (activeTab.value === 'tagged') {
+        loadMoreTagged();
     }
 }
 
@@ -163,6 +200,10 @@ function switchTab(tab) {
 
     if (tab === 'videos' && videos.value.length === 0 && videosHasMore.value) {
         loadMoreVideos();
+    }
+
+    if (tab === 'tagged' && taggedPosts.value.length === 0 && taggedHasMore.value) {
+        loadMoreTagged();
     }
 }
 
@@ -278,7 +319,15 @@ onBeforeUnmount(() => {
                             @deleted="handlePostDeleted" />
                     </div>
 
-                    <div v-else class="empty-tab">
+                    <div v-if="taggedError" class="profile-posts-error">
+                        {{ taggedError }}
+                    </div>
+
+                    <div v-if="taggedLoading" class="profile-posts-loading">
+                        Loading tagged posts...
+                    </div>
+
+                    <div v-else-if="!taggedHasMore && taggedPosts.length === 0 && !taggedError" class="empty-tab">
                         <div class="empty-icon">
                             <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                 <path

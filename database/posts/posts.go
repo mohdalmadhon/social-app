@@ -637,7 +637,7 @@ func GetHomePosts(db *sql.DB, userID, offset int) ([]models.Post, error) {
 	if err := attachTaggedPeople(db, &posts); err != nil {
 		return nil, err
 	}
-	
+
 	return posts, nil
 }
 
@@ -817,7 +817,7 @@ func attachGroupOwnerNames(db *sql.DB, posts []models.Post) error {
 func attachTaggedPeople(db *sql.DB, posts *[]models.Post) error {
 	for i := range *posts {
 		p := &(*posts)[i]
-		
+
 		rows, err := db.Query(
 			`SELECT user_id FROM post_user_tags WHERE post_id = ?`,
 			p.Id,
@@ -835,7 +835,7 @@ func attachTaggedPeople(db *sql.DB, posts *[]models.Post) error {
 				rows.Close()
 				return err
 			}
-			
+
 			userData, err := users.GetUserSimpleData(db, id)
 			if err != nil {
 				rows.Close()
@@ -860,7 +860,6 @@ func attachTaggedPeople(db *sql.DB, posts *[]models.Post) error {
 		p.TaggedPeople = tags
 	}
 
-	
 	return nil
 }
 

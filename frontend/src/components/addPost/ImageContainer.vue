@@ -1,5 +1,6 @@
 ```vue
 <script setup>
+import { LIMITS } from '@/helpers/limits';
 import { ref, watch, onBeforeUnmount } from 'vue';
 
 const props = defineProps({
@@ -109,7 +110,9 @@ async function handleFileChange(event) {
 
     if (
         !allowedTypes.includes(file.type) ||
-        !allowedExtensions.includes(extension)
+        !allowedExtensions.includes(extension) ||
+        file.size <= 0 ||
+        file.size > LIMITS.postMediaSize
     ) {
         event.target.value = '';
         emit('update:modelValue', null);

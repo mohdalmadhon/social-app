@@ -9,6 +9,7 @@ import (
 	"social/database/users"
 	"social/internal/helpers"
 	"social/internal/models"
+	"social/internal/validation"
 	"strings"
 )
 
@@ -57,12 +58,22 @@ func (app *App) AddPostGroup(w http.ResponseWriter, r *http.Request) {
 
 	var newGroup models.NewGroup
 	newGroup.UserID = userID
+	r.Body = http.MaxBytesReader(w, r.Body, validation.MaxJSONBody)
+
 	err := json.NewDecoder(r.Body).Decode(&newGroup)
 	if err != nil {
 		log.Println(err)
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
 			"message": "invalid users",
+		})
+		return
+	}
+
+	if err := validation.ValidateNewGroup(&newGroup); err != nil {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": err.Error(),
 		})
 		return
 	}
@@ -87,19 +98,19 @@ func (app *App) AddPostGroup(w http.ResponseWriter, r *http.Request) {
 
 	err = groups.AddGroup(app.DB, newGroup)
 	if err != nil {
-			if strings.Contains(err.Error(), "UNIQUE constraint failed") {
-				log.Println(err)
-				helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
-					"status":  false,
-					"message": "error already exists",
-				})
-				return
-			}
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			log.Println(err)
-			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 				"status":  false,
-				"message": "could not add group",
+				"message": "error already exists",
 			})
+			return
+		}
+		log.Println(err)
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not add group",
+		})
 		return
 	}
 
@@ -122,6 +133,8 @@ func (app *App) DeletePostGroup(w http.ResponseWriter, r *http.Request) {
 	var data struct {
 		GroupID int
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, validation.MaxJSONBody)
+
 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
 		log.Println(err)
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
@@ -131,7 +144,6 @@ func (app *App) DeletePostGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Println(data.GroupID)
 	if err := groups.DeleteGroup(app.DB, data.GroupID, userID); err != nil {
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 			"status":  false,
@@ -157,6 +169,8 @@ func (app *App) UpdatePostGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var group models.NewGroup
+	r.Body = http.MaxBytesReader(w, r.Body, validation.MaxJSONBody)
+
 	if err := json.NewDecoder(r.Body).Decode(&group); err != nil {
 		log.Println(err)
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
@@ -166,10 +180,18 @@ func (app *App) UpdatePostGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if group.GroupID == 0 {
+	if group.GroupID <= 0 {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
 			"message": "missing group id",
+		})
+		return
+	}
+
+	if err := validation.ValidateNewGroup(&group); err != nil {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": err.Error(),
 		})
 		return
 	}

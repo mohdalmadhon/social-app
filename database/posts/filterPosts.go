@@ -61,7 +61,7 @@ func FilterPosts(db *sql.DB, posts *[]models.Post, userID, targetID int) ([]mode
 			`SELECT users FROM user_posts_groups WHERE id = ?`,
 			groupID,
 		).Scan(&users)
-		
+
 		log.Printf("users %s", users)
 		if err != nil {
 			log.Println("hereerr")

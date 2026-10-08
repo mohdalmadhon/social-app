@@ -1,4 +1,5 @@
 <script setup>
+import { LIMITS, charCount } from '@/helpers/limits';
 import { reactive, ref, watch } from 'vue';
 
 import PostContentForm from '@/components/addPost/PostContentForm.vue';
@@ -74,10 +75,24 @@ function validatePost() {
         };
     }
 
-    if (post.content.length > 1000) {
+    if (charCount(post.content) > LIMITS.postContent) {
         return {
             field: 'content',
-            message: 'Post content cannot exceed 1000 characters'
+            message: `Post content cannot exceed ${LIMITS.postContent} characters`
+        };
+    }
+
+    if (post.taggedPeople.length > LIMITS.postTags) {
+        return {
+            field: 'tags',
+            message: `You can tag at most ${LIMITS.postTags} people`
+        };
+    }
+
+    if (post.image && post.image.size > LIMITS.postMediaSize) {
+        return {
+            field: 'image',
+            message: 'File must be smaller than 50MB'
         };
     }
 
@@ -183,7 +198,7 @@ async function handleSubmit() {
             type: 'postGroup',
             data: result.data.data
         });
-        
+
         emit('created');
         closeDialog();
     } catch (err) {

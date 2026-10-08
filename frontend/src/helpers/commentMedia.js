@@ -1,5 +1,6 @@
 import { ref, onBeforeUnmount } from 'vue';
 import { CHAT_MEDIA_ACCEPT, validateChatMedia } from '@/helpers/chatMedia';
+import { cleanText, validateCommentText } from '@/helpers/limits';
 
 export const COMMENT_MEDIA_ACCEPT = CHAT_MEDIA_ACCEPT;
 
@@ -12,6 +13,14 @@ export function commentImageSrc(path) {
 }
 
 export function buildCommentRequest(postId, content, replyTo = null, image = null) {
+    content = cleanText(content);
+
+    const contentError = validateCommentText(content, Boolean(image));
+
+    if (contentError) {
+        throw new Error(contentError);
+    }
+
     if (!image) {
         return {
             method: 'POST',

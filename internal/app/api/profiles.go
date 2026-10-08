@@ -75,7 +75,6 @@ func (app *App) GetUserProfile(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Public profile OR accepted follower
 	if !isPrivate || isFollowing == 1 {
 		userData, err := profiles.GetUserData(app.DB, profileID)
 		if err != nil {
@@ -132,7 +131,6 @@ func (app *App) GetUserProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Private profile and user is not following
 	userData, err := profiles.GetPrivateProfileData(app.DB, profileID)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -416,8 +414,6 @@ func (app *App) RemoveFollower(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The requesting user is the target (owner of the followers list);
-	// the follower being removed is the one following them.
 	if err := profiles.SendFollowRequest(app.DB, userID, followerID, -1); err != nil {
 		log.Println(err)
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{

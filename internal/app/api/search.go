@@ -40,10 +40,6 @@ func (app *App) GlobalSearchPosts(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// serveSearch validates the shared search parameters (search, offset), runs
-// the given query for one page of results and writes the JSON response.
-// fetch is asked for one row more than the page size so that "hasMore" can
-// be answered without a second query.
 func serveSearch[T any](
 	w http.ResponseWriter,
 	r *http.Request,
@@ -132,7 +128,10 @@ func (app *App) GetFollowers_Following(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	search := r.URL.Query().Get("search")
+	search, searchOK := readSearch(w, r)
+	if !searchOK {
+		return
+	}
 	postID, err := strconv.Atoi(r.URL.Query().Get("postID"))
 	if err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
@@ -188,7 +187,10 @@ func (app *App) SearchShares(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	search := r.URL.Query().Get("search")
+	search, searchOK := readSearch(w, r)
+	if !searchOK {
+		return
+	}
 	users, err := profiles.SearchShareProfile(app.DB, userID, search)
 	if err != nil {
 		log.Println("share search error:", err)

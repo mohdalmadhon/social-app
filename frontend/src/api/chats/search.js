@@ -1,5 +1,6 @@
+import { safeSearch } from '@/helpers/limits';
 export async function searchInvites(search, groupID = "") {
-    const resp = await fetch(`/api/groups/invites/search?search=${search}&groupID=${groupID}`, {
+    const resp = await fetch(`/api/groups/invites/search?search=${encodeURIComponent(safeSearch(search))}&groupID=${encodeURIComponent(groupID)}`, {
         method: "GET",
         credentials: 'include'
     });

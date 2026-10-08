@@ -5,18 +5,20 @@ import (
 	"social/internal/models"
 )
 
-func ValidateGroupComment(comment models.GroupComment, hasImage bool) error {
+func ValidateGroupComment(comment *models.GroupComment, hasImage bool) error {
+	comment.Content = CleanText(comment.Content)
+
 	if comment.GroupPostID <= 0 {
 		return errors.New("invalid group post")
 	}
 
-	if len(comment.Content) <= 0 && !hasImage {
+	if comment.ReplyTo != nil && *comment.ReplyTo <= 0 {
+		return errors.New("invalid reply")
+	}
+
+	if len(comment.Content) == 0 && !hasImage {
 		return errors.New("comment cannot be empty")
 	}
 
-	if len(comment.Content) > 200 {
-		return errors.New("comment cannot be more than 200 character")
-	}
-
-	return nil
+	return ValidateMultiline("comment", comment.Content, 0, MaxComment, MaxCommentLines)
 }

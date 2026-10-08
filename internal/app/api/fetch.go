@@ -8,6 +8,7 @@ import (
 	"social/database/profiles"
 	"social/database/users"
 	"social/internal/helpers"
+	"social/internal/validation"
 	"strconv"
 	"strings"
 )
@@ -19,6 +20,14 @@ func (app *App) SearchLocation(w http.ResponseWriter, r *http.Request) {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
 			"message": "no data provided",
+		})
+		return
+	}
+
+	if len([]rune(query)) > validation.MaxSearch {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": "search text is too long",
 		})
 		return
 	}
@@ -125,9 +134,9 @@ func (app *App) GetFriends(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	targetIDParam := r.URL.Query().Get("targetid")
-	targetID := userID 
+	targetID := userID
 	if targetIDParam != "" && targetIDParam != "null" && targetIDParam != "undefined" {
 		parsedTargetID, err := strconv.Atoi(targetIDParam)
 		if err != nil {
@@ -140,7 +149,10 @@ func (app *App) GetFriends(w http.ResponseWriter, r *http.Request) {
 		targetID = parsedTargetID
 	}
 
-	searchValue := r.URL.Query().Get("search")
+	searchValue, searchOK := readSearch(w, r)
+	if !searchOK {
+		return
+	}
 	queryOffset := r.URL.Query().Get("offset")
 	offset, err := strconv.Atoi(queryOffset)
 
@@ -216,7 +228,10 @@ func (app *App) SearchFollows(w http.ResponseWriter, r *http.Request) {
 		targetID = parsedID
 	}
 
-	searchValue := r.URL.Query().Get("search")
+	searchValue, searchOK := readSearch(w, r)
+	if !searchOK {
+		return
+	}
 
 	follows, err := profiles.SearchFollows(app.DB, targetID, searchValue)
 
@@ -233,7 +248,6 @@ func (app *App) SearchFollows(w http.ResponseWriter, r *http.Request) {
 		"data":   follows,
 	})
 }
-
 
 func (app *App) SearchFollowing(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value("userID").(int)
@@ -264,7 +278,10 @@ func (app *App) SearchFollowing(w http.ResponseWriter, r *http.Request) {
 		targetID = parsedID
 	}
 
-	searchValue := r.URL.Query().Get("search")
+	searchValue, searchOK := readSearch(w, r)
+	if !searchOK {
+		return
+	}
 
 	following, err := profiles.SearchFollowing(app.DB, targetID, searchValue)
 

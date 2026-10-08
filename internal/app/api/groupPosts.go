@@ -9,6 +9,7 @@ import (
 	"social/database/users"
 	"social/internal/helpers"
 	"social/internal/models"
+	"social/internal/validation"
 	"strconv"
 )
 
@@ -23,7 +24,9 @@ func (app *App) AddGroupPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := r.ParseMultipartForm(10 << 20); err != nil {
+	r.Body = http.MaxBytesReader(w, r.Body, validation.MaxPostMediaSize+(1<<20))
+
+	if err := r.ParseMultipartForm(validation.MaxFormMemory); err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
 			"message": "could not read form",
@@ -75,6 +78,32 @@ func (app *App) AddGroupPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	file, header, err := r.FormFile("image")
+
+	check := models.RegsiterPost{
+		Content:       post.Content,
+		AllowComments: allowComments,
+		GroupID:       groupID,
+		Location:      location,
+		PeopleTagged:  taggedPeople,
+	}
+
+	res := validation.ValidatePost(&check, header)
+
+	if res.Field != "" {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"field":   res.Field,
+			"message": res.Message,
+		})
+		return
+	}
+
+	post.Content = check.Content
+
+	if post.Location != nil {
+		cleanLocation := check.Location
+		post.Location = &cleanLocation
+	}
 
 	if err == nil {
 		defer file.Close()
@@ -213,7 +242,10 @@ func (app *App) GetGroupMembers(w http.ResponseWriter, r *http.Request) {
 		groupID = parsedTargetID
 	}
 
-	searchValue := r.URL.Query().Get("search")
+	searchValue, searchOK := readSearch(w, r)
+	if !searchOK {
+		return
+	}
 	queryOffset := r.URL.Query().Get("offset")
 	offset, err := strconv.Atoi(queryOffset)
 
@@ -318,6 +350,8 @@ func (app *App) InsertGroupPostReaction(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var react models.Reaction
+	r.Body = http.MaxBytesReader(w, r.Body, validation.MaxJSONBody)
+
 	if err := json.NewDecoder(r.Body).Decode(&react); err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,

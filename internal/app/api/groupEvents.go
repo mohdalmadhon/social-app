@@ -30,6 +30,8 @@ func (app *App) AddGroupEvent(w http.ResponseWriter, r *http.Request) {
 
 	var event models.NewGroupEvent
 
+	r.Body = http.MaxBytesReader(w, r.Body, validation.MaxJSONBody)
+
 	if err := json.NewDecoder(r.Body).Decode(&event); err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
@@ -39,10 +41,9 @@ func (app *App) AddGroupEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	event.Title = strings.TrimSpace(event.Title)
-	event.Description = strings.TrimSpace(event.Description)
 	event.EventTime = strings.TrimSpace(event.EventTime)
 
-	if err := validation.ValidateGroupEvent(event); err != nil {
+	if err := validation.ValidateGroupEvent(&event); err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
 			"message": err.Error(),
@@ -208,6 +209,8 @@ func (app *App) RespondGroupEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var response models.GroupEventResponse
+
+	r.Body = http.MaxBytesReader(w, r.Body, validation.MaxJSONBody)
 
 	if err := json.NewDecoder(r.Body).Decode(&response); err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{

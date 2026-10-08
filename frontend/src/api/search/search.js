@@ -1,9 +1,10 @@
+import { safeSearch } from '@/helpers/limits';
 import { checkSessionResponse } from '@/helpers/auth/auth';
 import { router } from '@/router/router';
 
 async function search(type, query, offset) {
     const params = new URLSearchParams({
-        search: query,
+        search: safeSearch(query),
         offset: String(offset)
     });
 
@@ -48,11 +49,11 @@ export function searchPosts(query, offset = 0) {
 }
 
 export async function searchShares(vlaue = '', postID = -1) {
-    const resp = await fetch(`/api/user/follow-followers?search=${vlaue}&postID=${postID}`, {
+    const resp = await fetch(`/api/user/follow-followers?search=${encodeURIComponent(safeSearch(vlaue))}&postID=${postID}`, {
         method: "GET",
         credentials: 'include'
     });
-    
+
     const result = await resp.json();
     if (!resp.ok) {
         throw new Error(result.message || 'could not get users');
@@ -62,7 +63,7 @@ export async function searchShares(vlaue = '', postID = -1) {
 }
 
 export async function searchShareProfile(search = '') {
-    const resp = await fetch(`/api/share/profile?search=${encodeURIComponent(search)}`, {
+    const resp = await fetch(`/api/share/profile?search=${encodeURIComponent(safeSearch(search))}`, {
         method: "GET",
         credentials: 'include'
     });
@@ -77,7 +78,7 @@ export async function searchShareProfile(search = '') {
 }
 
 export async function searchInvites(search, groupID = "") {
-    const resp = await fetch(`/api/groups/invites/search?search=${encodeURIComponent(search)}&groupID=${encodeURIComponent(groupID)}`, {
+    const resp = await fetch(`/api/groups/invites/search?search=${encodeURIComponent(safeSearch(search))}&groupID=${encodeURIComponent(groupID)}`, {
         method: "GET",
         credentials: 'include'
     });

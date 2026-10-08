@@ -1,3 +1,4 @@
+import { safeSearch } from '@/helpers/limits';
 import { checkSessionResponse } from "@/helpers/auth/auth";
 import { About, Users, Profile } from "@/models/users";
 import { router } from "@/router/router";
@@ -67,7 +68,7 @@ export async function getProfileData(id, count) {
     user.isFollowing = result.followStatus;
     user.canMessage = result.canMessage;
     user.visibility = result.visibility;
-    
+
     if (result.showProfile) {
         try {
             const followersResult = await getFollowers(id, count, 0);
@@ -172,7 +173,7 @@ export async function getFollowing(id, count, offset = 0) {
 
 export async function searchFollows(searchValue = "", targetId) {
     const params = new URLSearchParams({
-        search: searchValue,
+        search: safeSearch(searchValue),
         targetid: targetId
     });
 
@@ -191,10 +192,10 @@ export async function searchFollows(searchValue = "", targetId) {
 
 export async function searchFollowing(searchValue = "", targetId) {
     const params = new URLSearchParams({
-        search: searchValue,
+        search: safeSearch(searchValue),
         targetid: targetId
     });
-    
+
     const resp = await fetch(`/api/profile/following/search?${params.toString()}`, {
         method: "GET",
         credentials: 'include'

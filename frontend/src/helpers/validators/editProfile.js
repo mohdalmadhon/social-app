@@ -1,6 +1,13 @@
-export function validateAboutField(value = '') {
-    if (value.length > 200) {
-        return 'Must not exceed 200 characters';
+import { LIMITS, charCount } from '@/helpers/limits';
+import { isLinkField, validateLink } from '@/helpers/links';
+
+export function validateAboutField(value = '', field = '') {
+    if (isLinkField(field)) {
+        return validateLink(field, value);
+    }
+
+    if (charCount(value) > LIMITS.aboutField) {
+        return `Must not exceed ${LIMITS.aboutField} characters`;
     }
 
     return '';

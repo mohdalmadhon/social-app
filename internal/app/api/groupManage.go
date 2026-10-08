@@ -8,6 +8,7 @@ import (
 
 	"social/database/groups"
 	"social/internal/helpers"
+	"social/internal/validation"
 )
 
 func (app *App) pushGroupRemoved(userID, groupID int, reason string) {
@@ -51,6 +52,8 @@ func (app *App) KickMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req Request
+
+	r.Body = http.MaxBytesReader(w, r.Body, validation.MaxJSONBody)
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
@@ -152,6 +155,8 @@ func (app *App) LeaveGroup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req Request
+
+	r.Body = http.MaxBytesReader(w, r.Body, validation.MaxJSONBody)
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{

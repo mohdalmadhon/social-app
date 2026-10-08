@@ -49,7 +49,6 @@ const results = reactive({
     posts: createTabState()
 });
 
-// When the URL does not name a tab, the first tab that has results is shown.
 const defaultTab = reactive({ id: 'groups' });
 
 const activeTab = computed(() => {
@@ -75,8 +74,6 @@ const tabItems = computed(() => {
     });
 });
 
-// Every new search bumps the token so that answers to an older search
-// (or to a page that has been left) are ignored when they arrive late.
 let searchToken = 0;
 
 async function loadTab(id, token) {

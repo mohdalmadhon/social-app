@@ -19,8 +19,6 @@ const groups = ref([]);
 const loadingGroups = ref(false);
 const groupsLoaded = ref(false);
 
-// Holds the value to persist: 0 for public, -1 for private, or the
-// selected group's ID when privacy is set to "group".
 const groupIDValue = ref(0);
 
 watch(() => props.modelValue, (value) => {
@@ -31,7 +29,7 @@ watch(() => props.modelValue, (value) => {
     } else if (value === 'group') {
         groupIDValue.value = props.groupId ?? null;
     } else {
-        // private toggle (-1)
+
         groupIDValue.value = -1;
     }
 }, { immediate: true });

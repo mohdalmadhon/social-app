@@ -81,14 +81,14 @@ export async function logout() {
         method: "DELETE",
         credentials: 'include'
     });
-    
+
     if(!checkSessionResponse(resp)) {
         router.push("/login");
     }
 
     if (!resp.ok && resp.status != 401) {
         throw new Error("could not logout")
-        
+
     }
 
     router.push("/login")

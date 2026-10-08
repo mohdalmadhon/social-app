@@ -1,4 +1,5 @@
 <script setup>
+import { safeHref } from '@/helpers/links';
 import { ref, computed } from 'vue';
 
 const activeTab = ref('information');
@@ -124,7 +125,7 @@ const tabs = [
                             class="info-item"
                         >
                             <span>Work</span>
-                            <p>{{ props.about.work }}</p>
+                            <p class="user-text">{{ props.about.work }}</p>
                         </div>
 
                         <div
@@ -132,7 +133,7 @@ const tabs = [
                             class="info-item"
                         >
                             <span>Education</span>
-                            <p>{{ props.about.education }}</p>
+                            <p class="user-text">{{ props.about.education }}</p>
                         </div>
 
                         <div
@@ -140,7 +141,7 @@ const tabs = [
                             class="info-item"
                         >
                             <span>Hobbies</span>
-                            <p>{{ props.about.hobbies }}</p>
+                            <p class="user-text">{{ props.about.hobbies }}</p>
                         </div>
 
                         <div
@@ -148,7 +149,7 @@ const tabs = [
                             class="info-item"
                         >
                             <span>Interests</span>
-                            <p>{{ props.about.intrests }}</p>
+                            <p class="user-text">{{ props.about.intrests }}</p>
                         </div>
 
                         <div
@@ -156,7 +157,7 @@ const tabs = [
                             class="info-item"
                         >
                             <span>Travel</span>
-                            <p>{{ props.about.travel }}</p>
+                            <p class="user-text">{{ props.about.travel }}</p>
                         </div>
 
                         <p
@@ -196,46 +197,46 @@ const tabs = [
 
                         <a
                             v-if="props.about.website"
-                            :href="props.about.website"
+                            :href="safeHref('website', props.about.website)"
                             target="_blank"
                             rel="noopener noreferrer"
                             class="link-item"
                         >
                             <span>Website</span>
-                            <p>{{ props.about.website }}</p>
+                            <p class="user-text">{{ props.about.website }}</p>
                         </a>
 
                         <a
                             v-if="props.about.linkedin"
-                            :href="props.about.linkedin"
+                            :href="safeHref('linkedin', props.about.linkedin)"
                             target="_blank"
                             rel="noopener noreferrer"
                             class="link-item"
                         >
                             <span>LinkedIn</span>
-                            <p>{{ props.about.linkedin }}</p>
+                            <p class="user-text">{{ props.about.linkedin }}</p>
                         </a>
 
                         <a
                             v-if="props.about.twitter"
-                            :href="props.about.twitter"
+                            :href="safeHref('twitter', props.about.twitter)"
                             target="_blank"
                             rel="noopener noreferrer"
                             class="link-item"
                         >
                             <span>Twitter / X</span>
-                            <p>{{ props.about.twitter }}</p>
+                            <p class="user-text">{{ props.about.twitter }}</p>
                         </a>
 
                         <a
                             v-if="props.about.instgram"
-                            :href="props.about.instgram"
+                            :href="safeHref('instagram', props.about.instgram)"
                             target="_blank"
                             rel="noopener noreferrer"
                             class="link-item"
                         >
                             <span>Instagram</span>
-                            <p>{{ props.about.instgram }}</p>
+                            <p class="user-text">{{ props.about.instgram }}</p>
                         </a>
 
                         <p

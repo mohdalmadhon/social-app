@@ -1,6 +1,7 @@
+import { safeSearch } from '@/helpers/limits';
 export async function getFriends(searchValue = "", targetId, offset = 0) {
     const params = new URLSearchParams({
-        search: searchValue,
+        search: safeSearch(searchValue),
         targetid: targetId,
         offset: offset.toString()
     });
@@ -75,7 +76,7 @@ export async function deletePostGroup(groupID) {
             GroupID: groupID
         })
     });
-    
+
     if (!resp.ok) {
         throw new Error("could not connect to server")
     }

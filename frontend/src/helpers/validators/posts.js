@@ -1,3 +1,5 @@
+import { LIMITS, charCount } from '@/helpers/limits';
+
 export function validatePost(data) {
     if (typeof data.content !== 'string') {
         return {
@@ -6,14 +8,14 @@ export function validatePost(data) {
         };
     }
 
-    if (data.content.length > 1000) {
+    if (charCount(data.content) > LIMITS.postContent) {
         return {
             field: 'content',
-            message: 'content cannot be more than 1000 characters'
+            message: `content cannot be more than ${LIMITS.postContent} characters`
         };
     }
 
-    if (data.content.length === 0) {
+    if (data.content.trim().length === 0) {
         return {
             field: 'content',
             message: 'content cannot be empty'
@@ -31,6 +33,13 @@ export function validatePost(data) {
         return {
             field: 'groupID',
             message: 'invalid group code'
+        };
+    }
+
+    if (data.location && charCount(data.location) > LIMITS.postLocation) {
+        return {
+            field: 'location',
+            message: 'location is too long'
         };
     }
 
@@ -61,6 +70,20 @@ export function validatePost(data) {
         return {
             field: 'tags',
             message: 'invalid tagged people'
+        };
+    }
+
+    if (data.taggedPeople.length > LIMITS.postTags) {
+        return {
+            field: 'tags',
+            message: `you can tag at most ${LIMITS.postTags} people`
+        };
+    }
+
+    if (data.image && data.image.size > LIMITS.postMediaSize) {
+        return {
+            field: 'image',
+            message: 'file must be smaller than 50MB'
         };
     }
 

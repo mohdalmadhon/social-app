@@ -11,7 +11,6 @@ func GetPostOwnerID(db *sql.DB, postID int) (int, error) {
 	return ID, err
 }
 
-// GetPostImage returns the image path of a post ("" when it has none).
 func GetPostImage(db *sql.DB, postID int) (string, error) {
 	var imagePath sql.NullString
 
@@ -22,7 +21,6 @@ func GetPostImage(db *sql.DB, postID int) (string, error) {
 	return imagePath.String, err
 }
 
-// GetCommentOwner returns the author of a comment and the post it belongs to.
 func GetCommentOwner(db *sql.DB, commentID int) (int, int, error) {
 	var ownerID, postID int
 
@@ -33,8 +31,6 @@ func GetCommentOwner(db *sql.DB, commentID int) (int, int, error) {
 	return ownerID, postID, err
 }
 
-// GetUserCommentVote returns the vote (1 / -1) a user currently has on a
-// comment, or 0 when they have none.
 func GetUserCommentVote(db *sql.DB, commentID, userID int) (int, error) {
 	var vote int
 

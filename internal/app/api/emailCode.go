@@ -42,29 +42,20 @@ func isSixDigits(code string) bool {
 
 func (app *App) CheckAvailability(w http.ResponseWriter, r *http.Request) {
 	kind := r.URL.Query().Get("type")
-	value := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("value")))
 
-	var field string
-
-	switch kind {
-	case "name":
-		field = "username"
-	case "email":
-		field = "email"
-	default:
+	value, err := validation.ValidateAvailabilityValue(kind, r.URL.Query().Get("value"))
+	if err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
-			"message": "invalid check type",
+			"message": err.Error(),
 		})
 		return
 	}
 
-	if value == "" {
-		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
-			"status":  false,
-			"message": "value is required",
-		})
-		return
+	field := "username"
+
+	if kind == "email" {
+		field = "email"
 	}
 
 	available, err := users.IsAvailable(app.DB, field, value)
@@ -142,7 +133,7 @@ func (app *App) SendEmailCode(w http.ResponseWriter, r *http.Request) {
 		}
 
 		log.Println(err)
-		
+
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 			"status":  false,
 			"message": "Something went wrong. Please try again.",

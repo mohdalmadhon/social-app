@@ -197,13 +197,9 @@ func DeleteOldAvatar(db *sql.DB, userID int) error {
 	return err
 }
 
-
-// DeleteUser removes a user's account permanently. Related rows
-// (profile, posts, comments, messages, notifications, etc.) are removed
-// automatically through ON DELETE CASCADE foreign keys.
 func DeleteUser(db *sql.DB, userID int) error {
 	if err := DeleteOldAvatar(db, userID); err != nil {
-		// missing/default avatar should not block account deletion
+
 		if err != sql.ErrNoRows {
 			return err
 		}

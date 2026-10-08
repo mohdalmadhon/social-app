@@ -8,12 +8,23 @@ import (
 	"time"
 )
 
+var (
+	nameRegex      = regexp.MustCompile(`^[A-Z][a-zA-Z]*$`)
+	usernameRegex  = regexp.MustCompile(`^[a-z0-9_-]+$`)
+	emailRegex     = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
+	numberRegex    = regexp.MustCompile(`[0-9]`)
+	specialRegex   = regexp.MustCompile(`[!@#$%*&^?]`)
+	alphaRegex     = regexp.MustCompile(`[a-zA-Z]`)
+	forbiddenRegex = regexp.MustCompile(`[^a-zA-Z0-9!@#$%*&^?]`)
+)
+
 func ValidateRegisterData(userData *models.UserRegistration) error {
 	NormalizeRegisterData(userData)
 
 	if err := validateNames(&userData.FirstName); err != nil {
 		return err
 	}
+
 	if err := validateNames(&userData.LastName); err != nil {
 		return err
 	}
@@ -35,51 +46,44 @@ func ValidateRegisterData(userData *models.UserRegistration) error {
 	}
 
 	if err := validateAbout(&userData.About); err != nil {
-		return nil
+		return err
 	}
 
 	return nil
 }
 
-// take the data and normilize it for the database and the validation as removing trail and leading spaces and capitalize or lowerize the chracters
 func NormalizeRegisterData(userData *models.UserRegistration) {
-	// trim spaces
-	userData.FirstName = strings.Trim(userData.FirstName, " ")
-	userData.LastName = strings.Trim(userData.LastName, " ")
-	userData.UserName = strings.Trim(userData.UserName, " ")
-	userData.Email = strings.Trim(userData.Email, " ")
+	userData.FirstName = strings.TrimSpace(userData.FirstName)
+	userData.LastName = strings.TrimSpace(userData.LastName)
+	userData.UserName = strings.TrimSpace(userData.UserName)
+	userData.Email = strings.TrimSpace(userData.Email)
 	userData.Password = strings.Trim(userData.Password, " ")
-	userData.About = strings.Trim(userData.About, " ")
+	userData.About = CleanText(userData.About)
 
-	// normalize
-	if userData.FirstName != "" && len(userData.FirstName) >= 2 {
+	if len(userData.FirstName) >= 2 {
 		userData.FirstName = strings.ToUpper(userData.FirstName[:1]) + userData.FirstName[1:]
 	}
-	if userData.LastName != "" && len(userData.LastName) >= 2 {
+
+	if len(userData.LastName) >= 2 {
 		userData.LastName = strings.ToUpper(userData.LastName[:1]) + userData.LastName[1:]
 	}
+
 	if userData.UserName != "" {
 		userData.UserName = strings.ToLower(userData.UserName)
 	}
+
 	if userData.Email != "" {
 		userData.Email = strings.ToLower(userData.Email)
 	}
-	
-
 }
 
 func validateNames(name *string) error {
-	if len(*name) < 2 || len(*name) > 15 {
-		return errors.New("Error: first/last name must be between 3 and 15 characters")
+	if RuneLen(*name) < MinName || RuneLen(*name) > MaxName {
+		return errors.New("first/last name must be between 2 and 15 characters")
 	}
 
-	nameReg, err := regexp.Compile(`^[A-Z][a-zA-Z]*$`)
-	if err != nil {
-		return err
-	}
-
-	if !nameReg.MatchString(*name) {
-		return errors.New("Error: name format is incorrect")
+	if !nameRegex.MatchString(*name) {
+		return errors.New("name format is incorrect")
 	}
 
 	return nil
@@ -89,34 +93,25 @@ func validateUserName(username *string) error {
 	if len(*username) == 0 {
 		return nil
 	}
-	if len(*username) < 3 || len(*username) > 12 {
-		return errors.New("Error: usernam length must be between 3 and 12 characters")
+
+	if RuneLen(*username) < MinUsername || RuneLen(*username) > MaxUsername {
+		return errors.New("username length must be between 3 and 12 characters")
 	}
 
-	usernameReq, err := regexp.Compile("^[a-z0-9_-]+$")
-	if err != nil {
-		return err
-	}
-
-	if !usernameReq.MatchString(*username) {
-		return errors.New("Error: invalid username format")
+	if !usernameRegex.MatchString(*username) {
+		return errors.New("invalid username format")
 	}
 
 	return nil
 }
 
 func validateEmail(email *string) error {
-	if len(*email) < 5 || len(*email) > 75 {
-		return errors.New("Error: email length must be between 5 and 75 characters")
+	if RuneLen(*email) < MinEmail || RuneLen(*email) > MaxEmail {
+		return errors.New("email length must be between 5 and 75 characters")
 	}
 
-	emailReg, err := regexp.Compile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
-	if err != nil {
-		return err
-	}
-
-	if !emailReg.MatchString(*email) {
-		return errors.New("Error: invalid email")
+	if !emailRegex.MatchString(*email) {
+		return errors.New("invalid email")
 	}
 
 	return nil
@@ -136,6 +131,7 @@ func validateDOB(dob *time.Time) error {
 	}
 
 	tooYoung := now.AddDate(-12, 0, 0)
+
 	if dob.After(tooYoung) {
 		return errors.New("date of birth is invalid")
 	}
@@ -144,47 +140,27 @@ func validateDOB(dob *time.Time) error {
 }
 
 func validatePassword(pass string) error {
-	if len(pass) < 8 {
+	if RuneLen(pass) < MinPassword {
 		return errors.New("invalid password: password must be at least 8 characters long")
 	}
 
-	if len(pass) > 75 {
+	if RuneLen(pass) > MaxPassword {
 		return errors.New("invalid password: password must be less than 75 characters long")
 	}
 
-	numberCheck, err := regexp.MatchString(`[0-9]`, pass)
-	if err != nil {
-		return errors.New("invalid password: password format is wrong")
-	}
-
-	if !numberCheck {
+	if !numberRegex.MatchString(pass) {
 		return errors.New("invalid password: password must contain a number")
 	}
 
-	specialCharacterCheck, err := regexp.MatchString(`[!@#$%*&^?]`, pass)
-	if err != nil {
-		return errors.New("invalid password: password format is wrong")
-	}
-
-	if !specialCharacterCheck {
+	if !specialRegex.MatchString(pass) {
 		return errors.New("invalid password: password must contain a special character: ! @ # $ % * & ^ ?")
 	}
 
-	alphaCheck, err := regexp.MatchString(`[a-zA-Z]`, pass)
-	if err != nil {
-		return errors.New("invalid password: password format is wrong")
-	}
-
-	if !alphaCheck {
+	if !alphaRegex.MatchString(pass) {
 		return errors.New("invalid password: password must contain alphabetic characters")
 	}
 
-	forbiddenCheck, err := regexp.MatchString(`[^a-zA-Z0-9!@#$%*&^?]`, pass)
-	if err != nil {
-		return errors.New("invalid password: password format is wrong")
-	}
-
-	if forbiddenCheck {
+	if forbiddenRegex.MatchString(pass) {
 		return errors.New("invalid password: password contains forbidden characters")
 	}
 
@@ -195,8 +171,100 @@ func validateAbout(about *string) error {
 	if len(*about) == 0 {
 		return nil
 	}
-	if len(*about) > 1000 {
-		return errors.New("Error: about is too long")
+
+	return ValidateMultiline("about", *about, 0, MaxAbout, 0)
+}
+
+func ValidateLogin(identifier string, password string) (string, error) {
+	identifier = strings.TrimSpace(identifier)
+
+	if err := ValidateSingleLine("identifier", identifier, 3, MaxIdentifier); err != nil {
+		return "", err
 	}
+
+	if err := ValidateSingleLine("password", password, MinPassword, MaxPassword); err != nil {
+		return "", err
+	}
+
+	return identifier, nil
+}
+
+func ValidateAvailabilityValue(kind string, value string) (string, error) {
+	value = strings.ToLower(strings.TrimSpace(value))
+
+	switch kind {
+	case "name":
+		if err := ValidateSingleLine("username", value, MinUsername, MaxUsername); err != nil {
+			return "", err
+		}
+	case "email":
+		if err := ValidateSingleLine("email", value, MinEmail, MaxEmail); err != nil {
+			return "", err
+		}
+	default:
+		return "", errors.New("invalid check type")
+	}
+
+	return value, nil
+}
+
+func ValidateVerificationCode(code string) error {
+	code = strings.TrimSpace(code)
+
+	if RuneLen(code) != MaxCode {
+		return errors.New("invalid code")
+	}
+
+	for _, r := range code {
+		if r < '0' || r > '9' {
+			return errors.New("invalid code")
+		}
+	}
+
+	return nil
+}
+
+func ValidateAboutFields(about *models.UserAbout) error {
+	fields := []struct {
+		label string
+		value *string
+	}{
+		{"bio", &about.Bio},
+		{"work", &about.Work},
+		{"education", &about.Education},
+		{"travel", &about.Travel},
+		{"interests", &about.Intrests},
+		{"hobbies", &about.Hobbies},
+		{"website", &about.Website},
+		{"linkedin", &about.Linkedin},
+		{"instagram", &about.Instgram},
+		{"twitter", &about.Twitter},
+	}
+
+	for _, field := range fields {
+		if IsLinkField(field.label) {
+			link, err := NormalizeLink(field.label, *field.value)
+
+			if err != nil {
+				return err
+			}
+
+			*field.value = link
+			continue
+		}
+
+		*field.value = CleanText(*field.value)
+
+		max := MaxAboutField
+
+		if field.label == "bio" {
+			max = MaxAbout
+		}
+
+		if err := ValidateMultiline(field.label, *field.value, 0, max, 0); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

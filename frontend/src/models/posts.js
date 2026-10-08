@@ -2,7 +2,7 @@ export class Reaction {
     value;
     userID;
     postID;
-    
+
     constructor(value, postID) {
         this.value = value;
         this.postID = postID;

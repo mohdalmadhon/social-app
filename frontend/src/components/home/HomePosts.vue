@@ -420,6 +420,8 @@ onBeforeUnmount(() => {
     line-height: 1.55;
     white-space: pre-wrap;
     word-break: break-word;
+    overflow-wrap: anywhere;
+    max-width: 100%;
 }
 
 @media (max-width: 650px) {

@@ -79,7 +79,6 @@ onBeforeUnmount(() => {
     document.removeEventListener('click', handleOutsideClick);
 });
 
-
 function openTaggedPeople() {
     emit('open-tags');
 }

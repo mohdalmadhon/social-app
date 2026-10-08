@@ -103,6 +103,6 @@ export async function viewPost(postID) {
     if (!resp.ok) {
         throw new Error(result.message || 'Could not mark post as seen');
     }
-    
+
     return result;
 }

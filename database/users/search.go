@@ -7,8 +7,6 @@ import (
 	"social/internal/models"
 )
 
-// SearchUsers finds users whose username, first name, last name or full name
-// contains the search text. People the searching user follows come first.
 func SearchUsers(db *sql.DB, userID int, search string, limit, offset int) ([]models.SearchUser, error) {
 	pattern := dbutil.LikePattern(search)
 

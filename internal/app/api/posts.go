@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"social/database/posts"
+	"social/database/profiles"
 	"social/internal/helpers"
 	"social/internal/models"
 	"social/internal/validation"
@@ -24,7 +25,9 @@ func (app *App) AddPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := r.ParseMultipartForm(10 << 20); err != nil {
+	r.Body = http.MaxBytesReader(w, r.Body, validation.MaxPostMediaSize+(1<<20))
+
+	if err := r.ParseMultipartForm(validation.MaxFormMemory); err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
 			"message": "could not read form",
@@ -66,12 +69,13 @@ func (app *App) AddPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	file, header, err := r.FormFile("image")
-	
+
 	res := validation.ValidatePost(&post, header)
 	if res.Field != "" {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
-			"message": "could not upload post",
+			"field":   res.Field,
+			"message": res.Message,
 		})
 		return
 	}
@@ -253,6 +257,8 @@ func (app *App) PostReaction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var rect models.Reaction
+	r.Body = http.MaxBytesReader(w, r.Body, validation.MaxJSONBody)
+
 	if err := json.NewDecoder(r.Body).Decode(&rect); err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
@@ -287,7 +293,6 @@ func (app *App) PostReaction(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	// send notification (best effort: the reaction itself is already saved)
 
 	targetID, err := posts.GetPostOwnerID(app.DB, rect.PostID)
 	if err != nil {
@@ -387,7 +392,13 @@ func (app *App) GetUserPosts(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	videosOnly := r.URL.Query().Get("type") == "videos"
+	postType := r.URL.Query().Get("type")
+	videosOnly := postType == "videos"
+
+	if postType == "tagged" {
+		app.writeTaggedPosts(w, userID, targetID, offset, limit)
+		return
+	}
 
 	userPosts, err := posts.GetUserPosts(app.DB, targetID, offset, limit, videosOnly)
 	if err != nil {
@@ -486,6 +497,8 @@ func (app *App) ViewPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var postID int
+	r.Body = http.MaxBytesReader(w, r.Body, validation.MaxJSONBody)
+
 	if err := json.NewDecoder(r.Body).Decode(&postID); err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
@@ -505,5 +518,68 @@ func (app *App) ViewPost(w http.ResponseWriter, r *http.Request) {
 	helpers.WriteJson(w, http.StatusOK, map[string]any{
 		"status":  true,
 		"message": "all good",
+	})
+}
+
+func (app *App) writeTaggedPosts(w http.ResponseWriter, userID, targetID, offset, limit int) {
+	if targetID != userID {
+		isPrivate, err := posts.IsPrivateProfile(app.DB, targetID)
+		if err != nil {
+			log.Println(err)
+			helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+				"status":  false,
+				"message": "could not get posts",
+			})
+			return
+		}
+
+		if isPrivate {
+			status, err := profiles.CheckFollower(app.DB, userID, targetID)
+			if err != nil && err != sql.ErrNoRows {
+				log.Println(err)
+				helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+					"status":  false,
+					"message": "could not get posts",
+				})
+				return
+			}
+
+			if err == sql.ErrNoRows || status != 1 {
+				helpers.WriteJson(w, http.StatusOK, map[string]any{
+					"status":  true,
+					"data":    []models.Post{},
+					"hasMore": false,
+				})
+				return
+			}
+		}
+	}
+
+	taggedPosts, err := posts.GetTaggedPosts(app.DB, targetID, offset, limit)
+	if err != nil {
+		log.Println(err)
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not get posts",
+		})
+		return
+	}
+
+	hasMore := len(taggedPosts) == limit
+
+	visiblePosts, err := posts.FilterTaggedPosts(app.DB, taggedPosts, userID, targetID)
+	if err != nil {
+		log.Println(err)
+		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
+			"status":  false,
+			"message": "could not filter posts",
+		})
+		return
+	}
+
+	helpers.WriteJson(w, http.StatusOK, map[string]any{
+		"status":  true,
+		"data":    visiblePosts,
+		"hasMore": hasMore,
 	})
 }

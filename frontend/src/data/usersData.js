@@ -23,7 +23,7 @@ export const profileData = {
         avatar: '',
         isPrivate: 0
     },
-    
+
     numOfFollowers: 0,
     numOfFollowing: 0,
     numOfPosts: 0,

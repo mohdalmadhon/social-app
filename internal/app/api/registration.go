@@ -11,6 +11,7 @@ import (
 	"social/internal/helpers"
 	"social/internal/models"
 	"social/internal/validation"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,7 +31,9 @@ type Hub struct {
 }
 
 func (app *App) RegisterUser(w http.ResponseWriter, r *http.Request) {
-	err := r.ParseMultipartForm(10 << 20)
+	r.Body = http.MaxBytesReader(w, r.Body, validation.MaxFormMemory+(1<<20))
+
+	err := r.ParseMultipartForm(validation.MaxFormMemory)
 
 	if err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
@@ -40,7 +43,15 @@ func (app *App) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dobValue := r.FormValue("dob")
+	dobValue := strings.TrimSpace(r.FormValue("dob"))
+
+	if len(dobValue) != 10 {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": "Invalid date of birth",
+		})
+		return
+	}
 
 	dob, err := time.Parse("2006-01-02", dobValue)
 	if err != nil {
@@ -76,7 +87,15 @@ func (app *App) RegisterUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	verifyToken := r.FormValue("VerifyToken")
-	
+
+	if len(verifyToken) == 0 || len(verifyToken) > 256 {
+		helpers.WriteJson(w, http.StatusForbidden, map[string]any{
+			"status":  false,
+			"message": "Email verification is required",
+		})
+		return
+	}
+
 	if !app.OTP.CheckToken(verifyToken, userData.Email) {
 		helpers.WriteJson(w, http.StatusForbidden, map[string]any{
 			"status":  false,
@@ -96,6 +115,14 @@ func (app *App) RegisterUser(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		defer file.Close()
+
+		if header.Size > validation.MaxAvatarSize {
+			helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+				"status":  false,
+				"message": "avatar must be smaller than 5MB",
+			})
+			return
+		}
 
 		avatarPath, err := helpers.SaveUploads(file, header, "avatar")
 		if err != nil {

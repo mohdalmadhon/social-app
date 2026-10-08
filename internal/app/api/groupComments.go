@@ -43,7 +43,7 @@ func (app *App) AddGroupComment(w http.ResponseWriter, r *http.Request) {
 
 	comment.User.ID = userID
 
-	if err := validation.ValidateGroupComment(comment, input.HasImage()); err != nil {
+	if err := validation.ValidateGroupComment(&comment, input.HasImage()); err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
 			"message": err.Error(),

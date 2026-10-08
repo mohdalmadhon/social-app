@@ -3,6 +3,8 @@ import { updateAbout } from '@/api/users/editProfile';
 import { addNotification } from '@/data/notifications';
 import { validateAboutField } from '@/helpers/validators/editProfile.js';
 import { reactive } from 'vue';
+import { LIMITS } from '@/helpers/limits';
+import { isLinkField, normalizeLink } from '@/helpers/links';
 
 const props = defineProps({
     about: {
@@ -36,7 +38,7 @@ const errors = reactive({
 });
 
 function validateField(field) {
-    errors[field] = validateAboutField(form[field]);
+    errors[field] = validateAboutField(form[field], field);
 }
 
 async function confirmChanges() {
@@ -45,9 +47,15 @@ async function confirmChanges() {
     const hasErrors = Object.values(errors).some(error => error !== '');
 
     if (hasErrors) {
-        addNotification('Failed to connect to server', 'success');
+        addNotification('Please fix the highlighted fields', 'error');
         return;
     }
+
+    Object.keys(form).forEach(field => {
+        if (isLinkField(field)) {
+            form[field] = normalizeLink(field, form[field]);
+        }
+    });
 
     try {
         const result = await updateAbout(form);
@@ -76,7 +84,7 @@ async function confirmChanges() {
                     <textarea
                         id="work"
                         v-model="form.work"
-                        maxlength="200"
+                        :maxlength="LIMITS.aboutField"
                         placeholder="Where do you work"
                         @input="validateField('work')"
                     ></textarea>
@@ -91,7 +99,7 @@ async function confirmChanges() {
                     <textarea
                         id="education"
                         v-model="form.education"
-                        maxlength="200"
+                        :maxlength="LIMITS.aboutField"
                         placeholder="Where did you study"
                         @input="validateField('education')"
                     ></textarea>
@@ -106,7 +114,7 @@ async function confirmChanges() {
                     <textarea
                         id="hobbies"
                         v-model="form.hobbies"
-                        maxlength="200"
+                        :maxlength="LIMITS.aboutField"
                         placeholder="Your hobbies"
                         @input="validateField('hobbies')"
                     ></textarea>
@@ -121,7 +129,7 @@ async function confirmChanges() {
                     <textarea
                         id="interests"
                         v-model="form.interests"
-                        maxlength="200"
+                        :maxlength="LIMITS.aboutField"
                         placeholder="Your interests"
                         @input="validateField('interests')"
                     ></textarea>
@@ -136,7 +144,7 @@ async function confirmChanges() {
                     <textarea
                         id="travel"
                         v-model="form.travel"
-                        maxlength="200"
+                        :maxlength="LIMITS.aboutField"
                         placeholder="Places you've been"
                         @input="validateField('travel')"
                     ></textarea>
@@ -158,7 +166,12 @@ async function confirmChanges() {
                     <textarea
                         id="website"
                         v-model="form.website"
-                        maxlength="200"
+                        rows="1"
+                        inputmode="url"
+                        autocomplete="url"
+                        spellcheck="false"
+                        @keydown.enter.prevent
+                        :maxlength="LIMITS.aboutField"
                         placeholder="https://"
                         @input="validateField('website')"
                     ></textarea>
@@ -173,7 +186,12 @@ async function confirmChanges() {
                     <textarea
                         id="linkedin"
                         v-model="form.linkedin"
-                        maxlength="200"
+                        rows="1"
+                        inputmode="url"
+                        autocomplete="url"
+                        spellcheck="false"
+                        @keydown.enter.prevent
+                        :maxlength="LIMITS.aboutField"
                         placeholder="https://linkedin.com/in/"
                         @input="validateField('linkedin')"
                     ></textarea>
@@ -188,7 +206,12 @@ async function confirmChanges() {
                     <textarea
                         id="twitter"
                         v-model="form.twitter"
-                        maxlength="200"
+                        rows="1"
+                        inputmode="url"
+                        autocomplete="url"
+                        spellcheck="false"
+                        @keydown.enter.prevent
+                        :maxlength="LIMITS.aboutField"
                         placeholder="https://x.com/"
                         @input="validateField('twitter')"
                     ></textarea>
@@ -203,7 +226,12 @@ async function confirmChanges() {
                     <textarea
                         id="instagram"
                         v-model="form.instagram"
-                        maxlength="200"
+                        rows="1"
+                        inputmode="url"
+                        autocomplete="url"
+                        spellcheck="false"
+                        @keydown.enter.prevent
+                        :maxlength="LIMITS.aboutField"
                         placeholder="https://instagram.com/"
                         @input="validateField('instagram')"
                     ></textarea>

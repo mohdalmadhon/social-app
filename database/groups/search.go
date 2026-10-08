@@ -7,8 +7,6 @@ import (
 	"social/internal/models"
 )
 
-// SearchGroups finds group chats whose name or description contains the
-// search text. Groups the searching user belongs to come first.
 func SearchGroups(db *sql.DB, userID int, search string, limit, offset int) ([]models.SearchGroup, error) {
 	pattern := dbutil.LikePattern(search)
 

@@ -1,5 +1,13 @@
 <script setup>
 import { reactive } from 'vue';
+import { LIMITS } from '@/helpers/limits';
+import {
+    validateName,
+    validateUsername,
+    validateEmail,
+    validatePassword,
+    validateAbout
+} from '@/helpers/validators/registration';
 
 import FormField from '@/components/ProfileEdit/FormField.vue';
 import AvatarUploader from '@/components/ProfileEdit/AvatarUploader.vue';
@@ -26,11 +34,36 @@ const form = reactive({
     IsPrivate: props.isPrivate || false
 });
 
+const errors = reactive({
+    FirstName: '',
+    LastName: '',
+    Username: '',
+    Email: '',
+    Password: '',
+    About: ''
+});
+
+function validateForm() {
+    errors.FirstName = validateName(form.FirstName.trim());
+    errors.LastName = validateName(form.LastName.trim());
+    errors.Username = validateUsername(form.Username.trim());
+    errors.Email = validateEmail(form.Email.trim());
+    errors.Password = form.Password ? validatePassword(form.Password) : '';
+    errors.About = validateAbout(form.About);
+
+    return !Object.values(errors).some(Boolean);
+}
+
 function togglePrivacy() {
     form.IsPrivate = !form.IsPrivate;
 }
 
 async function updateInfo() {
+    if (!validateForm()) {
+        addNotification('Please fix the highlighted fields', 'error')
+        return;
+    }
+
     if (form.IsPrivate) {
         form.IsPrivate = 1
     } else {
@@ -47,8 +80,6 @@ async function updateInfo() {
         addNotification(err.message, 'error')
     }
 
-
-    console.log('Profile updated successfully');
 }
 </script>
 
@@ -85,20 +116,24 @@ async function updateInfo() {
 
             <form @submit.prevent="updateInfo">
                 <div class="field-grid">
-                    <FormField id="firstName" label="First name" v-model="form.FirstName" placeholder="First name" />
+                    <FormField id="firstName" label="First name" v-model="form.FirstName" placeholder="First name"
+                        :maxlength="LIMITS.name" :error="errors.FirstName" />
 
-                    <FormField id="lastName" label="Last name" v-model="form.LastName" placeholder="Last name" />
+                    <FormField id="lastName" label="Last name" v-model="form.LastName" placeholder="Last name"
+                        :maxlength="LIMITS.name" :error="errors.LastName" />
 
-                    <FormField id="username" label="Username" v-model="form.Username" placeholder="Username" />
+                    <FormField id="username" label="Username" v-model="form.Username" placeholder="Username"
+                        :maxlength="LIMITS.username" :error="errors.Username" />
 
-                    <FormField id="email" label="Email" type="email" v-model="form.Email" placeholder="Email address" />
+                    <FormField id="email" label="Email" type="email" v-model="form.Email" placeholder="Email address"
+                        :maxlength="LIMITS.email" :error="errors.Email" />
 
                     <FormField id="password" label="Password" type="password" v-model="form.Password"
-                        placeholder="****************" />
+                        placeholder="****************" :maxlength="LIMITS.password" :error="errors.Password" />
                 </div>
 
                 <FormField id="bio" label="Bio" type="textarea" v-model="form.About"
-                    placeholder="Tell people about yourself" />
+                    placeholder="Tell people about yourself" :maxlength="LIMITS.about" :error="errors.About" />
 
                 <button type="submit" class="confirm-button">
                     Confirm changes

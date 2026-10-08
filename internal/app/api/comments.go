@@ -43,7 +43,7 @@ func (app *App) AddComment(w http.ResponseWriter, r *http.Request) {
 
 	comment.User.ID = userID
 
-	if err := validation.ValidateComment(comment, input.HasImage()); err != nil {
+	if err := validation.ValidateComment(&comment, input.HasImage()); err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
 			"message": err.Error(),

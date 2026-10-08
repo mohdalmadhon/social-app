@@ -5,6 +5,8 @@ import { Comment, createComment } from '@/models/posts';
 import { router } from '@/router/router';
 import { sessionUserId } from '@/data/currentUser';
 import { useCommentMedia, commentImageSrc, COMMENT_MEDIA_ACCEPT } from '@/helpers/commentMedia';
+import { LIMITS, charCount, cleanText, validateCommentText } from '@/helpers/limits';
+import { resizeTextarea, handleEnterKey, enforceLines } from '@/helpers/multilineInput';
 
 const props = defineProps({
     show: { type: Boolean, default: false },
@@ -31,6 +33,21 @@ const loadingReplies = ref({});
 const replyErrors = ref({});
 const menuComment = ref(null);
 const commentInput = ref(null);
+const commentError = ref('');
+const commentCount = computed(() => charCount(newComment.value));
+
+function onCommentInput(event) {
+    newComment.value = enforceLines(event, LIMITS.commentLines);
+    commentError.value = '';
+}
+
+function onCommentKeydown(event) {
+    handleEnterKey(event, submitComment);
+}
+
+watch(newComment, () => {
+    nextTick(() => resizeTextarea(commentInput.value, 120));
+});
 const {
     file: mediaFile,
     previewUrl: mediaPreview,
@@ -155,8 +172,17 @@ async function submitReplyTo(parentComment, content, media = null) {
 }
 
 async function submitComment() {
-    const content = newComment.value.trim();
+    const content = cleanText(newComment.value);
     if ((!content && !mediaFile.value) || submitting.value) return;
+
+    const contentError = validateCommentText(content, Boolean(mediaFile.value));
+
+    if (contentError) {
+        commentError.value = contentError;
+        return;
+    }
+
+    commentError.value = '';
 
     const media = takeMedia();
     newComment.value = '';
@@ -415,7 +441,10 @@ watch(() => props.show, value => { if (value) loadComments(); });
                             <path d="m21 15-5-5L5 21" />
                         </svg>
                     </button>
-                    <input ref="commentInput" v-model="newComment" maxlength="200" :placeholder="inputPlaceholder">
+                    <textarea ref="commentInput" v-model="newComment" rows="1" :maxlength="LIMITS.comment"
+                        :placeholder="inputPlaceholder" @input="onCommentInput" @keydown="onCommentKeydown"></textarea>
+                    <span v-if="commentError" class="comment-field-error">{{ commentError }}</span>
+                    <span v-else-if="commentCount > LIMITS.comment * 0.8" class="comment-field-count">{{ commentCount }}/{{ LIMITS.comment }}</span>
                     <button type="submit" :disabled="submitting || (!newComment.trim() && !mediaFile)">{{ replyingTo ? 'Reply' : 'Post'
                         }}</button>
                 </form>
@@ -572,6 +601,7 @@ watch(() => props.show, value => { if (value) loadComments(); });
     line-height: 1.55;
     white-space: pre-wrap;
     word-break: break-word;
+    overflow-wrap: anywhere;
 }
 
 .post-image {
@@ -647,6 +677,8 @@ watch(() => props.show, value => { if (value) loadComments(); });
     line-height: 1.5;
     white-space: pre-wrap;
     word-break: break-word;
+    overflow-wrap: anywhere;
+    max-width: 100%;
 }
 
 .comment-actions {
@@ -770,18 +802,27 @@ watch(() => props.show, value => { if (value) loadComments(); });
 }
 
 .add-comment {
+    position: relative;
     display: flex;
+    align-items: flex-end;
     gap: 10px;
     padding: 16px 22px;
     border-top: 2px solid var(--cd-border);
 }
 
-.add-comment input {
+.add-comment textarea {
     min-width: 0;
     flex: 1;
+    max-height: 120px;
+    resize: none;
+    overflow-y: hidden;
     border: 2px solid var(--cd-border);
-    border-radius: 999px;
+    border-radius: 18px;
     padding: 10px 16px;
+    font-family: inherit;
+    line-height: 1.4;
+    box-sizing: border-box;
+    overflow-wrap: anywhere;
     outline: none;
     background: var(--cd-surface);
     color: var(--cd-text);
@@ -791,7 +832,21 @@ watch(() => props.show, value => { if (value) loadComments(); });
     transition: background 0.12s, box-shadow 0.12s;
 }
 
-.add-comment input:focus {
+.comment-field-count,
+.comment-field-error {
+    position: absolute;
+    top: 2px;
+    right: 24px;
+    color: var(--cd-text-muted);
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.comment-field-error {
+    color: var(--cd-danger);
+}
+
+.add-comment textarea:focus {
     background: var(--cd-bg);
     box-shadow: 3px 3px 0 var(--cd-accent);
 }

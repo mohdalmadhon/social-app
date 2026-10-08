@@ -1,4 +1,5 @@
 <script setup>
+import { LIMITS } from '@/helpers/limits';
 import { ref, computed } from 'vue';
 
 import { deletePostGroup } from '@/api/common/friends.js';
@@ -82,6 +83,7 @@ async function onDelete(id) {
     <div class="existing-groups">
         <input
             v-model="groupSearchQuery"
+            :maxlength="LIMITS.search"
             type="text"
             placeholder="Search groups by name..."
             class="group-search-input"

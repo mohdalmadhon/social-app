@@ -1,4 +1,5 @@
 <script setup>
+import { LIMITS } from '@/helpers/limits';
 import { ref, computed, nextTick, watch, onBeforeUnmount } from 'vue';
 
 import { requestFollow, shareProfile } from '@/api/users/profiles';
@@ -392,7 +393,7 @@ onBeforeUnmount(() => {
                     </div>
                 </div>
 
-                <p class="about">
+                <p class="about user-text">
                     {{ props.bio }}
                 </p>
 
@@ -434,6 +435,7 @@ onBeforeUnmount(() => {
                     <input
                         ref="searchInput"
                         v-model="searchQuery"
+                        :maxlength="LIMITS.search"
                         type="text"
                         placeholder="Search users"
                         autocomplete="off"

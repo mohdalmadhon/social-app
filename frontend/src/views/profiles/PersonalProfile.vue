@@ -37,7 +37,7 @@ onMounted(() => {
     activeTab.value = ref(
         route.query.tab === 'posts' ? 'posts' : 'personal'
     );
-    
+
 });
 </script>
 

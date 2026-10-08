@@ -117,7 +117,10 @@ func (app *App) SearchPrivateChats(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	search := r.URL.Query().Get("search")
+	search, searchOK := readSearch(w, r)
+	if !searchOK {
+		return
+	}
 	if search == "" {
 		helpers.WriteJson(w, http.StatusOK, map[string]any{
 			"status": true,
@@ -164,6 +167,8 @@ func (app *App) AddMessages(w http.ResponseWriter, r *http.Request) {
 
 	var req request
 
+	r.Body = http.MaxBytesReader(w, r.Body, validation.MaxJSONBody)
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Println(err)
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
@@ -173,13 +178,16 @@ func (app *App) AddMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Content == "" {
+	cleanedContent, err := validation.ValidateChatMessage(req.Content)
+	if err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
-			"message": "message cannot be empty",
+			"message": err.Error(),
 		})
 		return
 	}
+
+	req.Content = cleanedContent
 
 	groupID := req.GroupID
 
@@ -291,8 +299,7 @@ func (app *App) AddMessages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	err := chats.AddMessages(app.DB, req.Content, userID, groupID)
-	if err != nil {
+	if err := chats.AddMessages(app.DB, req.Content, userID, groupID); err != nil {
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{
 			"status":  false,
 			"message": "could not send chat",
@@ -430,7 +437,9 @@ func (app *App) MakeNewGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := r.ParseMultipartForm(10 << 20); err != nil {
+	r.Body = http.MaxBytesReader(w, r.Body, validation.MaxFormMemory+(1<<20))
+
+	if err := r.ParseMultipartForm(validation.MaxFormMemory); err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
 			"message": "invalid form data",
@@ -447,7 +456,14 @@ func (app *App) MakeNewGroup(w http.ResponseWriter, r *http.Request) {
 	var userIDs []int
 
 	usersArray := r.FormValue("users")
-	log.Println(usersArray)
+	if len(usersArray) > 4096 {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": "invalid users array",
+		})
+		return
+	}
+
 	if usersArray != "" {
 		if err := json.Unmarshal([]byte(usersArray), &userIDs); err != nil {
 			helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
@@ -456,6 +472,10 @@ func (app *App) MakeNewGroup(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+	}
+
+	if !readIDList(w, "group members", userIDs) {
+		return
 	}
 
 	for _, id := range userIDs {
@@ -489,7 +509,7 @@ func (app *App) MakeNewGroup(w http.ResponseWriter, r *http.Request) {
 
 	avatar, header, err := r.FormFile("avatar")
 
-	if err := validation.ValidateGroup(group, header); err != nil {
+	if err := validation.ValidateGroup(&group, header); err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
 			"message": err.Error(),
@@ -565,7 +585,10 @@ func (app *App) SearchInvites(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var groupID int
-	search := r.URL.Query().Get("search")
+	search, searchOK := readSearch(w, r)
+	if !searchOK {
+		return
+	}
 
 	groupIDStr := r.URL.Query().Get("groupID")
 	if groupIDStr != "" {
@@ -617,6 +640,8 @@ func (app *App) AcceptInvite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req Request
+
+	r.Body = http.MaxBytesReader(w, r.Body, validation.MaxJSONBody)
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
@@ -715,7 +740,10 @@ func (app *App) DiscoverGroups(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	search := r.URL.Query().Get("search")
+	search, searchOK := readSearch(w, r)
+	if !searchOK {
+		return
+	}
 
 	groups, err := groups.DiscoverGroups(app.DB, userID, offset, search)
 	if err != nil && err != sql.ErrNoRows {
@@ -809,7 +837,10 @@ func (app *App) SearchMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	search := r.URL.Query().Get("search")
+	search, searchOK := readSearch(w, r)
+	if !searchOK {
+		return
+	}
 
 	ids, err := groups.SearchGroupMembers(app.DB, groupID, search, offset, 20)
 	if err != nil && err != sql.ErrNoRows {
@@ -857,6 +888,8 @@ func (app *App) GroupRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req Request
+
+	r.Body = http.MaxBytesReader(w, r.Body, validation.MaxJSONBody)
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
@@ -1070,6 +1103,8 @@ func (app *App) HandleGroupRequest(w http.ResponseWriter, r *http.Request) {
 
 	var req Request
 
+	r.Body = http.MaxBytesReader(w, r.Body, validation.MaxJSONBody)
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
@@ -1241,6 +1276,8 @@ func (app *App) MarkChatRead(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		GroupID int `json:"groupID"`
 	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, validation.MaxJSONBody)
 
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.GroupID <= 0 {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{

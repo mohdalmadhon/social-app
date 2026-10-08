@@ -316,8 +316,6 @@ func GetGroupEventVoters(db *sql.DB, eventID, response, limit, offset int) ([]mo
 	return voters, nil
 }
 
-// GetActiveMemberIDs returns the ids of the users who are accepted members of
-// a group (pending / declined invites are left out).
 func GetActiveMemberIDs(db *sql.DB, groupID int) ([]int, error) {
 	rows, err := db.Query(`
 		SELECT user_id

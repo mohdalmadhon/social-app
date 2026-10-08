@@ -1,4 +1,5 @@
 <script setup>
+import { LIMITS } from '@/helpers/limits';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import { postReaction } from '@/api/posts/actions';
@@ -335,6 +336,7 @@ onBeforeUnmount(() => {
                     <input
                         ref="searchInput"
                         v-model="searchQuery"
+                        :maxlength="LIMITS.search"
                         type="text"
                         placeholder="Search users"
                         autocomplete="off"

@@ -122,7 +122,7 @@ async function getGroupData() {
         if (result.isOwner) {
             isOwner.value = true;
         }
-        
+
         if (!resp.ok || !result.status) {
             addNotification(
                 result.message || result.messages || 'Could not get group data',
@@ -160,7 +160,6 @@ async function getGroupPosts(reset = false) {
         postsOffset.value += result.posts.length;
         currentUserId.value = result.userId;
 
-        
         if (result.posts.length < postsLimit) {
             postsHasMore.value = false;
         }
@@ -232,7 +231,6 @@ onUnmounted(() => {
             <main class="main-content">
                 <div class="content-container">
                     <BackToHome />
-
 
                     <div class="sticky-top">
                         <div class="header-wrapper">

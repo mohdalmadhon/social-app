@@ -1,4 +1,5 @@
 <script setup>
+import { LIMITS, validateGroupTitle, validateGroupDescription, limitIdList } from '@/helpers/limits';
 import { reactive, ref } from 'vue';
 
 import AvatarPicker from '@/components/groups/AvatarPicker.vue';
@@ -16,8 +17,8 @@ defineProps({
 
 const emit = defineEmits(['close', 'created']);
 
-const titleLimit = 50;
-const descriptionLimit = 300;
+const titleLimit = LIMITS.groupTitle;
+const descriptionLimit = LIMITS.groupDescription;
 
 const group = reactive({
     title: '',
@@ -38,18 +39,20 @@ function resetGroup() {
 }
 
 function validateGroup() {
-    const title = group.title.trim();
+    const titleError = validateGroupTitle(group.title);
 
-    if (!title) {
-        return 'Group name is required';
+    if (titleError) {
+        return titleError;
     }
 
-    if (title.length > titleLimit) {
-        return `Group name cannot exceed ${titleLimit} characters`;
+    const descriptionError = validateGroupDescription(group.description);
+
+    if (descriptionError) {
+        return descriptionError;
     }
 
-    if (group.description.length > descriptionLimit) {
-        return `Description cannot exceed ${descriptionLimit} characters`;
+    if (!limitIdList(group.members)) {
+        return `A group cannot have more than ${LIMITS.idList} members`;
     }
 
     return null;

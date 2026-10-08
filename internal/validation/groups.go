@@ -8,21 +8,16 @@ import (
 	"strings"
 )
 
-func ValidateGroup(g models.Group, image *multipart.FileHeader) error {
-	if len(g.Description) > 200 {
-		return errors.New("description length cannot be more then 200 character")
+func ValidateGroup(g *models.Group, image *multipart.FileHeader) error {
+	g.Title = strings.TrimSpace(g.Title)
+	g.Description = CleanText(g.Description)
+
+	if err := ValidateSingleLine("name", g.Title, 1, MaxGroupTitle); err != nil {
+		return err
 	}
 
-	if len(g.Description) == 0 {
-		return errors.New("group must have a description")
-	}
-
-	if len(g.Title) > 15 {
-		return errors.New("name length cannot be more then 15 character")
-	}
-
-	if len(g.Title) == 0 {
-		return errors.New("name must have a description")
+	if err := ValidateMultiline("description", g.Description, 1, MaxGroupDescription, 0); err != nil {
+		return err
 	}
 
 	if image != nil {
@@ -42,7 +37,33 @@ func ValidateGroup(g models.Group, image *multipart.FileHeader) error {
 		if image.Size <= 0 {
 			return errors.New("invalid image")
 		}
+
+		if image.Size > MaxAvatarSize {
+			return errors.New("image must be smaller than 5MB")
+		}
 	}
 
 	return nil
+}
+
+func ValidateGroupName(name string) (string, error) {
+	name = strings.TrimSpace(name)
+
+	if err := ValidateSingleLine("name", name, 1, MaxGroupTitle); err != nil {
+		return "", err
+	}
+
+	return name, nil
+}
+
+func ValidateNewGroup(group *models.NewGroup) error {
+	name, err := ValidateGroupName(group.Name)
+
+	if err != nil {
+		return err
+	}
+
+	group.Name = name
+
+	return ValidateIDList("group members", group.Users)
 }

@@ -7,8 +7,7 @@ type SearchUser struct {
 	Username  string `json:"username"`
 	Avatar    string `json:"avatar"`
 	IsPrivate bool   `json:"isPrivate"`
-	// FollowStatus is the searching user's follow state towards this user:
-	// -1 not following, 0 request pending, 1 following.
+
 	FollowStatus int  `json:"followStatus"`
 	IsFriend     bool `json:"isFriend"`
 	IsMe         bool `json:"isMe"`

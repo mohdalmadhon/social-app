@@ -1,3 +1,4 @@
+import { safeSearch } from '@/helpers/limits';
 import { sendWS } from "../socket/socket";
 
 export async function getPrivateChatsLists(offset) {
@@ -15,7 +16,7 @@ export async function getPrivateChatsLists(offset) {
 }
 
 export async function searchChats(offset, searchValue) {
-    const resp = await fetch(`/api/groups/search?offset=${offset}&private=1&search=${searchValue}`, {
+    const resp = await fetch(`/api/groups/search?offset=${offset}&private=1&search=${encodeURIComponent(safeSearch(searchValue))}`, {
         method: "GET",
         credentials: 'include'
     });
@@ -102,7 +103,7 @@ export async function getMessages(groupID, offset = 0, userID = 0) {
         method: "GET",
         credentials: 'include'
     });
-    
+
     const result = await resp.json();
     if (!resp.ok) {
         throw new Error(result.message || 'error hapened while sending message')

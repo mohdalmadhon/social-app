@@ -189,3 +189,19 @@ table {
         scroll-behavior: auto !important;
     }
 }
+
+body {
+    overflow-wrap: break-word;
+}
+
+textarea {
+    overflow-wrap: anywhere;
+}
+
+.user-text {
+    min-width: 0;
+    max-width: 100%;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}

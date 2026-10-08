@@ -33,9 +33,6 @@ export function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', value);
 }
 
-// Reads the saved theme (or falls back to light) and applies it to the
-// document. Meant to run as early as possible so pages never flash the
-// wrong theme.
 export function initTheme() {
     const theme = getThemeCookie();
     applyTheme(theme);

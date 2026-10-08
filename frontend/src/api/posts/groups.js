@@ -1,3 +1,4 @@
+import { safeSearch } from '@/helpers/limits';
 export async function addGroupPost(data) {
     const formData = new FormData();
 
@@ -50,7 +51,7 @@ export async function addGroupPost(data) {
 
 export async function getGroupMembers(searchValue = "", targetId, offset = 0) {
     const params = new URLSearchParams({
-        search: searchValue,
+        search: safeSearch(searchValue),
         targetid: targetId,
         offset: offset.toString()
     });
@@ -59,7 +60,7 @@ export async function getGroupMembers(searchValue = "", targetId, offset = 0) {
         method: "GET",
         credentials: "include"
     });
-    
+
     if (!resp.ok) {
         throw new Error("could not fetch data");
     }
@@ -70,7 +71,7 @@ export async function getGroupMembers(searchValue = "", targetId, offset = 0) {
         throw new Error("could not fetch data");
     }
     return result;
-} 
+}
 
 export async function getGroupPost(groupID, postID) {
     const params = new URLSearchParams({

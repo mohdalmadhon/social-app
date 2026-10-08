@@ -7,7 +7,15 @@ defineProps({
         type: String,
         default: 'text'
     },
-    placeholder: String
+    placeholder: String,
+    maxlength: {
+        type: Number,
+        default: 75
+    },
+    error: {
+        type: String,
+        default: ''
+    }
 })
 
 defineEmits(['update:modelValue'])
@@ -21,6 +29,7 @@ defineEmits(['update:modelValue'])
             v-if="type === 'textarea'"
             :id="id"
             :placeholder="placeholder"
+            :maxlength="maxlength"
             :value="modelValue"
             @input="$emit('update:modelValue', $event.target.value)"
         ></textarea>
@@ -30,13 +39,24 @@ defineEmits(['update:modelValue'])
             :id="id"
             :type="type"
             :placeholder="placeholder"
+            :maxlength="maxlength"
             :value="modelValue"
             @input="$emit('update:modelValue', $event.target.value)"
         >
+
+        <p v-if="error" class="field-error">{{ error }}</p>
     </div>
 </template>
 
 <style scoped>
+.field-error {
+    margin: 0;
+    color: #d93025;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    overflow-wrap: anywhere;
+}
+
 .form-field {
     display: flex;
     flex-direction: column;

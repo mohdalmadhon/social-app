@@ -1,7 +1,8 @@
+import { safeSearch } from '@/helpers/limits';
 export async function searchGroupMentions(groupID, search = '') {
     const params = new URLSearchParams({
         groupID: String(groupID),
-        search
+        search: safeSearch(search)
     });
 
     const response = await fetch(`/api/group/mentions?${params.toString()}`, {

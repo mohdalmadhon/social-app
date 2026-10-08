@@ -12,7 +12,7 @@ func GetPosts(db *sql.DB, groupID, userID, offset int) ([]models.Post, error) {
 	var posts []models.Post
 	rows, err := db.Query(`
 		SELECT id, content, user_id, image_path, location, created_at FROM group_posts
-		WHERE 
+		WHERE
 			group_id = ?
 		AND EXISTS (
 			SELECT 1 FROM groups_users WHERE user_id = ? AND group_id = ?
@@ -239,7 +239,7 @@ func InsertReaction(db *sql.DB, reaction models.Reaction) error {
 	if err != nil && err != sql.ErrNoRows {
 		return err
 	}
-	
+
 	if reaction.Value == currentValue {
 		_, err := db.Exec(`
 			DELETE FROM group_post_reactions

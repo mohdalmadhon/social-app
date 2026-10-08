@@ -1,5 +1,7 @@
+import { LIMITS, charCount } from "@/helpers/limits.js"
+
 export function validateName(name = "") {
-    if (name.length < 3 || name.length > 15) {
+    if (charCount(name) < LIMITS.nameMin || charCount(name) > LIMITS.name) {
         return "Name must be between 2 and 15 characters"
     }
 
@@ -17,7 +19,7 @@ export function validateUsername(username = "") {
         return ""
     }
 
-    if (username.length < 3 || username.length > 12) {
+    if (charCount(username) < LIMITS.usernameMin || charCount(username) > LIMITS.username) {
         return "Username must be between 3 and 12 characters"
     }
 
@@ -31,7 +33,7 @@ export function validateUsername(username = "") {
 }
 
 export function validateEmail(email = "") {
-    if (email.length < 5 || email.length > 75) {
+    if (charCount(email) < LIMITS.emailMin || charCount(email) > LIMITS.email) {
         return "Email must be between 5 and 75 characters"
     }
 
@@ -45,11 +47,11 @@ export function validateEmail(email = "") {
 }
 
 export function validatePassword(password = "") {
-    if (password.length < 8) {
+    if (charCount(password) < LIMITS.passwordMin) {
         return "Password must be at least 8 characters long"
     }
 
-    if (password.length > 75) {
+    if (charCount(password) > LIMITS.password) {
         return "Password must be less than 75 characters long"
     }
 
@@ -82,8 +84,8 @@ export function validateAbout(about = "") {
         return ""
     }
 
-    if (about.length > 1000) {
-        return "About is too long"
+    if (charCount(about) > LIMITS.about) {
+        return "About cannot be more than 1000 characters"
     }
 
     return ""
@@ -111,7 +113,7 @@ export function validateDOB(dob = "") {
 }
 
 export function handleNameInput(value = "") {
-    let result = value.replace(/\s+/g, " ").trimStart()
+    let result = value.replace(/\s+/g, " ").trimStart().slice(0, LIMITS.name)
 
     if (result.length > 0) {
         result = result.charAt(0).toUpperCase() + result.slice(1).toLowerCase()
@@ -137,6 +139,10 @@ export function validateAvatar(file) {
 
     if (!allowedTypes.includes(file.type)) {
         return "Avatar must be a JPG, PNG, or GIF file"
+    }
+
+    if (file.size > LIMITS.avatarSize) {
+        return "Avatar must be smaller than 5MB"
     }
 
     return ""

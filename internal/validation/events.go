@@ -8,23 +8,24 @@ import (
 	"social/internal/models"
 )
 
-func ValidateGroupEvent(event models.NewGroupEvent) error {
+func ValidateGroupEvent(event *models.NewGroupEvent) error {
 	if event.GroupID <= 0 {
 		return errors.New("invalid group")
 	}
 
-	title := strings.TrimSpace(event.Title)
+	event.Title = strings.TrimSpace(event.Title)
+	event.Description = CleanText(event.Description)
 
-	if len(title) == 0 {
-		return errors.New("title cannot be empty")
+	if err := ValidateSingleLine("title", event.Title, 1, MaxEventTitle); err != nil {
+		return err
 	}
 
-	if len(title) > 100 {
-		return errors.New("title cannot be more than 100 character")
+	if err := ValidateMultiline("description", event.Description, 0, MaxEventDescription, 0); err != nil {
+		return err
 	}
 
-	if len(event.Description) > 1000 {
-		return errors.New("description cannot be more than 1000 character")
+	if RuneLen(event.EventTime) > 64 {
+		return errors.New("invalid event day and time")
 	}
 
 	if len(strings.TrimSpace(event.EventTime)) == 0 {

@@ -1,4 +1,5 @@
 <script setup>
+import { LIMITS, validateGroupTitle } from '@/helpers/limits';
 import { ref, computed, watch, onMounted } from 'vue';
 
 import { updatePostGroup, getFriends } from '@/api/common/friends.js';
@@ -116,8 +117,10 @@ function confirmRemoveMember() {
 async function handleSave() {
     error.value = '';
 
-    if (!editName.value.trim()) {
-        error.value = 'Group name is required.';
+    const nameError = validateGroupTitle(editName.value);
+
+    if (nameError) {
+        error.value = nameError;
         return;
     }
 
@@ -159,7 +162,7 @@ async function handleSave() {
                 <label class="field">
                     <span class="field-label">Group name</span>
 
-                    <input v-model="editName" type="text" placeholder="e.g. goats" class="text-input" />
+                    <input v-model="editName" type="text" :maxlength="LIMITS.groupTitle" placeholder="e.g. goats" class="text-input" />
                 </label>
 
                 <div class="field">

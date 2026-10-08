@@ -35,7 +35,7 @@ const routes = [
     {
         path: '/user',
         component: Profile
-    }, 
+    },
     {
         path: '/post/new',
         component: AddPostPage

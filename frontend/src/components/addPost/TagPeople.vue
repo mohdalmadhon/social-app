@@ -1,4 +1,5 @@
 <script setup>
+import { LIMITS } from '@/helpers/limits';
 import { getFriends } from '@/api/common/friends';
 import { getGroupMembers } from '@/api/posts/groups';
 import { activePage } from '@/data/chatState';
@@ -128,6 +129,7 @@ function removePerson(id) {
                     id="post-tag"
                     type="text"
                     placeholder="Search for people"
+                    :maxlength="LIMITS.search"
                     v-model="search"
                     @input="handleSearchFriends"
                 >

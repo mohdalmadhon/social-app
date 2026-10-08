@@ -1,4 +1,5 @@
 <script setup>
+import { LIMITS } from '@/helpers/limits';
 import { useSearchBox } from '@/helpers/search/useSearchBox';
 
 const { searchQuery, submitSearch, clearSearch } = useSearchBox();
@@ -28,6 +29,7 @@ const { searchQuery, submitSearch, clearSearch } = useSearchBox();
 
         <input
             v-model="searchQuery"
+            :maxlength="LIMITS.search"
             type="text"
             placeholder="Search groups, users and posts..."
             class="search-input"

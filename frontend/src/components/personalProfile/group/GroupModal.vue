@@ -1,4 +1,5 @@
 <script setup>
+import { LIMITS, validateGroupTitle } from '@/helpers/limits';
 import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { addPostGroup, getFriends } from '@/api/common/friends.js';
 import { addNotification } from '@/data/notifications';
@@ -61,10 +62,10 @@ const filteredFriends = computed(() => friends.value);
 
 const nameError = computed(() => {
     if (!nameTouched.value) return null;
-    return name.value.trim() ? null : 'Group name is required';
+    return validateGroupTitle(name.value) || null;
 });
 
-const canSubmit = computed(() => !!name.value.trim());
+const canSubmit = computed(() => !validateGroupTitle(name.value));
 
 function toggleFriend(friend) {
     const index = selected.value.findIndex(item => Number(item.id) === Number(friend.id));
@@ -179,7 +180,7 @@ onUnmounted(() => {
                     Group name <span class="required">*</span>
                 </label>
 
-                <input v-model="name" placeholder="Close Friends" class="input" :class="{ invalid: nameError }"
+                <input v-model="name" :maxlength="LIMITS.groupTitle" placeholder="Close Friends" class="input" :class="{ invalid: nameError }"
                     @blur="nameTouched = true" />
 
                 <p v-if="nameError" class="field-error">

@@ -196,9 +196,9 @@ onUnmounted(() => {
                 </header>
 
                 <div class="event-info">
-                    <h3 class="event-title">{{ event.title }}</h3>
+                    <h3 class="event-title user-text">{{ event.title }}</h3>
 
-                    <p v-if="event.description" class="event-description">
+                    <p v-if="event.description" class="event-description user-text">
                         {{ event.description }}
                     </p>
                 </div>

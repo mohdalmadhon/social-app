@@ -3,9 +3,6 @@ import { useRoute, useRouter } from 'vue-router';
 
 export const SEARCH_PATH = '/search';
 
-// Shared behaviour of the search inputs (top navigation and home page):
-// keeps the input in sync with the current search page query and sends
-// the user to the results page when a search is submitted.
 export function useSearchBox() {
     const route = useRoute();
     const router = useRouter();

@@ -126,6 +126,9 @@ func (app *App) UpdateUserInfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var userData models.UserRegistration
+
+	r.Body = http.MaxBytesReader(w, r.Body, validation.MaxJSONBody)
+
 	if err := json.NewDecoder(r.Body).Decode(&userData); err != nil {
 		log.Println(err)
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
@@ -134,7 +137,6 @@ func (app *App) UpdateUserInfo(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	log.Println(userData.IsPrivate)
 	if err := validation.ValidateUpdateInfo(&userData); err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
@@ -180,6 +182,8 @@ func (app *App) UpdateUserAvatar(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, validation.MaxAvatarSize+(1<<20))
 
 	file, header, err := r.FormFile("avatar")
 
@@ -283,6 +287,9 @@ func (app *App) UpdateUserAbout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var userAbout models.UserAbout
+
+	r.Body = http.MaxBytesReader(w, r.Body, validation.MaxJSONBody)
+
 	if err := json.NewDecoder(r.Body).Decode(&userAbout); err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
@@ -290,7 +297,14 @@ func (app *App) UpdateUserAbout(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	log.Println(userAbout.Instgram)
+
+	if err := validation.ValidateAboutFields(&userAbout); err != nil {
+		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
+			"status":  false,
+			"message": err.Error(),
+		})
+		return
+	}
 	if err := profiles.UpdateUserAbout(app.DB, userID, &userAbout); err != nil {
 		log.Println(err)
 		helpers.WriteJson(w, http.StatusInternalServerError, map[string]any{

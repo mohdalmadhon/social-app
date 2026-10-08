@@ -57,7 +57,7 @@ function initials(name) {
                 {{ name }}
             </h1>
 
-            <p v-if="description" class="group-description">
+            <p v-if="description" class="group-description user-text">
                 {{ description }}
             </p>
         </div>

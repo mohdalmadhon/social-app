@@ -6,12 +6,12 @@ import (
 )
 
 func ValidateUpdateInfo(userData *models.UserRegistration) error {
-
 	NormalizeRegisterData(userData)
 
 	if err := validateNames(&userData.FirstName); err != nil {
 		return err
 	}
+
 	if err := validateNames(&userData.LastName); err != nil {
 		return err
 	}
@@ -31,7 +31,7 @@ func ValidateUpdateInfo(userData *models.UserRegistration) error {
 	}
 
 	if err := validateAbout(&userData.About); err != nil {
-		return nil
+		return err
 	}
 
 	if userData.IsPrivate != 1 && userData.IsPrivate != 0 {

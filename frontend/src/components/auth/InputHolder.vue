@@ -3,7 +3,7 @@ defineProps(['name', 'maxLength', 'minLength', 'type', 'id', 'placeHolder', 'req
 </script>
 
 <template>
-    <input :name="name" :maxlength="maxLength" :minlength="minLength" :type="type || 'text'" :id="id"
+    <input :name="name" :maxlength="maxLength || 75" :minlength="minLength" :type="type || 'text'" :id="id"
         :placeholder="placeHolder" :required="required" class="flip-card__input">
 </template>
 

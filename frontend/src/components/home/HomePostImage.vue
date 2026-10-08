@@ -12,7 +12,7 @@ const props = defineProps({
         type: Array,
         default: () => []
     },
-    
+
     auto: {
         type: Boolean,
         default: false

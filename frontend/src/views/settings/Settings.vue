@@ -1,4 +1,5 @@
 <script setup>
+import { LIMITS } from '@/helpers/limits';
 import { ref, onMounted } from 'vue';
 import SideNavigation from '@/components/layout/SideNavigation.vue';
 import TopNavigation from '@/components/layout/TopNavigation.vue';
@@ -442,6 +443,7 @@ async function confirmDeleteAccount() {
 
                             <input
                                 v-model="confirmText"
+                                :maxlength="LIMITS.deleteConfirm"
                                 type="text"
                                 placeholder="DELETE"
                                 autocomplete="off"

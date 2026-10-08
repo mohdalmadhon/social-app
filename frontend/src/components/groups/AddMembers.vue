@@ -1,4 +1,5 @@
 <script setup>
+import { LIMITS } from '@/helpers/limits';
 import { ref } from 'vue';
 import { searchInvites } from '@/api/chats/search';
 import { addNotification } from '@/data/notifications';
@@ -126,6 +127,7 @@ function removePerson(id) {
                 <input
                     id="group-members"
                     v-model="search"
+                    :maxlength="LIMITS.search"
                     type="text"
                     placeholder="Search for people"
                     @input="handleSearchFriends"

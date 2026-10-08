@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"social/database/groups"
 	"social/internal/helpers"
+	"social/internal/validation"
 )
 
 func (app *App) InviteMember(w http.ResponseWriter, r *http.Request) {
@@ -25,6 +26,8 @@ func (app *App) InviteMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req Request
+	r.Body = http.MaxBytesReader(w, r.Body, validation.MaxJSONBody)
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		helpers.WriteJson(w, http.StatusBadRequest, map[string]any{
 			"status":  false,
@@ -38,6 +41,10 @@ func (app *App) InviteMember(w http.ResponseWriter, r *http.Request) {
 			"status":  false,
 			"message": "invalid group or users",
 		})
+		return
+	}
+
+	if !readIDList(w, "invite list", req.UserIDs) {
 		return
 	}
 

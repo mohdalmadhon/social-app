@@ -78,7 +78,7 @@ func AddGroup(db *sql.DB, group models.NewGroup) error {
 }
 
 func DeleteGroup(db *sql.DB, groupID, userID int) error {
-	_, err := db.Exec(`DELETE FROM user_posts_groups 
+	_, err := db.Exec(`DELETE FROM user_posts_groups
 					   WHERE user_id = ? AND id = ?`, userID, groupID)
 	return err
 }
@@ -149,7 +149,7 @@ func MakeNewGroup(db *sql.DB, g models.Group, userIDs []int) (models.Group, []in
 func AddMembers(db *sql.DB, groupID, userID int) error {
 	_, err := db.Exec(`
 			INSERT INTO groups_users (group_id, user_id, status)
-			VALUES (?,?, 1)		
+			VALUES (?,?, 1)
 		`, groupID, userID)
 	return err
 }
@@ -312,7 +312,7 @@ func GetGroupChats(db *sql.DB, userID, offset int) ([]models.Group, error) {
 	groups := make([]models.Group, 0)
 
 	rows, err := db.Query(`
-		SELECT 
+		SELECT
 			g.id,
 			g.name,
 			g.avatar,

@@ -274,7 +274,6 @@ func GetGroupMembersIds(db *sql.DB, groupID int) ([]int, error) {
 	return ids, nil
 }
 
-// GetGroupName returns the name of a group chat ("" when it has none).
 func GetGroupName(db *sql.DB, groupID int) (string, error) {
 	var name string
 

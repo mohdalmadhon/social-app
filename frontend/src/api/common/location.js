@@ -1,10 +1,8 @@
+import { safeSearch } from '@/helpers/limits';
 
-// this function fetch the location data from api 
-//
-// @returns array of objects
 export async function getSuggestedLocations(searchValue = "") {
     const resp = await fetch(
-        `/api/location/search?q=${encodeURIComponent(searchValue)}`,
+        `/api/location/search?q=${encodeURIComponent(safeSearch(searchValue))}`,
         {
             method: "GET"
         }
@@ -15,7 +13,6 @@ export async function getSuggestedLocations(searchValue = "") {
     }
 
     const data = await resp.json();
-
 
     return data;
 }
